@@ -14,7 +14,7 @@ import {
   UserRound,
 } from "lucide-react";
 import { Button, Input, Modal, Select, Toast } from "@douyinfe/semi-ui";
-import { Channel } from "wukongimjssdk";
+import { Channel, WKSDK } from "wukongimjssdk";
 import WKApp from "../../App";
 import { wkConfirm } from "../../Components/WKModal";
 import { formatFileSize, getFileIconInfo } from "../../Messages/File";
@@ -106,6 +106,9 @@ function useDocumentState() {
 
   useEffect(() => {
     reload();
+    return documentRepository.subscribe((next) => {
+      setState(next);
+    });
   }, []);
 
   return { state, setState, reload };
@@ -241,21 +244,7 @@ function StatusPill({ file }: { file: DocumentAsset }) {
 
 export default function DocumentsPage() {
   const { state } = useDocumentState();
-  const [keyword, setKeyword] = useState("");
   const currentUser = getCurrentUserName();
-
-  const recentFiles = useMemo(() => {
-    if (!state) return [];
-    return filterFiles(state.files, {
-      view: "recent",
-      currentUser,
-      keyword,
-      kind: "all",
-      source: "all",
-      uploader: "all",
-      sort: "recent",
-    }).slice(0, 4);
-  }, [state, keyword, currentUser]);
 
   return (
     <div className="wk-docs-entry">
@@ -272,15 +261,6 @@ export default function DocumentsPage() {
           <FolderOpen size={18} />
         </button>
       </div>
-
-      <label className="wk-docs-search">
-        <Search size={16} />
-        <input
-          value={keyword}
-          onChange={(event) => setKeyword(event.target.value)}
-          placeholder="搜索文件、来源、上传人"
-        />
-      </label>
 
       <section className="wk-docs-entry-section">
         <div className="wk-docs-nav-list">
@@ -299,33 +279,6 @@ export default function DocumentsPage() {
                 <small>{getViewCount(state, item.key, currentUser)}</small>
               </button>
             ))}
-        </div>
-      </section>
-
-      <section className="wk-docs-entry-section">
-        <div className="wk-docs-section-title">
-          <span>最近查看</span>
-          <button onClick={() => navigateWorkspace({ view: "recent" })}>
-            全部
-          </button>
-        </div>
-        <div className="wk-docs-compact-list">
-          {recentFiles.map((file) => (
-            <button
-              key={file.id}
-              className="wk-docs-compact-file"
-              onClick={() =>
-                navigateWorkspace({ view: "recent", fileId: file.id })
-              }
-            >
-              <FileBadge file={file} />
-              <span>
-                <strong>{file.name}</strong>
-                <em>{file.sourceName}</em>
-              </span>
-              <StatusPill file={file} />
-            </button>
-          ))}
         </div>
       </section>
 
@@ -379,6 +332,12 @@ export function DocumentsWorkspace() {
     );
   }, [state]);
   const activeTitle = spaceName || getViewLabel(view);
+  const hasActiveFilters =
+    Boolean(keyword.trim()) ||
+    kind !== "all" ||
+    source !== "all" ||
+    uploader !== "all" ||
+    sort !== "recent";
   const visibleFiles = useMemo(() => {
     if (!state) return [];
     return filterFiles(state.files, {
@@ -461,6 +420,14 @@ export function DocumentsWorkspace() {
     Toast.success(message);
   }
 
+  function clearFilters() {
+    setKeyword("");
+    setKind("all");
+    setSource("all");
+    setUploader("all");
+    setSort("recent");
+  }
+
   async function showPreview(file: DocumentAsset) {
     if (!file.previewable) {
       Toast.warning("该类型暂不支持在线预览，可下载后查看");
@@ -482,25 +449,36 @@ export function DocumentsWorkspace() {
       Toast.warning("直接上传的文件没有来源会话");
       return;
     }
+    const channel = new Channel(file.sourceChannelId, file.sourceChannelType);
+    const conversation =
+      WKSDK.shared().conversationManager.findConversation(channel);
+    if (!conversation) {
+      Toast.warning("来源会话暂不可访问");
+      return;
+    }
     try {
-      WKApp.endpoints.showConversation(
-        new Channel(file.sourceChannelId, file.sourceChannelType)
-      );
+      WKApp.endpoints.showConversation(channel);
       Toast.success(`正在打开来源会话：${file.sourceName}`);
     } catch (error) {
       Toast.warning("来源会话暂不可访问");
     }
   }
 
-  function archiveSelectedFile(file: DocumentAsset) {
+  async function archiveSelectedFile(file: DocumentAsset) {
     if (!archiveSpaceName) {
       Toast.warning("请选择目标空间");
       return;
     }
-    apply(
-      documentRepository.archiveFile(file.id, archiveSpaceName),
-      `已保存到${archiveSpaceName}`
+    const next = await documentRepository.archiveFile(
+      file.id,
+      archiveSpaceName,
+      currentUser
     );
+    setState(next);
+    setView("space");
+    setSpaceName(archiveSpaceName);
+    setSelectedId(file.id);
+    Toast.success(`已保存到${archiveSpaceName}`);
   }
 
   async function submitUpload() {
@@ -541,6 +519,16 @@ export function DocumentsWorkspace() {
       onOk: () =>
         apply(documentRepository.deleteFile(file.id), "已移动到回收站"),
     });
+  }
+
+  async function restoreSelectedFile(file: DocumentAsset) {
+    const targetSpaceName = file.spaceName === "会话文件" ? "" : file.spaceName;
+    const next = await documentRepository.restoreFile(file.id, currentUser);
+    setState(next);
+    setView(targetSpaceName ? "space" : "conversation");
+    setSpaceName(targetSpaceName);
+    setSelectedId(file.id);
+    Toast.success("已恢复文件");
   }
 
   return (
@@ -661,7 +649,12 @@ export function DocumentsWorkspace() {
               </button>
             ))}
             {visibleFiles.length === 0 && (
-              <div className="wk-docs-empty">没有匹配的文件</div>
+              <div className="wk-docs-empty">
+                <span>没有匹配的文件</span>
+                {hasActiveFilters && (
+                  <Button onClick={clearFilters}>清空筛选</Button>
+                )}
+              </div>
             )}
           </div>
         </section>
@@ -678,28 +671,30 @@ export function DocumentsWorkspace() {
                 <StatusPill file={selectedFile} />
               </div>
 
-              <div className="wk-docs-actions">
-                <Button
-                  icon={<Eye size={15} />}
-                  onClick={() => showPreview(selectedFile)}
-                >
-                  预览
-                </Button>
-                <Button
-                  icon={<Download size={15} />}
-                  onClick={() => download(selectedFile)}
-                >
-                  下载
-                </Button>
-                {selectedFile.sourceChannelId && (
+              {selectedFile.status !== "deleted" && (
+                <div className="wk-docs-actions">
                   <Button
-                    icon={<ExternalLink size={15} />}
-                    onClick={() => openSource(selectedFile)}
+                    icon={<Eye size={15} />}
+                    onClick={() => showPreview(selectedFile)}
                   >
-                    来源会话
+                    预览
                   </Button>
-                )}
-              </div>
+                  <Button
+                    icon={<Download size={15} />}
+                    onClick={() => download(selectedFile)}
+                  >
+                    下载
+                  </Button>
+                  {selectedFile.sourceChannelId && (
+                    <Button
+                      icon={<ExternalLink size={15} />}
+                      onClick={() => openSource(selectedFile)}
+                    >
+                      来源会话
+                    </Button>
+                  )}
+                </div>
+              )}
 
               <div className="wk-docs-detail-grid">
                 <Info
@@ -763,12 +758,7 @@ export function DocumentsWorkspace() {
                   ) : (
                     <Button
                       icon={<RotateCcw size={15} />}
-                      onClick={() =>
-                        apply(
-                          documentRepository.restoreFile(selectedFile.id),
-                          "已恢复文件"
-                        )
-                      }
+                      onClick={() => restoreSelectedFile(selectedFile)}
                     >
                       恢复
                     </Button>

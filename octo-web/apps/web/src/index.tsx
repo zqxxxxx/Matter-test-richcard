@@ -56,12 +56,12 @@ function seedLocalDevLogin() {
 
   const sid = new URLSearchParams(window.location.search).get("sid") || "";
   if (!sid) return;
-  if (localStorage.getItem(`token${sid}`)) return;
-
-  localStorage.setItem(`token${sid}`, "mock-token");
-  localStorage.setItem(`uid${sid}`, "mock-user");
-  localStorage.setItem(`name${sid}`, "王珂");
-  localStorage.setItem(`app_id${sid}`, "octo-web");
+  if (!localStorage.getItem(`token${sid}`)) {
+    localStorage.setItem(`token${sid}`, "mock-token");
+    localStorage.setItem(`uid${sid}`, "mock-user");
+    localStorage.setItem(`app_id${sid}`, "octo-web");
+  }
+  localStorage.setItem(`name${sid}`, "陈一");
   localStorage.setItem("currentSpaceId", "mock-space");
 }
 

@@ -158,6 +158,31 @@ describe("DocumentRepository", () => {
       target: "Octo 文件空间需求清单.xlsx",
     });
   });
+
+  it("notifies subscribers when document state changes", async () => {
+    const repo = new MockDocumentRepository();
+    const snapshots: number[] = [];
+
+    const unsubscribe = repo.subscribe((next) => {
+      snapshots.push(next.files.length);
+    });
+
+    await repo.uploadFile(
+      {
+        id: "UPLOAD-STATE-001",
+        name: "状态同步验证.docx",
+        extension: "docx",
+        size: 4096,
+        uploader: "陈一",
+      },
+      "产品部公共空间",
+      "陈一"
+    );
+
+    unsubscribe();
+
+    expect(snapshots).toEqual([6]);
+  });
 });
 
 describe("createDocumentSummary", () => {

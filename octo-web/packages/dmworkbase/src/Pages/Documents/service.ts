@@ -11,6 +11,7 @@ import type {
 
 export interface DocumentRepository {
   load(): Promise<DocumentState>;
+  subscribe(listener: (state: DocumentState) => void): () => void;
   archiveFile(
     fileId: string,
     spaceName: string,
@@ -123,6 +124,7 @@ export function createDocumentSummary(state: DocumentState): DocumentSummary {
 
 export class MockDocumentRepository implements DocumentRepository {
   private state: DocumentState;
+  private listeners = new Set<(state: DocumentState) => void>();
 
   constructor(seed: DocumentState = initialDocumentState) {
     this.state = cloneState(seed);
@@ -130,6 +132,18 @@ export class MockDocumentRepository implements DocumentRepository {
 
   async load() {
     return cloneState(this.state);
+  }
+
+  subscribe(listener: (state: DocumentState) => void) {
+    this.listeners.add(listener);
+    return () => {
+      this.listeners.delete(listener);
+    };
+  }
+
+  private emitChange() {
+    const snapshot = cloneState(this.state);
+    this.listeners.forEach((listener) => listener(snapshot));
   }
 
   async archiveFile(fileId: string, spaceName: string, actor = DEFAULT_ACTOR) {
@@ -154,6 +168,7 @@ export class MockDocumentRepository implements DocumentRepository {
     );
 
     this.state = next;
+    this.emitChange();
     return this.load();
   }
 
@@ -181,6 +196,7 @@ export class MockDocumentRepository implements DocumentRepository {
         )
       );
       this.state = next;
+      this.emitChange();
       return this.load();
     }
 
@@ -225,6 +241,7 @@ export class MockDocumentRepository implements DocumentRepository {
     );
 
     this.state = next;
+    this.emitChange();
     return this.load();
   }
 
@@ -272,6 +289,7 @@ export class MockDocumentRepository implements DocumentRepository {
     );
 
     this.state = next;
+    this.emitChange();
     return this.load();
   }
 
@@ -300,6 +318,7 @@ export class MockDocumentRepository implements DocumentRepository {
     }
 
     this.state = next;
+    this.emitChange();
     return this.load();
   }
 
@@ -314,6 +333,7 @@ export class MockDocumentRepository implements DocumentRepository {
     );
 
     this.state = next;
+    this.emitChange();
     return this.load();
   }
 
@@ -329,6 +349,7 @@ export class MockDocumentRepository implements DocumentRepository {
     );
 
     this.state = next;
+    this.emitChange();
     return this.load();
   }
 
@@ -350,6 +371,7 @@ export class MockDocumentRepository implements DocumentRepository {
     );
 
     this.state = next;
+    this.emitChange();
     return this.load();
   }
 
@@ -372,6 +394,7 @@ export class MockDocumentRepository implements DocumentRepository {
     );
 
     this.state = next;
+    this.emitChange();
     return this.load();
   }
 }

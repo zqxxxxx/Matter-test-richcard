@@ -56,28 +56,6 @@
   color: var(--wk-text-primary, var(--text-primary));
 }
 
-.wk-docs-search {
-  height: 36px;
-  display: flex;
-  align-items: center;
-  gap: var(--wk-sp-2);
-  padding: 0 var(--wk-sp-3);
-  border: 1px solid var(--wk-border-default, var(--border-color));
-  border-radius: var(--wk-r-md);
-  background: var(--wk-bg-surface, var(--card-bg));
-  color: var(--wk-text-tertiary, var(--text-secondary));
-}
-
-.wk-docs-search input {
-  min-width: 0;
-  flex: 1;
-  border: 0;
-  outline: 0;
-  background: transparent;
-  color: var(--wk-text-primary, var(--text-primary));
-  font: var(--wk-text-caption);
-}
-
 .wk-docs-entry-section {
   display: flex;
   flex-direction: column;
@@ -155,14 +133,12 @@
   text-align: right;
 }
 
-.wk-docs-compact-list,
 .wk-docs-space-list {
   display: flex;
   flex-direction: column;
   gap: var(--wk-sp-1);
 }
 
-.wk-docs-compact-file,
 .wk-docs-space-row {
   width: 100%;
   min-height: 46px;
@@ -178,18 +154,15 @@
   cursor: pointer;
 }
 
-.wk-docs-compact-file:hover,
 .wk-docs-space-row:hover {
   background: var(--wk-bg-hover, var(--wk-bg-item-hover));
 }
 
-.wk-docs-compact-file > span,
 .wk-docs-space-row > span {
   min-width: 0;
   flex: 1;
 }
 
-.wk-docs-compact-file strong,
 .wk-docs-space-row strong {
   display: block;
   overflow: hidden;
@@ -199,7 +172,6 @@
   white-space: nowrap;
 }
 
-.wk-docs-compact-file em,
 .wk-docs-space-row em {
   display: block;
   margin-top: var(--wk-sp-1);
@@ -576,6 +548,11 @@
 }
 
 .wk-docs-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--wk-sp-2);
   padding: var(--wk-sp-8);
   color: var(--wk-text-tertiary, var(--text-secondary));
   font: var(--wk-text-caption);
