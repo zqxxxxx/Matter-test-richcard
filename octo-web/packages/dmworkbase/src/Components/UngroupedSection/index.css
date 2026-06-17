@@ -1,0 +1,26 @@
+.wk-ungrouped-section {
+    display: flex;
+    flex-direction: column;
+}
+
+.wk-ungrouped-section__header {
+    display: flex;
+    align-items: center;
+    padding: 6px 8px;
+    gap: 8px;
+    border-radius: 6px;
+    box-sizing: border-box;
+}
+
+.wk-ungrouped-section__title {
+    flex: 1;
+    font-size: var(--wk-text-size-sm);
+    font-weight: var(--wk-font-semibold);
+    color: var(--wk-text-tertiary);
+}
+
+/* drop-over 高亮 */
+.wk-ungrouped-section--drop-over > .wk-ungrouped-section__header {
+    background: rgba(28, 28, 35, 0.08);
+    border-radius: var(--wk-r-sm, 6px);
+}

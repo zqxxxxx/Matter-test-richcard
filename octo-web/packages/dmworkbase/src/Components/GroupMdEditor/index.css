@@ -1,0 +1,73 @@
+.wk-groupmd-editor {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: var(--wk-sp-4);
+}
+
+.wk-groupmd-loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 200px;
+}
+
+.wk-groupmd-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--wk-sp-2);
+}
+
+.wk-groupmd-tabs {
+  display: flex;
+  gap: var(--wk-sp-1);
+}
+
+.wk-groupmd-actions {
+  display: flex;
+  gap: var(--wk-sp-2);
+}
+
+.wk-groupmd-bytecount {
+  font-size: var(--wk-text-size-sm);
+  color: var(--wk-text-secondary);
+  margin-bottom: var(--wk-sp-2);
+  display: flex;
+  align-items: center;
+  gap: var(--wk-sp-3);
+}
+
+.wk-groupmd-bytecount-over {
+  color: var(--wk-color-danger);
+}
+
+.wk-groupmd-version {
+  font-size: var(--wk-text-size-xs);
+  color: var(--wk-text-tertiary);
+}
+
+.wk-groupmd-edit-area {
+  flex: 1;
+  overflow: auto;
+}
+
+.wk-groupmd-preview {
+  flex: 1;
+  overflow: auto;
+}
+
+.wk-groupmd-preview-content {
+  word-break: break-word;
+  margin: 0;
+  padding: var(--wk-sp-3);
+  background: var(--wk-bg-surface);
+  border-radius: var(--wk-r-sm);
+}
+
+.wk-groupmd-empty {
+  color: var(--wk-text-secondary);
+  text-align: center;
+  padding: var(--wk-sp-10) 0;
+  font-size: var(--wk-text-size-md);
+}

@@ -1,0 +1,111 @@
+name: 🐛 Bug Report
+description: Report a bug
+labels: ["type:bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug! Please fill in as much detail as possible.
+  - type: textarea
+    id: summary
+    attributes:
+      label: Description
+      description: Briefly describe the issue
+      placeholder: The "Chat" tab in the search modal shows contacts instead of chat messages
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to Reproduce
+      description: List the steps to reproduce the issue
+      placeholder: |
+        1. Open DMWork Web client
+        2. Click the search icon
+        3. Enter a keyword
+        4. Observe the "Chat" tab content
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      placeholder: The "Chat" tab should show chat message search results
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual Behavior
+      placeholder: The "Chat" tab shows contacts and group lists instead
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Client Version
+      placeholder: "Web v1.0.6"
+    validations:
+      required: true
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options:
+        - Web
+        - Electron (macOS)
+        - Electron (Windows)
+        - Electron (Linux)
+        - Tauri
+    validations:
+      required: true
+  - type: dropdown
+    id: component
+    attributes:
+      label: Affected Component
+      options:
+        - Conversation / Chat
+        - Message List
+        - Message Input
+        - Global Search
+        - Contacts
+        - Channel Settings
+        - Login / Registration
+        - Other
+    validations:
+      required: true
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity
+      options:
+        - P0 - Page crash / Unusable
+        - P1 - Core feature broken
+        - P2 - Non-core feature broken
+        - P3 - UX issue
+    validations:
+      required: true
+  - type: checkboxes
+    id: reproducible
+    attributes:
+      label: Reproducibility
+      options:
+        - label: Consistently reproducible
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Browser, OS, screen resolution, etc.
+      placeholder: |
+        - Browser: Chrome 133
+        - OS: macOS 15.3
+        - Resolution: 1920x1080
+    validations:
+      required: false
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / Screenshots
+      description: Browser console errors, screenshots, or screen recordings (redact sensitive info)
+    validations:
+      required: false

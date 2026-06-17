@@ -1,0 +1,882 @@
+package webhook
+
+import (
+	"bytes"
+	"compress/gzip"
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"net"
+	"os"
+	"runtime/debug"
+	"strconv"
+	"strings"
+
+	"github.com/Mininglamp-OSS/octo-lib/common"
+	"github.com/Mininglamp-OSS/octo-lib/config"
+	"github.com/Mininglamp-OSS/octo-lib/pkg/log"
+	"github.com/Mininglamp-OSS/octo-lib/pkg/pool"
+	"github.com/Mininglamp-OSS/octo-lib/pkg/util"
+	"github.com/Mininglamp-OSS/octo-lib/pkg/wkhook"
+	"github.com/Mininglamp-OSS/octo-lib/pkg/wkhttp"
+	"github.com/Mininglamp-OSS/octo-server/modules/group"
+	"github.com/Mininglamp-OSS/octo-server/modules/user"
+	"github.com/Mininglamp-OSS/octo-server/pkg/i18n"
+	spacepkg "github.com/Mininglamp-OSS/octo-server/pkg/space"
+	"go.uber.org/zap"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
+)
+
+// Webhook Webhook
+type Webhook struct {
+	log.Log
+	ctx          *config.Context
+	supportTypes []common.ContentType
+	db           *DB
+	messageDB    *messageDB
+	pushMap      map[common.DeviceType]map[string]Push
+	groupService group.IService
+	userService  user.IService
+	secretKey    string // Webhook HMAC-SHA256 签名密钥
+	wkhook.UnimplementedWebhookServiceServer
+	grpcServer *grpc.Server
+}
+
+// New New
+func New(ctx *config.Context) *Webhook {
+
+	supportTypes := getSupportTypes() // 支持推送的消息类型
+
+	pushMap := map[common.DeviceType]map[string]Push{}
+
+	apns := ctx.GetConfig().Push.APNS
+	mi := ctx.GetConfig().Push.MI
+	hms := ctx.GetConfig().Push.HMS
+	oppo := ctx.GetConfig().Push.OPPO
+	vivo := ctx.GetConfig().Push.VIVO
+	firebase := ctx.GetConfig().Push.FIREBASE
+
+	// iOS APNs 推送：优先使用 p8 Token 认证，否则使用 p12 证书
+	p8Path, keyID, teamID := loadAPNsP8Config()
+	if p8Path != "" && keyID != "" && teamID != "" {
+		// 使用 p8 Token 认证，环境变量优先于 yaml 配置（覆盖 dmwork-lib 默认值）
+		topic := os.Getenv("DM_PUSH_APNS_TOPIC")
+		if topic == "" {
+			topic = apns.Topic
+		}
+		dev := apns.Dev
+		if envDev := os.Getenv("DM_PUSH_APNS_DEV"); envDev != "" {
+			dev = envDev == "true" || envDev == "1"
+		}
+		if topic != "" {
+			pushMap[common.DeviceTypeIOS] = map[string]Push{
+				topic: NewIOSPushWithToken(topic, dev, p8Path, keyID, teamID),
+			}
+			log.Info("APNs已配置(p8)", zap.String("topic", topic), zap.Bool("dev", dev))
+		} else {
+			log.Warn("APNs p8配置不完整，缺少topic")
+		}
+	} else if apns.Topic != "" && apns.Cert != "" {
+		// Fallback 到 p12 证书认证
+		pushMap[common.DeviceTypeIOS] = map[string]Push{
+			ctx.GetConfig().Push.APNS.Topic: NewIOSPush(apns.Topic, apns.Dev, apns.Cert, apns.Password),
+		}
+		log.Info("APNs已配置(p12)", zap.String("topic", apns.Topic), zap.Bool("dev", apns.Dev))
+	} else {
+		log.Warn("APNs未配置")
+	}
+	if mi.PackageName != "" {
+		pushMap[common.DeviceTypeMI] = map[string]Push{
+			ctx.GetConfig().Push.MI.PackageName: NewMIPush(mi.AppID, mi.AppSecret, mi.PackageName, mi.ChannelID),
+		}
+	}
+	if hms.PackageName != "" {
+		pushMap[common.DeviceTypeHMS] = map[string]Push{
+			ctx.GetConfig().Push.HMS.PackageName: NewHMSPush(hms.AppID, hms.AppSecret, hms.PackageName),
+		}
+	}
+	if oppo.PackageName != "" {
+		pushMap[common.DeviceTypeOPPO] = map[string]Push{
+			ctx.GetConfig().Push.OPPO.PackageName: NewOPPOPush(oppo.AppID, oppo.AppKey, oppo.AppSecret, oppo.MasterSecret, ctx),
+		}
+	}
+	if vivo.PackageName != "" {
+		pushMap[common.DeviceTypeVIVO] = map[string]Push{
+			ctx.GetConfig().Push.VIVO.PackageName: NewVIVOPush(vivo.AppID, vivo.AppKey, vivo.AppSecret, ctx),
+		}
+	}
+	if firebase.PackageName != "" {
+		pushMap[common.DeviceTypeFirebase] = map[string]Push{
+			ctx.GetConfig().Push.FIREBASE.PackageName: NewFIREBASEPush(firebase.JsonPath, firebase.PackageName, firebase.ProjectId, ""),
+		}
+	}
+	return &Webhook{
+		db:           NewDB(ctx.DB()),
+		supportTypes: supportTypes,
+		ctx:          ctx,
+		Log:          log.NewTLog("Webhook"),
+		pushMap:      pushMap,
+		messageDB:    newMessageDB(ctx),
+		groupService: group.NewService(ctx),
+		userService:  user.NewService(ctx),
+		secretKey:    os.Getenv("TS_WEBHOOK_SECRET_KEY"),
+	}
+}
+func getSupportTypes() []common.ContentType {
+	return []common.ContentType{common.Text, common.Image, common.GIF, common.Voice, common.Video, common.File, common.Location, common.Card, common.MultipleForward, common.VectorSticker, common.EmojiSticker, common.RichText}
+}
+
+// Route 路由配置
+func (w *Webhook) Route(r *wkhttp.WKHttp) {
+	r.POST("/v1/webhook", w.webhook)
+
+	r.POST("/v2/webhook", w.webhook)
+
+	r.POST("/v1/datasource", w.datasource)
+
+	r.POST("/v1/webhook/message/notify", w.messageNotify) // 接受IM的消息通知,通过HMAC-SHA256签名认证
+
+	r.POST("/v1/webhook/github", w.github) // github webhook
+
+}
+
+// grpcAuthInterceptor 返回一个 gRPC 一元拦截器，验证请求 metadata 中的 auth_token
+func grpcAuthInterceptor(expectedToken string) grpc.UnaryServerInterceptor {
+	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+		md, ok := metadata.FromIncomingContext(ctx)
+		if !ok {
+			return nil, status.Error(codes.Unauthenticated, "missing metadata")
+		}
+		tokens := md.Get("auth_token")
+		if len(tokens) == 0 || tokens[0] != expectedToken {
+			return nil, status.Error(codes.Unauthenticated, "invalid or missing auth_token")
+		}
+		return handler(ctx, req)
+	}
+}
+
+func (w *Webhook) Start() error {
+	var opts []grpc.ServerOption
+	unaryInterceptors := []grpc.UnaryServerInterceptor{
+		i18n.UnaryServerLanguageInterceptor(),
+	}
+
+	// 配置 gRPC 认证拦截器（通过环境变量 TS_GRPC_AUTH_TOKEN 启用）
+	grpcAuthToken := os.Getenv("TS_GRPC_AUTH_TOKEN")
+	if grpcAuthToken != "" {
+		unaryInterceptors = append(unaryInterceptors, grpcAuthInterceptor(grpcAuthToken))
+		w.Info("gRPC server auth enabled")
+	} else {
+		w.Warn("gRPC server auth not configured, set TS_GRPC_AUTH_TOKEN to enable authentication")
+	}
+	opts = append(opts, grpc.ChainUnaryInterceptor(unaryInterceptors...))
+
+	w.grpcServer = grpc.NewServer(opts...)
+
+	lis, err := net.Listen("tcp", w.ctx.GetConfig().GRPCAddr)
+	if err != nil {
+		return err
+	}
+
+	// 注册grpc服务
+	wkhook.RegisterWebhookServiceServer(w.grpcServer, w)
+
+	go func() {
+		if err := w.grpcServer.Serve(lis); err != nil {
+			w.Error("gRPC server stopped with error", zap.Error(err))
+		}
+	}()
+	return nil
+
+}
+
+func (w *Webhook) Stop() error {
+	w.grpcServer.Stop()
+	return nil
+}
+
+func (w *Webhook) SendWebhook(ctx context.Context, req *wkhook.EventReq) (*wkhook.EventResp, error) {
+	w.Debug("收到webhook grpc事件", zap.String("event", req.Event), zap.Int("dataLen", len(req.Data)))
+	_, err := w.handleEvent(req.Event, req.Data)
+	if err != nil {
+		w.Error("处理webhook事件失败！", zap.Error(err))
+		return nil, err
+	}
+	return &wkhook.EventResp{
+		Status: wkhook.EventStatus_Success,
+	}, nil
+}
+
+func (w *Webhook) messageNotify(c *wkhttp.Context) {
+	if !w.verifyRequestSignature(c) {
+		return
+	}
+	var messages []MsgResp
+	if err := c.BindJSON(&messages); err != nil {
+		w.Error("数据格式有误！", zap.Error(err))
+		c.ResponseError(errors.New("数据格式有误！"))
+		return
+	}
+	messageIDs, err := w.handleMessageNotify(messages)
+	if err != nil {
+		c.ResponseError(err)
+		return
+	}
+	c.Response(messageIDs)
+
+}
+
+func (w *Webhook) handleMessageNotify(messages []MsgResp) ([]string, error) {
+	messageIDs := make([]string, 0, len(messages))
+	if len(messages) <= 0 {
+		return messageIDs, nil
+	}
+
+	confMessages := make([]*config.MessageResp, 0, len(messages))
+
+	tx, err := w.ctx.DB().Begin()
+	if err != nil {
+		w.Error("开启事务失败", zap.Error(err))
+		return nil, err
+	}
+	defer func() {
+		if err := recover(); err != nil {
+			tx.RollbackUnlessCommitted()
+			fmt.Fprintf(os.Stderr, "recovered panic in goroutine: %v\n%s\n", err, debug.Stack())
+		}
+	}()
+	for _, message := range messages {
+		messageIDs = append(messageIDs, fmt.Sprintf("%d", message.MessageID))
+
+		if message.Header.SyncOnce == 1 || message.Header.NoPersist == 1 { // 只同步一次或有标记为不存储的消息，不进行存储
+			continue
+		}
+		fakeChannelID := message.ChannelID
+		if message.ChannelType == common.ChannelTypePerson.Uint8() {
+			fakeChannelID = common.GetFakeChannelIDWith(message.FromUID, message.ChannelID)
+		}
+		messageM := message.toModel()
+		messageM.ChannelID = fakeChannelID
+		err := w.messageDB.insertOrUpdateTx(messageM, tx)
+		if err != nil {
+			_ = tx.Rollback()
+			w.Error("插入消息失败！", zap.Error(err))
+			return nil, err
+		}
+		confMessages = append(confMessages, message.toConfigMessageResp())
+
+	}
+	if err := tx.Commit(); err != nil {
+		_ = tx.Rollback()
+		w.Error("提交事务失败！", zap.Error(err))
+		return nil, err
+	}
+
+	// 通知消息监听者
+	if len(confMessages) > 0 {
+		w.ctx.NotifyMessagesListeners(confMessages)
+	}
+	return messageIDs, nil
+}
+
+func (w *Webhook) webhook(c *wkhttp.Context) {
+	if !w.verifyRequestSignature(c) {
+		return
+	}
+
+	event := c.Query("event")
+
+	data, err := c.GetRawData()
+	if err != nil {
+		w.Error("读取数据失败！", zap.Error(err))
+		c.ResponseError(err)
+		return
+	}
+	result, err := w.handleEvent(event, data)
+	if err != nil {
+		w.Error("事件处理失败！", zap.Error(err), zap.String("event", event), zap.Int("dataLen", len(data)))
+		c.ResponseError(err)
+		return
+	}
+	if result != nil {
+		c.Response(result)
+	} else {
+		c.ResponseOK()
+	}
+
+}
+
+func (w *Webhook) handleEvent(event string, data []byte) (interface{}, error) {
+	if event == EventMsgOffline {
+		return nil, w.handleMsgOffline(data)
+	} else if event == EventOnlineStatus {
+		return nil, w.handleOnlineStatus(data)
+	} else if event == EventMsgNotify {
+		var messages []MsgResp
+		err := util.ReadJsonByByte(data, &messages)
+		if err != nil {
+			return nil, err
+		}
+		return w.handleMessageNotify(messages)
+	}
+	return nil, nil
+}
+
+func (w *Webhook) handleOnlineStatus(data []byte) error {
+	var onlineStatusList []string
+	if err := util.ReadJsonByByte(data, &onlineStatusList); err != nil {
+		return err
+	}
+	if len(onlineStatusList) == 0 {
+		return nil
+	}
+	onlineStatusArray := make([]config.OnlineStatus, 0)
+	for _, onlineStatus := range onlineStatusList {
+		onlineStatusSplits := strings.Split(onlineStatus, "-")
+		if len(onlineStatusSplits) < 3 {
+			continue
+		}
+		uid := onlineStatusSplits[0] // uid
+		deviceFlagI64, err := strconv.ParseUint(onlineStatusSplits[1], 10, 64)
+		if err != nil {
+			w.Error("解析设备标志失败", zap.Error(err), zap.String("value", onlineStatusSplits[1]))
+			continue
+		}
+		statusI64, err := strconv.ParseUint(onlineStatusSplits[2], 10, 64)
+		if err != nil {
+			w.Error("解析在线状态失败", zap.Error(err), zap.String("value", onlineStatusSplits[2]))
+			continue
+		}
+		var socketID int64
+		var onlineCount int
+		var totalOnlineCount int
+		if len(onlineStatusSplits) >= 6 {
+			socketID, err = strconv.ParseInt(onlineStatusSplits[3], 10, 64)
+			if err != nil {
+				w.Error("解析socketID失败", zap.Error(err), zap.String("value", onlineStatusSplits[3]))
+				continue
+			}
+			onlineCountI64, err := strconv.ParseInt(onlineStatusSplits[4], 10, 64)
+			if err != nil {
+				w.Error("解析在线数量失败", zap.Error(err), zap.String("value", onlineStatusSplits[4]))
+				continue
+			}
+			totalOnlineCountI64, err := strconv.ParseInt(onlineStatusSplits[5], 10, 64)
+			if err != nil {
+				w.Error("解析总在线数量失败", zap.Error(err), zap.String("value", onlineStatusSplits[5]))
+				continue
+			}
+			onlineCount = int(onlineCountI64)
+			totalOnlineCount = int(totalOnlineCountI64)
+		}
+
+		status := int(statusI64)
+		deviceFlag := uint8(deviceFlagI64)
+
+		onlineStatusArray = append(onlineStatusArray, config.OnlineStatus{
+			UID:              uid,
+			DeviceFlag:       deviceFlag,
+			Online:           status == 1,
+			SocketID:         socketID,
+			OnlineCount:      onlineCount,
+			TotalOnlineCount: totalOnlineCount,
+		})
+
+	}
+	listeners := w.ctx.GetAllOnlineStatusListeners()
+	if len(listeners) > 0 {
+		for _, listener := range listeners {
+			listener(onlineStatusArray)
+		}
+	}
+
+	return nil
+}
+
+func (w *Webhook) handleMsgOffline(data []byte) error {
+	var msgResp msgOfflineNotify
+	err := util.ReadJsonByByte(data, &msgResp)
+	if err != nil {
+		return err
+	}
+	w.Debug("收到离线消息->", zap.Any("msg", msgResp))
+
+	var toUids []string
+	if msgResp.Compress == "gzip" {
+		if len(msgResp.CompresssToUIDs) > 0 {
+			gReader, err := gzip.NewReader(bytes.NewReader(msgResp.CompresssToUIDs))
+			if err != nil {
+				w.Error("解码gzip失败！", zap.String("compresssToUIDs", string(msgResp.CompresssToUIDs)))
+				return err
+			}
+			defer gReader.Close()
+			compresssToUIDBytes, err := io.ReadAll(gReader)
+			if err != nil {
+				w.Error("读取gzip压缩数据失败！", zap.Error(err))
+				return err
+			}
+			err = util.ReadJsonByByte(compresssToUIDBytes, &toUids)
+			if err != nil {
+				w.Error("")
+				return err
+			}
+		}
+
+	} else {
+		toUids = msgResp.ToUIDS
+	}
+
+	if len(toUids) == 0 {
+		return nil
+	}
+
+	return w.pushTo(msgResp, toUids)
+}
+
+func (w *Webhook) pushTo(msgResp msgOfflineNotify, toUids []string) error {
+	setting := config.SettingFromUint8(msgResp.Setting)
+	w.Debug("pushTo开始", zap.Bool("signal", setting.Signal), zap.Uint8("settingRaw", msgResp.Setting), zap.Int("toUidsCount", len(toUids)))
+	isVideoCall := false
+	if !setting.Signal { // 只解析未加密的消息
+		contentMap, err := util.JsonToMap(string(msgResp.Payload))
+		if err != nil {
+			w.Error("消息payload格式有误！", zap.Error(err), zap.String("payload", string(msgResp.Payload)))
+			return err
+		}
+		msgResp.PayloadMap = contentMap
+		if contentMap["type"] == nil {
+			return errors.New("type为空！")
+		}
+		if contentMap["cmd"] != nil {
+			cmd, _ := contentMap["cmd"].(string)
+			if cmd == "room.invoke" || cmd == "rtc.p2p.invoke" {
+				isVideoCall = true
+			}
+		}
+		typeVal, ok := contentMap["type"].(json.Number)
+		if !ok {
+			w.Warn("消息type字段类型不正确", zap.Any("type", contentMap["type"]))
+			return nil
+		}
+		contentTypeInt64, err := typeVal.Int64()
+		if err != nil {
+			w.Warn("消息type解析失败", zap.Error(err))
+			return nil
+		}
+		contentType := common.ContentType(contentTypeInt64)
+		msgResp.ContentType = int(contentType)
+	}
+	if msgResp.Header.SyncOnce == 1 && !isVideoCall { // 命令类消息不推送
+		w.Debug("命令消息不推送！")
+		return nil
+	}
+
+	if !w.containSupportType(common.ContentType(msgResp.ContentType)) && !isVideoCall {
+		w.Debug("不推送：不支持的消息类型！", zap.Int("contentType", msgResp.ContentType), zap.Bool("signal", setting.Signal))
+		return nil
+	}
+
+	// 解析消息来源的 space_id
+	if msgResp.ChannelType == common.ChannelTypeGroup.Uint8() {
+		groupInfo, err := w.groupService.GetGroupWithGroupNo(msgResp.ChannelID)
+		if err != nil {
+			w.Warn("获取群 space_id 失败，继续推送", zap.Error(err), zap.String("channelID", msgResp.ChannelID))
+		} else if groupInfo != nil {
+			msgResp.SpaceID = groupInfo.SpaceID
+		}
+	} else if msgResp.ChannelType == common.ChannelTypeCommunityTopic.Uint8() {
+		groupNo, _, ok := parseThreadChannelID(msgResp.ChannelID)
+		if ok {
+			groupInfo, err := w.groupService.GetGroupWithGroupNo(groupNo)
+			if err != nil {
+				w.Warn("获取子区父群 space_id 失败，继续推送", zap.Error(err), zap.String("channelID", msgResp.ChannelID))
+			} else if groupInfo != nil {
+				msgResp.SpaceID = groupInfo.SpaceID
+			}
+		}
+	} else if msgResp.ChannelType == common.ChannelTypePerson.Uint8() {
+		// YUJ-660 / Mininglamp-OSS#33: PERSONAL offline push parallel leak path.
+		// `resolveSpaceChannelID` is a no-op on PERSONAL — the stored channel_id
+		// is the bare peer uid with no `s{spaceID}_` prefix, so ParseChannelID
+		// always returns ("", peerID) and msgResp.SpaceID would be empty for
+		// every PERSONAL offline push. APNs/FCM/HMS/VIVO/MI all read
+		// payloadInfo.SpaceID for client-side Space filtering of system tray
+		// pushes — empty space_id is the same fail-open class as the realtime
+		// WS push leak this PR closes.
+		//
+		// Source authoritative SpaceID from payload.space_id first (the
+		// dispatch-layer fixes in this PR guarantee it on PERSONAL); fall back
+		// to ParseChannelID for legacy prefixed channel_ids and for
+		// Signal-encrypted payloads where PayloadMap is nil — encrypted DM body
+		// content does not leak via push payload, so the legacy fallback is
+		// acceptable.
+		msgResp.SpaceID = w.resolvePersonalOfflinePushSpaceID(msgResp)
+	}
+
+	var err error
+	// var users []*user.Resp
+	userSettings := make([]*user.SettingResp, 0)
+	groupSettings := make([]*group.SettingResp, 0)
+	threadSettings := make([]*threadSettingResp, 0)
+	users, err := w.userService.GetUsers(toUids)
+	if err != nil {
+		w.Error("查询推送用户信息错误", zap.Error(err))
+		return nil
+	}
+	fromUID := ""
+	if !isVideoCall { // 音视频消息不检查设置，直接推送
+		// 查询免打扰
+		// 查询用户总设置
+		if msgResp.ChannelType == common.ChannelTypePerson.Uint8() {
+			// 查询用户对某人设置
+			if msgResp.FromUID != "" && len(toUids) > 0 {
+				fromUID = msgResp.FromUID
+				uids := make([]string, 0)
+				uids = append(uids, msgResp.FromUID)
+				userSettings, err = w.userService.GetUserSettings(uids, toUids[0])
+				if err != nil {
+					w.Error("查询用户对某人设置错误", zap.Error(err))
+					return nil
+				}
+			}
+		} else if msgResp.ChannelType == common.ChannelTypeCommunityTopic.Uint8() {
+			// 子区: 查询 thread_setting + 降级父群 group_setting
+			if groupNo, shortID, ok := parseThreadChannelID(msgResp.ChannelID); ok {
+				threadSettings, err = w.db.QueryThreadSettingsWithUIDs(groupNo, shortID, toUids)
+				if err != nil {
+					w.Error("查询一批用户对某子区设置错误", zap.Error(err))
+					return nil
+				}
+				groupSettings, err = w.groupService.GetSettingsWithUIDs(groupNo, toUids)
+				if err != nil {
+					w.Error("查询一批用户对父群设置错误", zap.Error(err))
+					return nil
+				}
+			}
+		} else {
+			// 查询一批用户对某个群的设置
+			groupSettings, err = w.groupService.GetSettingsWithUIDs(msgResp.ChannelID, toUids)
+			if err != nil {
+				w.Error("查询一批用户对某群设置错误", zap.Error(err))
+				return nil
+			}
+		}
+	}
+
+	for _, toUID := range toUids {
+		if !isVideoCall {
+			if !w.allowPush(users, userSettings, groupSettings, threadSettings, toUID, fromUID) {
+				w.Debug("allowPush返回false，跳过", zap.String("toUID", toUID))
+				continue
+			}
+		} else {
+			w.Info("开始音视频推送...")
+		}
+		var toUser *user.Resp
+		if len(users) > 0 {
+			for _, user := range users {
+				if user.UID == toUID {
+					toUser = user
+					break
+				}
+			}
+		}
+		if toUser == nil {
+			w.Error("没有找到toUser", zap.String("toUID", toUID))
+			continue
+		}
+
+		w.Debug("提交推送任务", zap.String("toUID", toUID))
+		w.ctx.PushPool.Work <- &pool.Job{
+			Data: map[string]interface{}{
+				"toUser": toUser,
+				"msg":    msgResp,
+			},
+			JobFunc: func(id int64, data interface{}) {
+				dataMap, ok := data.(map[string]interface{})
+				if !ok {
+					w.Error("推送任务数据类型错误", zap.Any("data", data))
+					return
+				}
+				toUser, ok := dataMap["toUser"].(*user.Resp)
+				if !ok || toUser == nil {
+					w.Error("推送任务缺少有效的toUser")
+					return
+				}
+				msgResp, ok := dataMap["msg"].(msgOfflineNotify)
+				if !ok {
+					w.Error("推送任务缺少有效的msg")
+					return
+				}
+				result, err := w.push(toUser, msgResp)
+				if err != nil {
+					w.Debug("推送失败！", zap.String("uid", toUser.UID), zap.String("deviceType", result.deviceType), zap.String("deviceToken", maskToken(result.deviceToken)), zap.Error(err))
+				} else {
+					w.Debug("推送成功！", zap.String("uid", toUser.UID), zap.String("deviceType", result.deviceType), zap.String("deviceToken", maskToken(result.deviceToken)))
+				}
+			},
+		}
+
+	}
+	return nil
+}
+
+// threadSettingResp 子区用户设置推送视角的精简表示
+type threadSettingResp struct {
+	UID  string
+	Mute int
+}
+
+// 是否允许推送
+// threadSettings 非空时优先于 groupSettings: 子区显式设置覆盖父群设置;
+// 若子区无记录,则降级使用父群 mute(与用户期望一致: 父群静音时子区也应静音)
+func (w *Webhook) allowPush(users []*user.Resp, userSettings []*user.SettingResp, groupSettings []*group.SettingResp, threadSettings []*threadSettingResp, toUID string, fromUID string) bool {
+	isPush := true
+	if len(users) > 0 {
+		for _, user := range users {
+			if user.UID == toUID {
+				if user.NewMsgNotice == 0 {
+					isPush = false
+				}
+				break
+			}
+		}
+	}
+	if isPush && len(userSettings) > 0 && fromUID != "" {
+		for _, userSetting := range userSettings {
+			if userSetting.UID == toUID && userSetting.ToUID == fromUID {
+				if userSetting.Mute == 1 {
+					isPush = false
+				}
+				break
+			}
+		}
+	}
+	if isPush {
+		// 子区设置优先
+		threadSettingFound := false
+		for _, ts := range threadSettings {
+			if ts.UID == toUID {
+				threadSettingFound = true
+				if ts.Mute == 1 {
+					isPush = false
+				}
+				break
+			}
+		}
+		// 无子区记录 → 降级到父群设置
+		if !threadSettingFound && len(groupSettings) > 0 {
+			for _, gs := range groupSettings {
+				if gs.UID == toUID {
+					if gs.Mute == 1 {
+						isPush = false
+					}
+					break
+				}
+			}
+		}
+	}
+	return isPush
+}
+
+func (w *Webhook) push(toUser *user.Resp, msgResp msgOfflineNotify) (pushResp, error) {
+
+	toUID := toUser.UID
+	var deviceMap map[string]string
+	deviceMap, err := w.ctx.GetRedisConn().Hgetall(fmt.Sprintf("%s%s", common.UserDeviceTokenPrefix, toUID))
+	if err != nil {
+		return pushResp{}, err
+	}
+	if len(deviceMap) <= 0 {
+		return pushResp{}, errors.New("用户设备信息不存在！")
+	}
+	deviceToken := deviceMap["device_token"]
+	deviceType := deviceMap["device_type"]
+	bundleID := deviceMap["bundle_id"]
+
+	w.Debug("开始推送", zap.String("uid", toUID), zap.String("deviceType", deviceType), zap.String("deviceToken", maskToken(deviceToken)))
+
+	if w.pushMap[common.DeviceType(deviceType)] == nil {
+		return pushResp{
+			deviceType:  deviceType,
+			deviceToken: deviceToken,
+		}, errors.New("不支持的推送设备！")
+	}
+	pusher := w.pushMap[common.DeviceType(deviceType)][bundleID]
+	if pusher == nil {
+		w.Warn("不支持的推送设备！", zap.String("deviceType", deviceType), zap.String("uid", toUID), zap.String("bundleID", bundleID))
+		return pushResp{
+			deviceType:  deviceType,
+			deviceToken: deviceToken,
+		}, errors.New("不支持的推送设备！")
+	}
+	payload, err := pusher.GetPayload(msgResp, w.ctx, toUser)
+	if err != nil {
+		return pushResp{
+			deviceType:  deviceType,
+			deviceToken: deviceToken,
+		}, err
+	}
+	err = pusher.Push(deviceToken, payload)
+	if err != nil {
+		return pushResp{
+			deviceType:  deviceType,
+			deviceToken: deviceToken,
+		}, err
+	}
+	return pushResp{
+		deviceType:  deviceType,
+		deviceToken: deviceToken,
+	}, nil
+}
+
+func (w *Webhook) containSupportType(contentType common.ContentType) bool {
+	for _, t := range w.supportTypes {
+		if t == contentType {
+			return true
+		}
+	}
+	return false
+}
+
+// maskToken 对敏感令牌进行脱敏处理，只显示前 8 位
+func maskToken(token string) string {
+	if len(token) <= 8 {
+		return "***"
+	}
+	return token[:8] + "***"
+}
+
+// Event Event
+type Event struct {
+	Event string      `json:"event"` // 事件标示
+	Data  interface{} `json:"data"`  // 事件数据
+}
+
+type messageHeader struct {
+	NoPersist int `json:"no_persist"` // 是否不持久化
+	RedDot    int `json:"red_dot"`    // 是否显示红点
+	SyncOnce  int `json:"sync_once"`  // 此消息只被同步或被消费一次
+}
+
+// MsgResp MsgResp
+type MsgResp struct {
+	Header      messageHeader `json:"header"`  // 消息头部
+	Setting     uint8         `json:"setting"` // setting
+	ClientMsgNo string        `json:"client_msg_no"`
+	MessageID   int64         `json:"message_id"`   // 服务端的消息ID(全局唯一)
+	MessageSeq  uint32        `json:"message_seq"`  // 消息序列号 （用户唯一，有序递增）
+	FromUID     string        `json:"from_uid"`     // 发送者UID
+	ToUID       string        `json:"to_uid"`       // 接受者uid
+	ChannelID   string        `json:"channel_id"`   // 频道ID
+	ChannelType uint8         `json:"channel_type"` // 频道类型
+	Expire      uint32        `json:"expire"`       // 消息过期时间（单位秒）
+	Timestamp   int32         `json:"timestamp"`    // 服务器消息时间戳(10位，到秒)
+	Payload     []byte        `json:"payload"`      // 消息内容
+	ContentType int           // 消息正文类型
+	PayloadMap  map[string]interface{}
+}
+
+func (m *MsgResp) toModel() *messageModel {
+
+	setting := config.SettingFromUint8(m.Setting)
+
+	var signal uint8 = 0
+	if setting.Signal {
+		signal = 1
+	}
+	var expireAt uint32 = 0
+	if m.Expire > 0 {
+		expireAt = uint32(m.Timestamp) + m.Expire
+	}
+	return &messageModel{
+		MessageID:   fmt.Sprintf("%d", m.MessageID),
+		MessageSeq:  int64(m.MessageSeq),
+		ClientMsgNo: m.ClientMsgNo,
+		Header:      util.ToJson(m.Header),
+		Setting:     m.Setting,
+		Signal:      signal,
+		FromUID:     m.FromUID,
+		ChannelID:   m.ChannelID,
+		ChannelType: m.ChannelType,
+		Expire:      m.Expire,
+		ExpireAt:    expireAt,
+		Timestamp:   m.Timestamp,
+		Payload:     string(m.Payload),
+		IsDeleted:   0,
+	}
+}
+
+func (m *MsgResp) toConfigMessageResp() *config.MessageResp {
+	return &config.MessageResp{
+		MessageID:   m.MessageID,
+		MessageSeq:  m.MessageSeq,
+		ClientMsgNo: m.ClientMsgNo,
+		Header: config.MsgHeader{
+			NoPersist: m.Header.NoPersist,
+			RedDot:    m.Header.RedDot,
+			SyncOnce:  m.Header.SyncOnce,
+		},
+		FromUID:     m.FromUID,
+		ToUID:       m.ToUID,
+		ChannelID:   m.ChannelID,
+		ChannelType: m.ChannelType,
+		Expire:      m.Expire,
+		Timestamp:   m.Timestamp,
+		Payload:     m.Payload,
+	}
+}
+
+type msgOfflineNotify struct {
+	MsgResp
+	ToUIDS          []string `json:"to_uids"`                    // im服务推离线的时候接受uid是一个集合
+	Compress        string   `json:"compress,omitempty"`         // 压缩ToUIDs 如果为空 表示不压缩 为gzip则采用gzip压缩
+	CompresssToUIDs []byte   `json:"compress_to_uids,omitempty"` // 已压缩的to_uids
+	SourceID        int64    `json:"source_id,omitempty"`        // 来源节点ID
+	SpaceID         string   `json:"space_id,omitempty"`         // Space ID for push filtering
+}
+
+type pushResp struct {
+	deviceToken string
+	deviceType  string
+}
+
+// resolvePersonalOfflinePushSpaceID returns the authoritative SpaceID for a
+// PERSONAL channel offline push (YUJ-660 / Mininglamp-OSS#33).
+//
+// Resolution order:
+//  1. msgResp.PayloadMap["space_id"] — populated by the dispatch-layer
+//     enrichment fixes in this PR (modules/message/api.go,
+//     modules/bot_api/space_inject.go, modules/robot/space_inject.go).
+//  2. spacepkg.ParseChannelID(channel_id) — legacy fallback for prefixed
+//     channel_ids (`s{spaceID}_{peer}`) and the only path for Signal-encrypted
+//     payloads where PayloadMap is nil.
+//
+// Returns "" only when both sources produced "". A structured zap warn is
+// emitted in that case (key=offline_push_space_id_empty=true) so operators can
+// alert on dispatchers that bypassed enrichment. Steady state should read 0
+// post-rollout.
+func (w *Webhook) resolvePersonalOfflinePushSpaceID(msgResp msgOfflineNotify) string {
+	// Step 1: payload-injected authoritative space_id.
+	if pm := msgResp.PayloadMap; pm != nil {
+		if sid, ok := pm["space_id"].(string); ok && sid != "" {
+			return sid
+		}
+	}
+	// Step 2: legacy prefixed channel_id (returns "" on bare-uid channel_id).
+	if sid, _ := spacepkg.ParseChannelID(msgResp.ChannelID); sid != "" {
+		return sid
+	}
+	// Both empty: log for ops alerting and return "".
+	w.Warn("PERSONAL offline push has empty space_id — dispatcher bypassed enrichment",
+		zap.String("channelID", msgResp.ChannelID),
+		zap.String("fromUID", msgResp.FromUID),
+		zap.Bool("offline_push_space_id_empty", true),
+	)
+	return ""
+}

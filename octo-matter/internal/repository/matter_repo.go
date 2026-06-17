@@ -1,0 +1,379 @@
+package repository
+
+import (
+	"context"
+	"errors"
+	"strings"
+	"time"
+
+	"github.com/Mininglamp-OSS/octo-matter/internal/apperr"
+	"github.com/Mininglamp-OSS/octo-matter/internal/model"
+	"github.com/gocraft/dbr/v2"
+	"github.com/google/uuid"
+)
+
+type MatterFilter struct {
+	CallerUIDs        []string
+	Status            *string
+	AssigneeID        *string
+	CreatorID         *string
+	LeaderID          *string
+	ParentID          *string
+	TopLevelOnly      bool
+	ProjectID         *string
+	ScheduleID        *string
+	SourceChannelID   *string
+	SourceChannelType *uint8
+	// ChannelID strictly filters results to matters linked via matter_channels
+	// to the given channel id (AND clause). Distinct from SourceChannelID,
+	// which extends visibility (OR clause) for callers proven to be channel
+	// members. Service layer applies the same IM membership gating.
+	ChannelID *string
+	// SeqNo resolves the human-facing M-<n> reference to the row (agents and
+	// deep links speak UUID; people speak seq).
+	SeqNo             *uint64
+	DeadlineBefore    *time.Time
+	DeadlineAfter     *time.Time
+	Query             *string
+	Cursor            *string
+	Limit             int
+}
+
+type MatterRepo struct {
+	runner dbr.SessionRunner
+}
+
+func NewMatterRepo(sess *dbr.Session) *MatterRepo {
+	return &MatterRepo{runner: sess}
+}
+
+func (r *MatterRepo) Create(ctx context.Context, matter *model.Matter) error {
+	matter.ID = uuid.New().String()
+	now := time.Now()
+	matter.CreatedAt = now
+	matter.UpdatedAt = now
+
+	var lastErr error
+	for retries := 0; retries < 3; retries++ {
+		seq, err := r.nextSeqNo(ctx, matter.SpaceID)
+		if err != nil {
+			return err
+		}
+		matter.SeqNo = seq
+		_, err = r.runner.InsertInto("matters").
+			Columns("id", "seq_no", "space_id", "parent_matter_id", "title", "description",
+				"brief_constraints", "brief_output_spec",
+				"creator_id", "leader_uid", "status", "mode", "step_id", "step_order",
+				"project_id", "assignment_epoch", "version", "expected_duration_minutes",
+				"last_activity_at", "last_transition_at", "schedule_id", "scheduled_at",
+				"deadline", "remind_at", "source_channel_id", "source_channel_type",
+				"source_name", "source_msg_ids", "input_attachments",
+				"sort_order", "created_at", "updated_at", "deleted_at").
+			Record(matter).
+			ExecContext(ctx)
+		if err == nil {
+			return nil
+		}
+		if !isDuplicateKeyErr(err) {
+			return err
+		}
+		lastErr = err
+	}
+	return lastErr
+}
+
+// nextSeqNo computes the next space-scoped display sequence number.
+//
+// MUST be called from within a transaction. The SELECT ... FOR UPDATE gap-lock
+// only prevents interleaved duplicates when the lock is held across the
+// subsequent INSERT — that requires both statements to share a transaction.
+// Calling this outside a tx silently loses the lock; concurrent inserts then
+// race and rely solely on the duplicate-key retry in Create, multiplying
+// contention under load.
+func (r *MatterRepo) nextSeqNo(ctx context.Context, spaceID string) (int, error) {
+	var next int
+	err := r.runner.SelectBySql(
+		"SELECT COALESCE(MAX(seq_no), 0) + 1 FROM matters WHERE space_id = ? FOR UPDATE",
+		spaceID,
+	).LoadOneContext(ctx, &next)
+	if err != nil && !errors.Is(err, dbr.ErrNotFound) {
+		return 0, err
+	}
+	if next == 0 {
+		next = 1
+	}
+	return next, nil
+}
+
+func (r *MatterRepo) GetByID(ctx context.Context, id, spaceID string) (*model.Matter, error) {
+	var matter model.Matter
+	err := r.runner.Select("*").
+		From("matters").
+		Where("id = ? AND space_id = ? AND deleted_at IS NULL", id, spaceID).
+		LoadOneContext(ctx, &matter)
+	if err != nil {
+		if errors.Is(err, dbr.ErrNotFound) {
+			return nil, apperr.MatterNotFound()
+		}
+		return nil, err
+	}
+	return &matter, nil
+}
+
+func (r *MatterRepo) ListBySpace(ctx context.Context, spaceID string, filter MatterFilter) ([]*model.Matter, bool, error) {
+	limit := filter.Limit
+	if limit <= 0 {
+		limit = 20
+	}
+
+	// has_children rides along so list rows can render the expander only
+	// where it can actually expand (UI 小白原则: 没有就不画按钮).
+	q := r.runner.Select("*",
+		"EXISTS (SELECT 1 FROM matters c WHERE c.parent_matter_id = matters.id AND c.deleted_at IS NULL) AS has_children").
+		From("matters").
+		Where("space_id = ? AND deleted_at IS NULL", spaceID)
+
+	// Visibility: caller must be creator, assignee, or participant. When the
+	// service layer has confirmed channel membership and forwarded any channel
+	// ids (SourceChannelID — visibility expansion — and/or ChannelID — strict
+	// filter), matters linked to ANY of those channels are also visible. Both
+	// IDs are gated upstream by IsChannelMember so the channel branch cannot
+	// leak matters to non-members. Using IN over a deduped slice ensures the
+	// dual-membership case (different ids passed for both params) unlocks
+	// either channel, not just one.
+	var visibleChannelIDs []string
+	if filter.SourceChannelID != nil {
+		visibleChannelIDs = append(visibleChannelIDs, *filter.SourceChannelID)
+	}
+	if filter.ChannelID != nil &&
+		(filter.SourceChannelID == nil || *filter.ChannelID != *filter.SourceChannelID) {
+		visibleChannelIDs = append(visibleChannelIDs, *filter.ChannelID)
+	}
+	if len(visibleChannelIDs) > 0 {
+		q = q.Where(
+			"(creator_id IN ? OR leader_uid IN ?"+
+				" OR EXISTS (SELECT 1 FROM matter_assignees WHERE matter_assignees.matter_id = matters.id AND matter_assignees.user_id IN ?)"+
+				" OR EXISTS (SELECT 1 FROM matter_participants WHERE matter_participants.matter_id = matters.id AND matter_participants.user_id IN ?)"+
+				" OR EXISTS (SELECT 1 FROM matter_channels WHERE matter_channels.matter_id = matters.id AND matter_channels.channel_id IN ?))",
+			filter.CallerUIDs, filter.CallerUIDs, filter.CallerUIDs, filter.CallerUIDs, visibleChannelIDs,
+		)
+	} else {
+		q = q.Where(
+			"(creator_id IN ? OR leader_uid IN ?"+
+				" OR EXISTS (SELECT 1 FROM matter_assignees WHERE matter_assignees.matter_id = matters.id AND matter_assignees.user_id IN ?)"+
+				" OR EXISTS (SELECT 1 FROM matter_participants WHERE matter_participants.matter_id = matters.id AND matter_participants.user_id IN ?))",
+			filter.CallerUIDs, filter.CallerUIDs, filter.CallerUIDs, filter.CallerUIDs,
+		)
+	}
+
+	if filter.Status != nil {
+		q = q.Where("status = ?", *filter.Status)
+	}
+	if filter.AssigneeID != nil {
+		q = q.Where("id IN (SELECT matter_id FROM matter_assignees WHERE user_id = ?)", *filter.AssigneeID)
+	}
+	if filter.CreatorID != nil {
+		q = q.Where("creator_id = ?", *filter.CreatorID)
+	}
+	if filter.LeaderID != nil {
+		q = q.Where("leader_uid = ?", *filter.LeaderID)
+	}
+	if filter.ParentID != nil {
+		q = q.Where("parent_matter_id = ?", *filter.ParentID)
+	} else if filter.TopLevelOnly {
+		q = q.Where("parent_matter_id IS NULL")
+	}
+	if filter.ProjectID != nil {
+		q = q.Where("project_id = ?", *filter.ProjectID)
+	}
+	if filter.ScheduleID != nil {
+		q = q.Where("schedule_id = ?", *filter.ScheduleID)
+	}
+	if filter.SeqNo != nil {
+		q = q.Where("seq_no = ?", *filter.SeqNo)
+	}
+	if filter.SourceChannelType != nil {
+		q = q.Where("source_channel_type = ?", *filter.SourceChannelType)
+	}
+	if filter.ChannelID != nil {
+		q = q.Where(
+			"EXISTS (SELECT 1 FROM matter_channels WHERE matter_channels.matter_id = matters.id AND matter_channels.channel_id = ?)",
+			*filter.ChannelID,
+		)
+	}
+	if filter.DeadlineBefore != nil {
+		q = q.Where("deadline < ?", *filter.DeadlineBefore)
+	}
+	if filter.DeadlineAfter != nil {
+		q = q.Where("deadline > ?", *filter.DeadlineAfter)
+	}
+	if filter.Query != nil && *filter.Query != "" {
+		escaped := escapeLikePattern(*filter.Query)
+		q = q.Where("title LIKE ?", "%"+escaped+"%")
+	}
+
+	if filter.Cursor != nil && *filter.Cursor != "" {
+		cur, err := DecodeCursor(*filter.Cursor)
+		if err != nil {
+			return nil, false, err
+		}
+		q = q.Where("(created_at < ? OR (created_at = ? AND id < ?))", cur.CreatedAt, cur.CreatedAt, cur.ID)
+	}
+
+	var matters []*model.Matter
+	_, err := q.OrderBy("created_at DESC").
+		OrderBy("id DESC").
+		Limit(uint64(limit + 1)).
+		LoadContext(ctx, &matters)
+	if err != nil {
+		return nil, false, err
+	}
+	if matters == nil {
+		matters = make([]*model.Matter, 0)
+	}
+
+	hasMore := len(matters) > limit
+	if hasMore {
+		matters = matters[:limit]
+	}
+	return matters, hasMore, nil
+}
+
+func (r *MatterRepo) GetByIDForUpdate(ctx context.Context, id, spaceID string) (*model.Matter, error) {
+	var matter model.Matter
+	err := r.runner.SelectBySql(
+		"SELECT * FROM matters WHERE id = ? AND space_id = ? AND deleted_at IS NULL FOR UPDATE",
+		id, spaceID,
+	).LoadOneContext(ctx, &matter)
+	if err != nil {
+		if errors.Is(err, dbr.ErrNotFound) {
+			return nil, apperr.MatterNotFound()
+		}
+		return nil, err
+	}
+	return &matter, nil
+}
+
+func (r *MatterRepo) Update(ctx context.Context, matter *model.Matter) error {
+	matter.UpdatedAt = time.Now()
+	result, err := r.runner.Update("matters").
+		Set("title", matter.Title).
+		Set("description", matter.Description).
+		Set("brief_constraints", matter.BriefConstraints).
+		Set("brief_output_spec", matter.BriefOutputSpec).
+		Set("deadline", matter.Deadline).
+		Set("remind_at", matter.RemindAt).
+		Set("mode", matter.Mode).
+		Set("project_id", matter.ProjectID).
+		Set("expected_duration_minutes", matter.ExpectedDuration).
+		Set("input_attachments", matter.InputAttachments).
+		Set("sort_order", matter.SortOrder).
+		Set("updated_at", matter.UpdatedAt).
+		Where("id = ? AND space_id = ? AND deleted_at IS NULL", matter.ID, matter.SpaceID).
+		ExecContext(ctx)
+	if err != nil {
+		return err
+	}
+	n, _ := result.RowsAffected()
+	if n == 0 {
+		return apperr.MatterNotFound()
+	}
+	return nil
+}
+
+func (r *MatterRepo) UpdateStatus(ctx context.Context, id, spaceID, status string) error {
+	result, err := r.runner.Update("matters").
+		Set("status", status).
+		Set("updated_at", time.Now()).
+		Where("id = ? AND space_id = ? AND deleted_at IS NULL", id, spaceID).
+		ExecContext(ctx)
+	if err != nil {
+		return err
+	}
+	n, _ := result.RowsAffected()
+	if n == 0 {
+		return apperr.MatterNotFound()
+	}
+	return nil
+}
+
+func (r *MatterRepo) SoftDelete(ctx context.Context, id, spaceID string) error {
+	// Release the dispatch idempotency slot on delete: the unique key
+	// uk_matters_parent_step (parent_matter_id, step_id) does NOT exclude
+	// soft-deleted rows, so keeping step_id would block re-dispatching the
+	// same step (the idempotency lookup filters deleted_at IS NULL and finds
+	// nothing, then the INSERT hits the stale unique row). Nulling step_id
+	// frees the slot — NULLs don't collide in a MySQL unique index. Non-child
+	// rows already have step_id NULL, so this is a no-op for them.
+	result, err := r.runner.Update("matters").
+		Set("deleted_at", time.Now()).
+		Set("step_id", nil).
+		Where("id = ? AND space_id = ? AND deleted_at IS NULL", id, spaceID).
+		ExecContext(ctx)
+	if err != nil {
+		return err
+	}
+	n, _ := result.RowsAffected()
+	if n == 0 {
+		return apperr.MatterNotFound()
+	}
+	// A deleted matter must stop ringing anyone: park its live doorbells.
+	// Ghost rings wake agents to fetch a MATTER_NOT_FOUND forever (patrol
+	// finding, 2026-06-12). Best-effort — the delete itself already stuck.
+	_, _ = r.runner.UpdateBySql(`
+		UPDATE matter_outbox SET state = ?, updated_at = ?
+		WHERE matter_id = ? AND state IN (?, ?)`,
+		model.OutboxConsumed, time.Now(), id,
+		model.OutboxPending, model.OutboxDelivered,
+	).ExecContext(ctx)
+	return nil
+}
+
+func escapeLikePattern(s string) string {
+	s = strings.ReplaceAll(s, "\\", "\\\\")
+	s = strings.ReplaceAll(s, "%", "\\%")
+	s = strings.ReplaceAll(s, "_", "\\_")
+	return s
+}
+
+// HasAccess checks in a single query whether any of callerUIDs has access to
+// the matter via assignee or participant role, or whether channelID is linked.
+// Creator check is done in-memory by the caller so not included here.
+func (r *MatterRepo) HasAccess(ctx context.Context, matterID string, callerUIDs []string, channelID string) (bool, error) {
+	if len(callerUIDs) == 0 && channelID == "" {
+		return false, nil
+	}
+	q := r.runner.Select("1")
+
+	if channelID != "" && len(callerUIDs) > 0 {
+		q = q.From("dual").Where(
+			`(EXISTS (SELECT 1 FROM matters WHERE id = ? AND leader_uid IN ?)
+			  OR EXISTS (SELECT 1 FROM matter_assignees WHERE matter_id = ? AND user_id IN ?)
+			  OR EXISTS (SELECT 1 FROM matter_participants WHERE matter_id = ? AND user_id IN ?)
+			  OR EXISTS (SELECT 1 FROM matter_channels WHERE matter_id = ? AND channel_id = ?))`,
+			matterID, callerUIDs, matterID, callerUIDs, matterID, callerUIDs, matterID, channelID,
+		)
+	} else if len(callerUIDs) > 0 {
+		q = q.From("dual").Where(
+			`(EXISTS (SELECT 1 FROM matters WHERE id = ? AND leader_uid IN ?)
+			  OR EXISTS (SELECT 1 FROM matter_assignees WHERE matter_id = ? AND user_id IN ?)
+			  OR EXISTS (SELECT 1 FROM matter_participants WHERE matter_id = ? AND user_id IN ?))`,
+			matterID, callerUIDs, matterID, callerUIDs, matterID, callerUIDs,
+		)
+	} else {
+		q = q.From("dual").Where(
+			`EXISTS (SELECT 1 FROM matter_channels WHERE matter_id = ? AND channel_id = ?)`,
+			matterID, channelID,
+		)
+	}
+
+	var dummy int
+	err := q.LoadOneContext(ctx, &dummy)
+	if err != nil {
+		if errors.Is(err, dbr.ErrNotFound) {
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
+}

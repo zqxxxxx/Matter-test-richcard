@@ -1,0 +1,235 @@
+.wk-bot-store {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    background: var(--bg-secondary);
+}
+
+.wk-bot-store-header {
+    padding: 16px 20px 12px;
+    background: var(--card-bg);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.wk-bot-store-title {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+/* BotFather */
+.wk-bot-father {
+    display: flex;
+    align-items: center;
+    padding: 12px 20px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    margin: 12px 12px 0;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: opacity 0.2s;
+}
+
+.wk-bot-father:hover {
+    opacity: 0.9;
+}
+
+.wk-bot-father-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    background: rgba(255,255,255,0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    flex-shrink: 0;
+}
+
+.wk-bot-father-info {
+    flex: 1;
+    margin-left: 12px;
+}
+
+.wk-bot-father-name {
+    font-size: 15px;
+    font-weight: 600;
+    color: #fff;
+}
+
+.wk-bot-father-desc {
+    font-size: 12px;
+    color: rgba(255,255,255,0.8);
+    margin-top: 2px;
+}
+
+.wk-bot-father-arrow {
+    font-size: 20px;
+    color: rgba(255,255,255,0.6);
+}
+
+/* Tabs */
+.wk-bot-tabs {
+    display: flex;
+    padding: 0 12px;
+    margin-top: 12px;
+    gap: 0;
+}
+
+.wk-bot-tab {
+    flex: 1;
+    text-align: center;
+    padding: 10px 0;
+    font-size: 13px;
+    color: var(--text-tertiary);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all 0.2s;
+    background: var(--card-bg);
+}
+
+.wk-bot-tab:first-child {
+    border-radius: 8px 0 0 0;
+}
+
+.wk-bot-tab:last-child {
+    border-radius: 0 8px 0 0;
+}
+
+.wk-bot-tab.active {
+    color: var(--accent);
+    font-weight: 600;
+    border-bottom-color: var(--accent);
+}
+
+/* Bot List */
+.wk-bot-list {
+    flex: 1;
+    overflow-y: auto;
+    background: var(--card-bg);
+    margin: 0 12px 12px;
+    border-radius: 0 0 8px 8px;
+}
+
+.wk-bot-card {
+    display: flex;
+    align-items: center;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border-light);
+    transition: background 0.15s;
+}
+
+.wk-bot-card:hover {
+    background: var(--bg-hover);
+}
+
+.wk-bot-card:last-child {
+    border-bottom: none;
+}
+
+.wk-bot-card-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    font-weight: 600;
+    color: #fff;
+    flex-shrink: 0;
+}
+
+.wk-bot-card-info {
+    flex: 1;
+    margin-left: 12px;
+    min-width: 0;
+}
+
+.wk-bot-card-name {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.wk-bot-card-badge {
+    font-size: 10px;
+    background: var(--accent-light);
+    color: var(--accent);
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-weight: 600;
+}
+
+.wk-bot-card-desc {
+    font-size: 12px;
+    color: var(--text-tertiary);
+    margin-top: 2px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.wk-bot-card-creator {
+    font-size: 11px;
+    color: var(--text-tertiary);
+    margin-top: 2px;
+}
+
+.wk-bot-card-action {
+    flex-shrink: 0;
+    margin-left: 12px;
+}
+
+/* Buttons */
+.wk-bot-btn {
+    padding: 6px 16px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 500;
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.wk-bot-btn-chat {
+    background: var(--accent);
+    color: #fff;
+}
+
+.wk-bot-btn-chat:hover {
+    background: var(--accent-hover);
+}
+
+.wk-bot-btn-add {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+}
+
+.wk-bot-btn-add:hover {
+    background: var(--border-color);
+}
+
+.wk-bot-btn-add:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.wk-bot-btn-pending {
+    background: #fff3e0;
+    color: #f57c00;
+    cursor: default;
+}
+
+/* Empty & Loading */
+.wk-bot-empty,
+.wk-bot-loading {
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--text-tertiary);
+    font-size: 13px;
+    line-height: 1.8;
+}

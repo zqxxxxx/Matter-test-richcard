@@ -1,0 +1,48 @@
+/**
+* =====================================
+* Legacy token bridge — 将旧变量桥接到 tokens.css 的 --wk-* 体系
+* 不要在新代码里用这些变量，用 --wk-* 或 --semi-color-* 代替
+**/
+
+:root {
+  --bg-primary:   var(--wk-bg-surface);
+  --bg-secondary: var(--wk-bg-elevated);
+  --bg-hover:     var(--wk-bg-hover);
+  --text-primary: var(--wk-text-primary);
+  --text-secondary: var(--wk-text-secondary);
+  --text-tertiary:  var(--wk-text-tertiary);
+  --border-color: var(--wk-border-default);
+  --card-bg:      var(--wk-bg-surface);
+  --sidebar-bg:   var(--wk-bg-base);
+  --topbar-bg:    var(--wk-bg-base);
+}
+
+/**
+* =====================================
+* 滚动条美化
+**/
+
+/* 亮色 */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: #b8b8b8;
+  background-clip: padding-box;
+  border-radius: 8px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: #878787;
+}
+
+/* 暗色 */
+body[theme-mode=dark] ::-webkit-scrollbar-thumb {
+  background: #565656;
+}
+
+body[theme-mode=dark] ::-webkit-scrollbar-thumb:hover {
+  background: #424242; /* 更深的灰色 */
+}

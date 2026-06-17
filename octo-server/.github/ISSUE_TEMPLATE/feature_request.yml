@@ -1,0 +1,59 @@
+name: 💡 Feature Request
+description: Suggest a new feature
+labels: ["type:feature"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for your suggestion! Please describe the background and your proposed solution clearly.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / Motivation
+      description: What problem are you facing, or why do you need this feature?
+      placeholder: Bots currently cannot know which groups they belong to, making it impossible to proactively push messages to groups
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed Solution
+      description: How would you like this to be solved?
+      placeholder: Provide a GET /v1/bot/groups API that returns the list of groups the Bot belongs to
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: Have you considered other approaches?
+    validations:
+      required: false
+  - type: dropdown
+    id: component
+    attributes:
+      label: Related Component
+      options:
+        - Backend (Server)
+        - Web Frontend
+        - Android Client
+        - Bot API / BotFather
+        - OpenClaw Adapter
+        - WuKongIM
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: technical
+    attributes:
+      label: Technical Approach (optional)
+      description: If you have initial ideas — affected modules, data model changes, API changes, etc.
+    validations:
+      required: false
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional Context
+      description: Mockups, reference links, related issues, etc.
+    validations:
+      required: false

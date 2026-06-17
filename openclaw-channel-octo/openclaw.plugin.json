@@ -1,0 +1,146 @@
+{
+  "id": "octo",
+  "name": "Octo",
+  "description": "OpenClaw channel plugin for Octo",
+  "channels": [
+    "octo"
+  ],
+  "skills": [
+    "./skills"
+  ],
+  "contracts": {
+    "tools": ["octo_management"]
+  },
+  "activation": {
+    "onStartup": true
+  },
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {}
+  },
+  "channelConfigs": {
+    "octo": {
+      "schema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "botToken": {
+            "type": "string",
+            "uiHints": {
+              "sensitive": true
+            }
+          },
+          "apiUrl": {
+            "type": "string",
+            "description": "Octo server REST API base URL (e.g. https://your-server:8090/api)"
+          },
+          "wsUrl": {
+            "type": "string",
+            "description": "WebSocket endpoint. Auto-detected from apiUrl if omitted."
+          },
+          "cdnUrl": {
+            "type": "string"
+          },
+          "pollIntervalMs": {
+            "type": "number",
+            "minimum": 500
+          },
+          "heartbeatIntervalMs": {
+            "type": "number",
+            "minimum": 5000
+          },
+          "requireMention": {
+            "type": "boolean"
+          },
+          "botUid": {
+            "type": "string"
+          },
+          "historyLimit": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "historyPromptTemplate": {
+            "type": "string"
+          },
+          "accounts": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "enabled": {
+                  "type": "boolean"
+                },
+                "botToken": {
+                  "type": "string",
+                  "uiHints": {
+                    "sensitive": true
+                  }
+                },
+                "apiUrl": {
+                  "type": "string",
+                  "description": "Octo server REST API base URL (e.g. https://your-server:8090/api)"
+                },
+                "wsUrl": {
+                  "type": "string",
+                  "description": "WebSocket endpoint. Auto-detected from apiUrl if omitted."
+                },
+                "cdnUrl": {
+                  "type": "string"
+                },
+                "pollIntervalMs": {
+                  "type": "number",
+                  "minimum": 500
+                },
+                "heartbeatIntervalMs": {
+                  "type": "number",
+                  "minimum": 5000
+                },
+                "requireMention": {
+                  "type": "boolean"
+                },
+                "botUid": {
+                  "type": "string"
+                },
+                "historyLimit": {
+                  "type": "number",
+                  "minimum": 1,
+                  "maximum": 100
+                },
+                "historyPromptTemplate": {
+                  "type": "string"
+                },
+                "onBehalfOf": {
+                  "type": "string",
+                  "description": "Persona clone: grantor uid — bot acts on behalf of this human"
+                },
+                "secretsFileRoot": {
+                  "type": "string",
+                  "description": "Jail root for write-secret: secret files may only be written under this path. When unset, defaults to the agent's workspace (agents.list[].workspace matched to the agent, else agents.defaults.workspace). If neither resolves to a usable directory, write-secret is unavailable (fail-closed); there is no process working-directory fallback."
+                }
+              }
+            }
+          },
+          "onBehalfOf": {
+            "type": "string",
+            "description": "Persona clone: grantor uid — bot acts on behalf of this human"
+          },
+          "secretsFileRoot": {
+            "type": "string",
+            "description": "Jail root for write-secret: secret files may only be written under this path. When unset, defaults to the agent's workspace (agents.list[].workspace matched to the agent, else agents.defaults.workspace). If neither resolves to a usable directory, write-secret is unavailable (fail-closed); there is no process working-directory fallback."
+          }
+        }
+      }
+    }
+  }
+}

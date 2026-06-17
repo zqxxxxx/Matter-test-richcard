@@ -1,0 +1,568 @@
+package group
+
+import (
+	"bytes"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"os"
+	"runtime/debug"
+	"strconv"
+
+	"github.com/Mininglamp-OSS/octo-lib/common"
+	"github.com/Mininglamp-OSS/octo-lib/config"
+	"github.com/Mininglamp-OSS/octo-lib/pkg/log"
+	"github.com/Mininglamp-OSS/octo-lib/pkg/wkevent"
+	"github.com/Mininglamp-OSS/octo-lib/pkg/wkhttp"
+	"github.com/Mininglamp-OSS/octo-server/modules/base/event"
+	"github.com/Mininglamp-OSS/octo-server/modules/user"
+	"github.com/Mininglamp-OSS/octo-server/pkg/errcode"
+	"github.com/Mininglamp-OSS/octo-server/pkg/httperr"
+	"go.uber.org/zap"
+)
+
+// Manager 群后台管理api
+type Manager struct {
+	ctx *config.Context
+	log.Log
+	managerDB *managerDB
+	userDB    *user.DB
+	db        *DB
+}
+
+// NewManager NewManager
+func NewManager(ctx *config.Context) *Manager {
+	return &Manager{
+		ctx:       ctx,
+		Log:       log.NewTLog("groupManager"),
+		managerDB: newManagerDB(ctx.DB()),
+		userDB:    user.NewDB(ctx),
+		db:        NewDB(ctx),
+	}
+}
+
+// Route 配置路由规则
+func (m *Manager) Route(r *wkhttp.WKHttp) {
+	auth := r.Group("/v1/manager", m.ctx.AuthMiddleware(r))
+	{
+		auth.GET("/group/list", m.list)                              // 群列表
+		auth.GET("/group/disablelist", m.disablelist)                // 封禁群列表
+		auth.PUT("/group/liftban/:groupNo/:status", m.leftbangroup)  // 封禁或解禁某个群
+		auth.PUT("/groups/:group_no/forbidden/:on", m.forbidden)     // 群全员禁言
+		auth.GET("/groups/:group_no/members", m.members)             // 群成员
+		auth.GET("/groups/:group_no/members/blacklist", m.blacklist) // 群黑名单成员
+		auth.DELETE("/groups/:group_no/members", m.removeMember)     // 移除群成员
+	}
+}
+
+// 查询群列表
+func (m *Manager) list(c *wkhttp.Context) {
+	err := c.CheckLoginRole()
+	if err != nil {
+		respondGroupForbidden(c)
+		return
+	}
+	keyword := c.Query("keyword")
+	pageIndex, pageSize := c.GetPage()
+	var list []*managerGroupModel
+	var count int64
+	if keyword == "" {
+		list, err = m.managerDB.listWithPage(uint64(pageSize), uint64(pageIndex))
+		if err != nil {
+			m.Error("查询群列表错误", zap.Error(err))
+			httperr.ResponseErrorL(c, errcode.ErrGroupQueryFailed, nil, nil)
+			return
+		}
+		count, err = m.db.queryGroupCount()
+		if err != nil {
+			m.Error("查询群数量错误", zap.Error(err))
+			httperr.ResponseErrorL(c, errcode.ErrGroupQueryFailed, nil, nil)
+			return
+		}
+	} else {
+		list, err = m.managerDB.listWithPageAndKeyword(keyword, uint64(pageSize), uint64(pageIndex))
+		if err != nil {
+			m.Error("查询群列表错误", zap.Error(err))
+			httperr.ResponseErrorL(c, errcode.ErrGroupQueryFailed, nil, nil)
+			return
+		}
+		count, err = m.managerDB.queryGroupCountWithKeyWord(keyword)
+		if err != nil {
+			m.Error("查询群数量错误", zap.Error(err))
+			httperr.ResponseErrorL(c, errcode.ErrGroupQueryFailed, nil, nil)
+			return
+		}
+	}
+
+	result, err := m.getRespList(list)
+	if err != nil {
+		httperr.ResponseErrorL(c, errcode.ErrGroupQueryFailed, nil, nil)
+		return
+	}
+	c.Response(map[string]interface{}{
+		"count": count,
+		"list":  result,
+	})
+}
+
+func (m *Manager) getRespList(list []*managerGroupModel) ([]*managerGroupResp, error) {
+	result := make([]*managerGroupResp, 0)
+	if len(list) > 0 {
+		uids := make([]string, 0)
+		groupNos := make([]string, 0)
+		for _, group := range list {
+			uids = append(uids, group.Creator)
+			groupNos = append(groupNos, group.GroupNo)
+		}
+		users, err := m.userDB.QueryByUIDs(uids)
+		if err != nil {
+			m.Error("查询群创建者错误", zap.Error(err))
+			return result, errors.New("查询群创建者错误")
+		}
+
+		memberCounts, err := m.managerDB.queryGroupsMemberCount(groupNos)
+		if err != nil {
+			m.Error("查询群成员数量错误", zap.Error(err))
+			return result, errors.New("查询群成员数量错误")
+		}
+		for _, group := range list {
+			// 得到群主名称
+			var createName string
+			if len(users) > 0 {
+				for _, user := range users {
+					if user.UID == group.Creator {
+						createName = user.Name
+						break
+					}
+				}
+			}
+			// 得到群成员数量
+			var count int = 0
+			if len(memberCounts) > 0 {
+				for _, memberCount := range memberCounts {
+					if memberCount.GroupNo == group.GroupNo {
+						count = memberCount.MemberCount
+						break
+					}
+				}
+			}
+
+			result = append(result, &managerGroupResp{
+				Name:        group.Name,
+				Creator:     group.Creator,
+				GroupNo:     group.GroupNo,
+				CreateName:  createName,
+				CreateAt:    group.CreatedAt.String(),
+				Status:      group.Status,
+				Forbidden:   group.Forbidden,
+				MemberCount: count,
+			})
+		}
+	}
+	return result, nil
+}
+
+// 封禁群列表
+func (m *Manager) disablelist(c *wkhttp.Context) {
+	err := c.CheckLoginRole()
+	if err != nil {
+		respondGroupForbidden(c)
+		return
+	}
+	pageIndex, pageSize := c.GetPage()
+	list, err := m.managerDB.queryGroupsWithStatus(GroupStatusDisabled, uint64(pageSize), uint64(pageIndex))
+	if err != nil {
+		m.Error("查询群列表错误", zap.Error(err))
+		httperr.ResponseErrorL(c, errcode.ErrGroupQueryFailed, nil, nil)
+		return
+	}
+	result, err := m.getRespList(list)
+	if err != nil {
+		httperr.ResponseErrorL(c, errcode.ErrGroupQueryFailed, nil, nil)
+		return
+	}
+	count, err := m.managerDB.queryGroupCountWithStatus(GroupStatusDisabled)
+	if err != nil {
+		m.Error("查询群总数错误", zap.Error(err))
+		httperr.ResponseErrorL(c, errcode.ErrGroupQueryFailed, nil, nil)
+		return
+	}
+	c.Response(map[string]interface{}{
+		"count": count,
+		"list":  result,
+	})
+}
+
+// 封禁或解禁某个群
+func (m *Manager) leftbangroup(c *wkhttp.Context) {
+	err := c.CheckLoginRoleIsSuperAdmin()
+	if err != nil {
+		respondGroupForbidden(c)
+		return
+	}
+	groupNo := c.Param("groupNo")
+	status := c.Param("status")
+	if groupNo == "" {
+		respondGroupRequestInvalid(c, "group_no")
+		return
+	}
+	if status == "" {
+		respondGroupRequestInvalid(c, "status")
+		return
+	}
+	group, err := m.db.QueryWithGroupNo(groupNo)
+	if err != nil {
+		m.Error("查询群信息错误", zap.Error(err))
+		httperr.ResponseErrorL(c, errcode.ErrGroupQueryFailed, nil, nil)
+		return
+	}
+	if group == nil {
+		httperr.ResponseErrorL(c, errcode.ErrGroupNotFound, nil, nil)
+		return
+	}
+	groupStatus, _ := strconv.Atoi(status)
+	if groupStatus != GroupStatusNormal && groupStatus != GroupStatusDisabled {
+		respondGroupRequestInvalid(c, "status")
+		return
+	}
+
+	if groupStatus == group.Status {
+		c.ResponseOK()
+		return
+	}
+	var ban = 0
+	if groupStatus == GroupStatusDisabled {
+		ban = 1
+	}
+	err = m.ctx.IMCreateOrUpdateChannelInfo(&config.ChannelInfoCreateReq{
+		ChannelID:   groupNo,
+		ChannelType: common.ChannelTypeGroup.Uint8(),
+		Ban:         ban,
+		Large:       group.GroupType,
+	})
+	if err != nil {
+		m.Error("调用IM修改channel信息服务失败！", zap.Error(err))
+		httperr.ResponseErrorL(c, errcode.ErrGroupNotifyFailed, nil, nil)
+		return
+	}
+	group.Status = groupStatus
+	//通知群成员更新群资料
+	// todo
+	tx, err := m.ctx.DB().Begin()
+	if err != nil {
+		m.Error("开启事务失败！", zap.Error(err))
+		httperr.ResponseErrorL(c, errcode.ErrGroupStoreFailed, nil, nil)
+		return
+	}
+	defer func() {
+		if err := recover(); err != nil {
+			tx.RollbackUnlessCommitted()
+			fmt.Fprintf(os.Stderr, "recovered panic in goroutine: %v\n%s\n", err, debug.Stack())
+		}
+	}()
+	groupMap := make(map[string]string)
+	groupMap["status"] = strconv.Itoa(groupStatus)
+	err = m.db.UpdateTx(group, tx)
+	if err != nil {
+		tx.Rollback()
+		m.Error("更新群信息失败！", zap.Error(err), zap.String("group_no", group.GroupNo), zap.Any("groupMap", groupMap))
+		httperr.ResponseErrorL(c, errcode.ErrGroupStoreFailed, nil, nil)
+		return
+	}
+	// 发布群创建事件
+	eventID, _ := m.ctx.EventBegin(&wkevent.Data{
+		Event: event.GroupUpdate,
+		Type:  wkevent.Message,
+		Data: &config.MsgGroupUpdateReq{
+			GroupNo:      groupNo,
+			Operator:     c.GetLoginUID(),
+			OperatorName: c.GetLoginName(),
+			Attr:         common.GroupAttrKeyStatus,
+			Data:         groupMap,
+		},
+	}, tx)
+	if err := tx.Commit(); err != nil {
+		tx.RollbackUnlessCommitted()
+		m.Error("提交事务失败！", zap.Error(err))
+		httperr.ResponseErrorL(c, errcode.ErrGroupStoreFailed, nil, nil)
+		return
+	}
+	m.ctx.EventCommit(eventID)
+
+	c.ResponseOK()
+}
+
+// 禁言
+func (m *Manager) forbidden(c *wkhttp.Context) {
+	err := c.CheckLoginRoleIsSuperAdmin()
+	if err != nil {
+		respondGroupForbidden(c)
+		return
+	}
+	groupNo := c.Param("group_no")
+	on := c.Param("on")
+	if groupNo == "" {
+		respondGroupRequestInvalid(c, "group_no")
+		return
+	}
+	groupModel, err := m.db.QueryWithGroupNo(groupNo)
+	if err != nil {
+		m.Error("查询群信息失败！", zap.Error(err))
+		httperr.ResponseErrorL(c, errcode.ErrGroupQueryFailed, nil, nil)
+		return
+	}
+	if groupModel == nil {
+		httperr.ResponseErrorL(c, errcode.ErrGroupNotFound, nil, nil)
+		return
+	}
+	forbidden, _ := strconv.ParseInt(on, 10, 64)
+	groupModel.Forbidden = int(forbidden)
+
+	whitelistUIDs := make([]string, 0)
+	if forbidden == 1 {
+		managerOrCreaterUIDs, err := m.db.QueryGroupManagerOrCreatorUIDS(groupNo)
+		if err != nil {
+			m.Error("查询管理者们的uid失败！", zap.Error(err))
+			httperr.ResponseErrorL(c, errcode.ErrGroupQueryFailed, nil, nil)
+			return
+		}
+		whitelistUIDs = managerOrCreaterUIDs
+	}
+
+	tx, err := m.ctx.DB().Begin()
+	if err != nil {
+		m.Error("开启事务失败！", zap.Error(err))
+		httperr.ResponseErrorL(c, errcode.ErrGroupStoreFailed, nil, nil)
+		return
+	}
+	defer func() {
+		if err := recover(); err != nil {
+			tx.RollbackUnlessCommitted()
+			fmt.Fprintf(os.Stderr, "recovered panic in goroutine: %v\n%s\n", err, debug.Stack())
+		}
+	}()
+
+	err = m.db.UpdateTx(groupModel, tx)
+	if err != nil {
+		tx.Rollback()
+		m.Error("更新群信息失败！", zap.Error(err), zap.String("group_no", groupModel.GroupNo))
+		httperr.ResponseErrorL(c, errcode.ErrGroupStoreFailed, nil, nil)
+		return
+	}
+	// 发布群信息更新事件
+	eventID, err := m.ctx.EventBegin(&wkevent.Data{
+		Event: event.GroupUpdate,
+		Type:  wkevent.Message,
+		Data: &config.MsgGroupUpdateReq{
+			GroupNo:      groupNo,
+			Operator:     c.GetLoginUID(),
+			OperatorName: c.GetLoginName(),
+			Attr:         common.GroupAttrKeyForbidden,
+			Data: map[string]string{
+				common.GroupAttrKeyForbidden: on,
+			},
+		},
+	}, tx)
+	if err != nil {
+		tx.Rollback()
+		m.Error("开启群更新事件失败！", zap.Error(err))
+		httperr.ResponseErrorL(c, errcode.ErrGroupStoreFailed, nil, nil)
+		return
+	}
+
+	if err := tx.Commit(); err != nil {
+		tx.RollbackUnlessCommitted()
+		m.Error("提交事务失败！", zap.Error(err))
+		httperr.ResponseErrorL(c, errcode.ErrGroupStoreFailed, nil, nil)
+		return
+	}
+	m.ctx.EventCommit(eventID)
+
+	// 群全员禁言 - DB commit 成功后再调用 IM API
+	err = m.ctx.IMWhitelistSet(config.ChannelWhitelistReq{
+		ChannelReq: config.ChannelReq{
+			ChannelID:   groupModel.GroupNo,
+			ChannelType: common.ChannelTypeGroup.Uint8(),
+		},
+		UIDs: whitelistUIDs,
+	})
+	if err != nil {
+		m.Error("设置禁言失败！", zap.Error(err))
+		httperr.ResponseErrorL(c, errcode.ErrGroupStoreFailed, nil, nil)
+		return
+	}
+
+	c.ResponseOK()
+}
+
+// 移除群成员
+func (m *Manager) removeMember(c *wkhttp.Context) {
+	err := c.CheckLoginRoleIsSuperAdmin()
+	if err != nil {
+		respondGroupForbidden(c)
+		return
+	}
+	type memberRemoveReq struct {
+		UID []string `json:"uid"` // 成员uid
+	}
+	var req memberRemoveReq
+	if err := c.BindJSON(&req); err != nil {
+		m.Error(common.ErrData.Error(), zap.Error(err))
+		respondGroupRequestInvalid(c, "")
+		return
+	}
+	if len(req.UID) == 0 {
+		respondGroupRequestInvalid(c, "members")
+		return
+	}
+	type deleteReq struct {
+		Members []string `json:"members"` // 成员uid
+	}
+	req2 := &deleteReq{Members: req.UID}
+	c.Request.URL.Path = fmt.Sprintf("/v1/groups/%s/members", c.Param("group_no"))
+
+	jsonData, err := json.Marshal(req2)
+	if err != nil {
+		m.Error("json序列化失败！", zap.Error(err))
+		httperr.ResponseErrorL(c, errcode.ErrGroupStoreFailed, nil, nil)
+		return
+	}
+	c.Request.Body = io.NopCloser(bytes.NewReader(jsonData))
+	m.ctx.GetHttpRoute().HandleContext(c)
+}
+
+// 群成员
+func (m *Manager) members(c *wkhttp.Context) {
+	err := c.CheckLoginRole()
+	if err != nil {
+		respondGroupForbidden(c)
+		return
+	}
+	groupNo := c.Param("group_no")
+	pageIndex, pageSize := c.GetPage()
+	if groupNo == "" {
+		respondGroupRequestInvalid(c, "group_no")
+		return
+	}
+	keyword := c.Query("keyword")
+	groupModel, err := m.db.QueryWithGroupNo(groupNo)
+	if err != nil {
+		m.Error("查询群信息错误", zap.Error(err))
+		httperr.ResponseErrorL(c, errcode.ErrGroupQueryFailed, nil, nil)
+		return
+	}
+	if groupModel == nil {
+		httperr.ResponseErrorL(c, errcode.ErrGroupNotFound, nil, nil)
+		return
+	}
+	var list []*managerMemberModel
+	var count int64
+	if keyword == "" {
+		list, err = m.managerDB.queryGroupMembers(groupNo, uint64(pageSize), uint64(pageIndex))
+		if err != nil {
+			m.Error("查询群成员错误", zap.Error(err))
+			httperr.ResponseErrorL(c, errcode.ErrGroupQueryFailed, nil, nil)
+			return
+		}
+		count, err = m.managerDB.queryGroupMemberCount(groupNo)
+		if err != nil {
+			m.Error("查询群成员总数错误", zap.Error(err))
+			httperr.ResponseErrorL(c, errcode.ErrGroupQueryFailed, nil, nil)
+			return
+		}
+	} else {
+		list, err = m.managerDB.queryGroupMembersWithKeyWord(groupNo, keyword, uint64(pageSize), uint64(pageIndex))
+		if err != nil {
+			m.Error("查询群成员错误", zap.Error(err))
+			httperr.ResponseErrorL(c, errcode.ErrGroupQueryFailed, nil, nil)
+			return
+		}
+		count, err = m.managerDB.queryGroupMemberCountWithKeyword(groupNo, keyword)
+		if err != nil {
+			m.Error("查询群成员总数错误", zap.Error(err))
+			httperr.ResponseErrorL(c, errcode.ErrGroupQueryFailed, nil, nil)
+			return
+		}
+	}
+
+	c.Response(map[string]interface{}{
+		"count": count,
+		"list":  m.from(list),
+	})
+}
+
+// 群黑名单成员
+func (m *Manager) blacklist(c *wkhttp.Context) {
+	err := c.CheckLoginRole()
+	if err != nil {
+		respondGroupForbidden(c)
+		return
+	}
+	groupNo := c.Param("group_no")
+	pageIndex, pageSize := c.GetPage()
+	if groupNo == "" {
+		respondGroupRequestInvalid(c, "group_no")
+		return
+	}
+	list, err := m.managerDB.queryGroupMembersWithStatus(groupNo, int(common.GroupMemberStatusBlacklist), uint64(pageSize), uint64(pageIndex))
+	if err != nil {
+		m.Error("查询群成员错误", zap.Error(err))
+		httperr.ResponseErrorL(c, errcode.ErrGroupQueryFailed, nil, nil)
+		return
+	}
+	count, err := m.managerDB.queryGroupMemberCountWithStatus(groupNo, int(common.GroupMemberStatusBlacklist))
+	if err != nil {
+		m.Error("查询群成员总数错误", zap.Error(err))
+		httperr.ResponseErrorL(c, errcode.ErrGroupQueryFailed, nil, nil)
+		return
+	}
+	c.Response(map[string]interface{}{
+		"count": count,
+		"list":  m.from(list),
+	})
+}
+
+func (m *Manager) from(list []*managerMemberModel) []*managerMemberResp {
+	result := make([]*managerMemberResp, 0)
+	for _, model := range list {
+		result = append(result, &managerMemberResp{
+			Name:      model.Name,
+			Remark:    model.Remark,
+			Role:      model.Role,
+			CreatedAt: model.CreatedAt.String(),
+			UID:       model.UID,
+		})
+	}
+	return result
+}
+
+type managerGroupResp struct {
+	Name        string `json:"name"`
+	GroupNo     string `json:"group_no"`
+	Creator     string `json:"creator"`
+	CreateName  string `json:"create_name"`
+	CreateAt    string `json:"create_at"`
+	Status      int    `json:"status"`
+	MemberCount int    `json:"member_count"`
+	Forbidden   int    `json:"forbidden"`
+}
+
+type managerMemberResp struct {
+	Name      string `json:"name"`
+	UID       string `json:"uid"`
+	Role      int    `json:"role"` // 成员角色
+	CreatedAt string `json:"created_at"`
+	Remark    string `json:"remark"` // 成员备注
+}
+
+// type managerMemberRemoveReq struct {
+// 	Members []string `json:"members"` // 成员uid
+// }
+
+// func (m managerMemberRemoveReq) Check() error {
+// 	if len(m.Members) <= 0 {
+// 		return errors.New("群成员不能为空！")
+// 	}
+// 	return nil
+// }

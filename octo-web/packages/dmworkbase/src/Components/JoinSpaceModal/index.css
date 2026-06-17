@@ -1,0 +1,106 @@
+.wk-join-space-modal {
+    padding: var(--wk-sp-1, 4px) 0 var(--wk-sp-5, 20px);
+    display: flex;
+    flex-direction: column;
+    gap: var(--wk-sp-4, 16px);
+}
+
+.wk-join-space-modal__desc {
+    font-size: var(--wk-text-size-sm, 13px);
+    color: var(--wk-text-secondary);
+    line-height: 1.5;
+    margin: 0;
+}
+
+.wk-join-space-modal__field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--wk-sp-1-5, 6px);
+}
+
+.wk-join-space-modal__label {
+    font-size: var(--wk-text-size-xs, 12px);
+    font-weight: 600;
+    color: var(--wk-text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.wk-join-space-modal__hint {
+    font-size: var(--wk-text-size-xs, 12px);
+    color: var(--wk-text-tertiary);
+    line-height: 1.4;
+}
+
+/* footer */
+.wk-join-space-modal__footer {
+    display: flex;
+    gap: var(--wk-sp-3, 12px);
+    justify-content: flex-end;
+}
+
+/* confirm step footer — 上下布局 */
+.wk-join-space-modal__footer--confirm {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--wk-sp-2, 8px);
+}
+
+.wk-join-space-modal__join-btn {
+    width: 100%;
+}
+
+.wk-join-space-modal__back-link {
+    background: none;
+    border: none;
+    padding: var(--wk-sp-1, 4px) var(--wk-sp-2, 8px);
+    cursor: pointer;
+    font-size: var(--wk-text-size-sm, 13px);
+    color: var(--wk-text-tertiary);
+    line-height: 1.4;
+    transition: color var(--wk-transition-fast, 0.15s);
+    align-self: center;
+}
+
+.wk-join-space-modal__back-link:hover {
+    color: var(--wk-text-secondary);
+}
+
+.wk-join-space-modal__back-link:focus-visible {
+    outline: var(--wk-focus-ring-width, 2px) solid var(--wk-brand-primary);
+    outline-offset: var(--wk-sp-0-5, 2px);
+    border-radius: var(--wk-r-xs, 4px);
+}
+
+/* confirm step */
+.wk-join-space-modal--confirm .wk-join-space-modal__space-preview {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--wk-sp-2, 8px);
+    padding: var(--wk-sp-4, 16px) 0;
+}
+
+.wk-join-space-modal__space-avatar {
+    width: var(--wk-avatar-size-lg, 56px);
+    height: var(--wk-avatar-size-lg, 56px);
+    border-radius: var(--wk-r-lg, 14px);
+    background: linear-gradient(135deg, var(--wk-brand-primary), var(--wk-color-teal, #00D4AA));
+    color: var(--wk-color-white, #fff);
+    font-size: var(--wk-text-size-2xl, 24px);
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.wk-join-space-modal__space-name {
+    font-size: var(--wk-text-size-xl, 18px);
+    font-weight: 600;
+    color: var(--wk-text-primary);
+}
+
+.wk-join-space-modal__space-meta {
+    font-size: var(--wk-text-size-sm, 13px);
+    color: var(--wk-text-tertiary);
+}

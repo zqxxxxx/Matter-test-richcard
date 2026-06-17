@@ -1,0 +1,92 @@
+gzip on;
+gzip_min_length 1k;
+gzip_disable msie6;
+gzip_vary on;
+gzip_proxied any;
+gzip_comp_level 2;
+gzip_buffers 16 8k;
+gzip_http_version 1.1;
+gzip_types text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript;
+
+
+server {
+        listen       80;
+        server_name  localhost;
+
+        # Propagate env-provided values down into nginx variables so they
+        # can be referenced from inside location blocks. envsubst substitutes
+        # these at container start; leaving an env blank yields an empty
+        # string that the corresponding location block tests for.
+        set $summary_api_url "${SUMMARY_API_URL}";
+
+        # Security headers
+        # Prevent clickjacking attacks
+        add_header X-Frame-Options "SAMEORIGIN" always;
+        # Prevent MIME type sniffing
+        add_header X-Content-Type-Options "nosniff" always;
+        # Enable browser XSS filter (legacy but still useful)
+        add_header X-XSS-Protection "1; mode=block" always;
+        # Control referrer information sent with requests
+        add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+        # Content Security Policy - permissive to avoid breaking functionality
+        # Note: 'unsafe-inline' and 'unsafe-eval' are needed for React/inline styles
+        # blob: is required for srcdoc iframe previews (HTML file preview)
+        # srcdoc iframe origin is null, so internally created blob URLs become blob:null/...
+        # Adding blob: to script-src and connect-src allows these URLs to load
+        add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' ws: wss: http: https: blob:; media-src 'self' blob:; worker-src 'self' blob:; object-src 'none'; frame-ancestors 'self';" always;
+        # HSTS - uncomment when full HTTPS chain is confirmed
+        # add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+
+        # Smart Summary backend — optional.
+        # Set SUMMARY_API_URL (e.g. http://summary-api:8080) at container
+        # start to enable the in-app summariser. Leaving it blank routes
+        # /summary/api/v1/* to a static 503 so missing the smart-summary
+        # service does not fail nginx startup.
+        location /summary/api/v1/ {
+            # nginx's `return` defaults to text/html; this location is an
+            # API proxy so JSON clients expect application/json.
+            default_type application/json;
+            if ($summary_api_url = "") {
+                return 503 '{"status":503,"msg":"smart-summary is not configured"}';
+            }
+            # nginx resolves proxy_pass variables at request time, not at
+            # startup, so an unresolvable hostname no longer hard-fails the
+            # whole container.
+            resolver 127.0.0.11 ipv6=off valid=30s;
+            # When proxy_pass contains a variable, nginx does NOT do the
+            # usual location-prefix→URI swap — the URI after the host
+            # would be sent verbatim. Use a rewrite to produce the final
+            # upstream URI, then proxy_pass *without* a URI so nginx
+            # forwards the rewritten request as-is.
+            rewrite ^/summary/api/v1/(.*)$ /api/v1/$1 break;
+            proxy_pass  $summary_api_url;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            client_max_body_size 100m;
+        }
+
+        location /api/ {
+            proxy_pass  ${API_URL}/;
+            client_max_body_size 1000m;
+            client_body_buffer_size 500m;
+        }
+
+        # OIDC SSO endpoints (authcode/authstatus/authorize/callback).
+        # Backend mounts these under /v1/ directly (no /api/ prefix), so we
+        # forward /v1/* without the strip-then-prepend dance the /api/ rule does.
+        location /v1/ {
+            proxy_pass  ${API_URL}/v1/;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            client_max_body_size 10m;
+        }
+
+        location / {
+            root   /usr/share/nginx/html;
+            index  index.html index.htm;
+        }
+}

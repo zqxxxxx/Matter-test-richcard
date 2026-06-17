@@ -1,0 +1,155 @@
+/**
+ * 聊天记录卡片（合并转发）
+ * Figma: 421:63872 · padding T16B16L16R16 · 圆角 12px
+ */
+
+.wk-mergeforwards {
+  /* 卡片外层 */
+}
+
+.wk-mergeforwards-content {
+  background: var(--wk-bg-surface);
+  border-radius: var(--wk-r-md);
+  border: 1px solid var(--wk-border-default);
+  padding: var(--wk-sp-4);
+  cursor: pointer;
+  /* 宽度自适应（由最长内容决定），不设固定宽度 */
+  min-width: 200px;
+  max-width: 400px;
+  transition: background var(--wk-dur-fast);
+}
+
+.wk-mergeforwards-content:hover {
+  background: var(--wk-brand-tint-03);
+}
+
+/* 标题行 */
+.wk-mergeforwards-content-title {
+  font-size: var(--wk-text-size-md);
+  font-weight: var(--wk-font-medium);
+  color: var(--wk-text-primary);
+  margin-bottom: var(--wk-sp-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 记录列表 */
+.wk-mergeforwards-content-items {
+  display: flex;
+  flex-direction: column;
+  gap: var(--wk-sp-1);
+  margin-bottom: var(--wk-sp-3);
+}
+
+.wk-mergeforwards-content-item {
+  font-size: var(--wk-text-size-base);
+  color: var(--wk-icon-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 分割线 */
+.wk-mergeforwards-content-line {
+  height: 1px;
+  background: var(--wk-border-default);
+  margin-bottom: var(--wk-sp-3);
+}
+
+/* 底部标签区 */
+.wk-mergeforwards-content-tip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: var(--wk-text-size-sm);
+  color: var(--wk-brand-tint-35);
+}
+
+.wk-mergeforwards-content-tip p {
+  margin: 0;
+}
+
+/* ── 聊天记录详情弹窗 ──
+ * Figma 421:64397: 480px 宽，max-height=100vh-160px
+ * Header: 56px，pad L/R 16，标题左+关闭右
+ *
+ * 样式通过 WKModal props (width/bodyStyle/style/header) 传入，
+ * 不直接覆盖 .semi-modal-* 内部类。
+ * 布局尺寸通过组件级 token 定义，便于统一调整。
+ */
+
+/* 组件级布局 token */
+.wk-mergeforward-modal {
+    --mf-modal-width: 480px;
+    --mf-modal-max-height: calc(100vh - 160px);
+    --mf-modal-header-height: 56px;
+    --mf-modal-body-max-height: calc(var(--mf-modal-max-height) - var(--mf-modal-header-height));
+}
+
+/* Header 样式（通过 header prop 自定义渲染） */
+.wk-mergeforward-modal-header {
+    height: var(--mf-modal-header-height);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 var(--wk-sp-4);
+    border-bottom: 1px solid var(--wk-border-default);
+    margin: 0;
+}
+
+.wk-mergeforward-modal-header-title {
+    font-size: var(--wk-text-size-xl);
+    font-weight: var(--wk-font-medium);
+    color: var(--wk-text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.wk-mergeforward-modal-close-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: var(--wk-sp-7);
+    height: var(--wk-sp-7);
+    border: none;
+    background: none;
+    border-radius: var(--wk-r-sm);
+    cursor: pointer;
+    color: var(--wk-text-tertiary);
+    font-size: var(--wk-text-size-sm);
+    transition: background var(--wk-dur-fast), color var(--wk-dur-fast);
+    flex-shrink: 0;
+}
+
+.wk-mergeforward-modal-close-btn:hover {
+    background: var(--wk-bg-hover);
+    color: var(--wk-text-primary);
+}
+
+/* ── 返回按钮（嵌套合并转发导航） ── */
+.wk-mergeforward-modal-title-with-back {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--wk-sp-2);
+}
+
+.wk-mergeforward-modal-back-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: var(--wk-sp-6);
+    height: var(--wk-sp-6);
+    border: none;
+    background: none;
+    border-radius: var(--wk-r-sm);
+    cursor: pointer;
+    color: var(--wk-text-secondary);
+    transition: background var(--wk-dur-fast), color var(--wk-dur-fast);
+}
+
+.wk-mergeforward-modal-back-btn:hover {
+    background: var(--wk-bg-hover);
+    color: var(--wk-text-primary);
+}

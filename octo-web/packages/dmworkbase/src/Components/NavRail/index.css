@@ -1,0 +1,532 @@
+/* ── NavRail wrapper ── */
+.wk-navrail {
+    width: 56px;
+    flex-shrink: 0;
+    height: 100%;
+    background: var(--wk-bg-navrail);
+    border-right: 1px solid var(--wk-brand-tint-08); /* Figma 分割线 */
+    box-sizing: border-box;            /* border 包含在 56px 内 */
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 0;
+    position: relative;
+    z-index: 10;
+    overflow: visible; /* dropdown 需要溢出 */
+}
+
+/* ── Top user avatar ── */
+.wk-navrail__top {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    flex-shrink: 0;
+    margin-bottom: 8px;                /* Figma: gap=8 between logo and icons */
+    padding-top: 16px;                 /* 头像顶部留白 */
+}
+
+.wk-navrail__user-wrap {
+    position: relative;
+    cursor: pointer;
+    margin-bottom: 0;
+}
+
+.wk-navrail__user-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: var(--wk-r-circle, 50%);
+    background: var(--wk-bg-elevated);
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    overflow: hidden;
+    display: block;
+    transition: transform var(--wk-dur-fast, 200ms) var(--wk-ease, cubic-bezier(0.16,1,0.3,1));
+}
+
+.wk-navrail__user-avatar:hover {
+    transform: scale(1.08);
+}
+
+.wk-navrail__user-avatar .wk-avatar {
+    display: block;
+    width: 40px;
+    height: 40px;
+}
+
+/* ── Online status dot ── */
+.wk-navrail__user-status {
+    position: absolute;
+    bottom: 0;
+    right: 0;
+    width: 10px;
+    height: 10px;
+    border-radius: var(--wk-r-circle, 50%);
+    background: var(--wk-color-online);
+    border: 2px solid var(--wk-bg-deep);
+    pointer-events: none;
+}
+
+/* ── Separator ── */
+.wk-navrail__sep {
+    width: 22px;
+    height: 1px;
+    background: var(--wk-border-subtle);
+    margin: var(--wk-sp-2, 8px) 0;
+    flex-shrink: 0;
+}
+
+/* ── Space switcher ── */
+.wk-navrail__switcher {
+    position: relative;
+    flex-shrink: 0;
+}
+
+/* SpaceAvatar 在 NavRail 里统一 34×34 */
+.wk-navrail__space-avatar {
+    width: 34px !important;
+    height: 34px !important;
+    border-radius: var(--wk-r-md, 10px) !important;
+    font-size: var(--wk-text-size-md, 14px) !important;
+}
+
+.wk-navrail__space-btn {
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--wk-r-md, 10px);
+    transition: transform var(--wk-dur-fast, 200ms) var(--wk-ease, cubic-bezier(0.16,1,0.3,1));
+}
+
+.wk-navrail__space-btn:hover {
+    transform: scale(1.08);
+}
+
+.wk-navrail__space-icon {
+    width: 34px;
+    height: 34px;
+    border-radius: var(--wk-r-md, 10px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: var(--wk-text-size-md, 14px);
+    font-weight: 700;
+    color: var(--wk-color-white);
+    letter-spacing: -0.01em;
+}
+
+.wk-navrail__space-icon--empty {
+    background: var(--wk-bg-elevated);
+    color: var(--wk-text-tertiary);
+}
+
+/* ── Dropdown ── */
+.wk-navrail__dropdown-mask {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+}
+
+.wk-navrail__dropdown {
+    position: fixed;
+    bottom: 52px;
+    left: 12px;
+    width: 240px;
+    background: var(--wk-bg-surface);
+    border: 1px solid var(--wk-border-subtle);
+    border-radius: 8px;                /* Figma: cornerRadius=8 */
+    box-shadow: var(--wk-shadow-dropdown);
+    z-index: 101;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    padding: 4px 0;                    /* Figma: 上下 4px，左右 0（行内自带 padding） */
+}
+
+.wk-navrail__dropdown-title {
+    font-size: 12px;                   /* Figma: 12px Semibold */
+    font-weight: 600;
+    color: rgba(28, 28, 35, 0.40);    /* Figma: 40% */
+    padding: 8px 12px;                 /* Figma: T8 B8 L12 R12 */
+    letter-spacing: 0;
+    flex-shrink: 0;
+}
+
+/* 可滚动 Space 列表区 */
+.wk-navrail__dropdown-spaces {
+    overflow-y: auto;
+    max-height: 596px;                 /* Figma: 弹层最大 728px - 标题 36 - 分割线 8 - 底部操作 64 - 上下 pad 8 = ~612，保守取 596 */
+    display: flex;
+    flex-direction: column;
+    gap: 4px;                          /* Figma: Space 列表 gap=4 */
+}
+
+.wk-navrail__dropdown-divider {
+    height: 1px;
+    background: rgba(28, 28, 35, 0.15); /* Figma: 分割线颜色 */
+    margin: 4px 12px;                   /* Figma: 左右 margin 12px */
+    flex-shrink: 0;
+}
+
+/* 固定底部操作区 */
+.wk-navrail__dropdown-actions {
+    flex-shrink: 0;
+}
+
+/* ── Nav items (middle) ── */
+.wk-navrail__items {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;                            /* Figma: IconItem 56x44 紧邻 */
+    flex: 1;
+    justify-content: flex-start;
+    padding: 8px 0;                    /* Figma: Frame 5 pad top:8 bottom:8 */
+}
+
+/* ── NavItem button ── */
+.wk-navrail__item {
+    position: relative;
+    width: 56px;                       /* Figma: IconItem 56x44 */
+    height: 44px;
+    border-radius: 0;
+    border: none;
+    background: transparent;
+    color: var(--wk-icon-muted);       /* Figma: 未选中 30% 透明 */
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background var(--wk-dur-fast, 200ms) var(--wk-ease, cubic-bezier(0.16,1,0.3,1)),
+                color var(--wk-dur-fast, 200ms) var(--wk-ease, cubic-bezier(0.16,1,0.3,1));
+}
+
+/* svg 图标统一 20×20，对齐设计稿 */
+.wk-navrail__item svg {
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+}
+
+.wk-navrail__item:hover {
+    color: var(--wk-icon-default);
+    background: var(--wk-brand-tint-04);
+}
+
+.wk-navrail__item:focus-visible {
+    outline: none;
+    background: var(--wk-brand-tint-06);
+    box-shadow: none;
+}
+
+.wk-navrail__language-wrap {
+    position: relative;
+}
+
+.wk-navrail__language,
+.wk-navrail__language--open {
+    color: var(--wk-icon-muted);
+}
+
+.wk-navrail__language:hover,
+.wk-navrail__language:focus-visible,
+.wk-navrail__language--open {
+    color: var(--wk-icon-default);
+}
+
+.wk-navrail__language .semi-icon {
+    display: inline-flex;
+    font-size: 20px;
+}
+
+.wk-navrail__language-mask {
+    position: fixed;
+    inset: 0;
+    z-index: 190;
+}
+
+.wk-navrail__language-menu {
+    position: absolute;
+    left: calc(100% + 8px);
+    bottom: 0;
+    width: 132px;
+    padding: var(--wk-sp-1, 4px);
+    border: 1px solid var(--wk-border-default);
+    border-radius: var(--wk-r-md, 10px);
+    background: var(--wk-bg-elevated);
+    box-shadow: var(--wk-shadow-lg);
+    z-index: 201;
+}
+
+.wk-navrail__language-menu-item {
+    width: 100%;
+    min-height: 32px;
+    padding: 0 var(--wk-sp-2, 8px);
+    border: none;
+    border-radius: var(--wk-r-sm, 6px);
+    background: transparent;
+    color: var(--wk-text-primary);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--wk-sp-2, 8px);
+    font: var(--wk-text-sm);
+    letter-spacing: 0;
+}
+
+.wk-navrail__language-menu-item:hover,
+.wk-navrail__language-menu-item--active {
+    background: var(--wk-bg-hover);
+}
+
+.wk-navrail__language-menu-item .semi-icon {
+    flex-shrink: 0;
+    color: var(--wk-brand-primary);
+    font-size: 14px;
+}
+
+.wk-navrail__language-menu-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Figma: 选中态只有颜色变化，无背景，无指示条 */
+.wk-navrail__item--active {
+    color: var(--wk-brand-primary);     /* Figma: 纯黑 */
+    background: transparent;
+}
+
+/* ── Badge ── */
+.wk-navrail__badge {
+    position: absolute;
+    top: 4px;
+    right: 3px;
+    min-width: 14px;
+    height: 14px;
+    border-radius: var(--wk-r-full, 9999px);
+    background: var(--wk-color-danger);
+    color: var(--wk-color-white);
+    font-size: 9px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 3px;
+    border: 1.5px solid var(--wk-bg-deep);
+    line-height: 1;
+}
+
+/* ── Bottom area ── */
+.wk-navrail__bottom {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;                          /* Figma: 间距 */
+    padding-bottom: 16px;
+}
+
+.wk-navrail__bottom > .wk-navrail__sep {
+    margin: 0;
+}
+
+/* ── Space icon button (bottom) ── */
+.wk-navrail__space-icon-btn {
+    width: 32px;                       /* Figma: 32x32 */
+    height: 32px;
+    border-radius: 0;
+    border: none;                      /* Figma: 无边框 */
+    background: transparent;           /* Figma: 无底色 */
+    color: var(--wk-icon-muted);       /* Figma: 同未选中态 */
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background var(--wk-dur-fast, 200ms) var(--wk-ease, cubic-bezier(0.16,1,0.3,1)),
+                border-color var(--wk-dur-fast, 200ms) var(--wk-ease, cubic-bezier(0.16,1,0.3,1));
+    padding: 0;
+}
+
+.wk-navrail__space-icon-btn:hover {
+    color: var(--wk-icon-default);
+}
+
+/* ── Settings badge ── */
+.wk-navrail__settings-badge {
+    position: absolute;
+    top: var(--wk-sp-1, 4px);
+    right: var(--wk-sp-1, 4px);
+}
+
+/* ── 设置按钮 + 气泡的包裹层 ── */
+.wk-navrail__settings-wrap {
+    position: relative;
+}
+
+/* ── 版本更新气泡 ── */
+.wk-navrail__version-bubble {
+    position: absolute;
+    left: calc(100% + 12px); /* 设置按钮右侧，留出三角空间 */
+    bottom: 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 10px;
+    background: var(--wk-bg-elevated, #fff);
+    border: 1px solid var(--wk-border-default);
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+    white-space: nowrap;
+    z-index: 100;
+    animation: wk-bubble-in 0.2s ease;
+}
+
+@keyframes wk-bubble-in {
+    from { opacity: 0; transform: translateX(-6px); }
+    to   { opacity: 1; transform: translateX(0); }
+}
+
+/* 左侧指向设置按钮的小三角 */
+.wk-navrail__version-bubble-arrow {
+    position: absolute;
+    left: -6px;
+    bottom: 12px;
+    width: 0;
+    height: 0;
+    border-top: 6px solid transparent;
+    border-bottom: 6px solid transparent;
+    border-right: 6px solid var(--wk-bg-elevated, #fff);
+    filter: drop-shadow(-1px 0 0 var(--wk-border-default));
+}
+
+.wk-navrail__version-bubble-text {
+    font-size: 12px;
+    color: var(--wk-text-primary);
+}
+
+.wk-navrail__version-bubble-refresh {
+    padding: 2px 8px;
+    border-radius: 4px;
+    border: none;
+    background: var(--wk-brand-primary);
+    color: #fff;
+    font-size: 12px;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.wk-navrail__version-bubble-refresh:hover {
+    opacity: 0.85;
+}
+
+.wk-navrail__version-bubble-close {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    border: none;
+    background: none;
+    color: var(--wk-text-tertiary);
+    font-size: 14px;
+    cursor: pointer;
+    padding: 0;
+    flex-shrink: 0;
+    line-height: 1;
+}
+
+.wk-navrail__version-bubble-close:hover {
+    color: var(--wk-text-primary);
+}
+
+
+/* ── 设置面板内版本更新提示 ── */
+.wk-navrail__settings-version-update {
+    display: flex;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--wk-border-subtle);
+    cursor: default;
+}
+
+.wk-navrail__settings-list li.wk-navrail__settings-version-update:hover {
+    background: transparent;
+}
+
+.wk-navrail__settings-version-refresh {
+    padding: 2px 10px;
+    border-radius: 4px;
+    border: none;
+    background: var(--wk-brand-primary);
+    color: #fff;
+    font-size: var(--wk-text-size-sm, 13px);
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.wk-navrail__settings-version-refresh:hover {
+    opacity: 0.85;
+}
+
+/* ── Settings panel (flyout) ── */
+.wk-navrail__settings-list {
+    position: fixed;
+    left: 56px;
+    bottom: var(--wk-sp-8, 32px);
+    width: 224px;
+    background: var(--wk-bg-elevated);
+    border: 1px solid var(--wk-border-default);
+    border-radius: var(--wk-r-md, 10px);
+    box-shadow: var(--wk-shadow-lg);
+    z-index: 200;
+    padding: var(--wk-sp-1, 4px) 0;
+    list-style: none;
+    display: none;
+}
+
+.wk-navrail__settings-list.open {
+    display: block;
+}
+
+.wk-navrail__settings-list li {
+    padding: var(--wk-sp-2, 8px) var(--wk-sp-3, 12px);
+    font-size: var(--wk-text-size-sm, 13px);
+    color: var(--wk-text-primary);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: var(--wk-sp-2, 8px);
+    transition: background var(--wk-dur-fast, 200ms);
+}
+
+.wk-navrail__settings-list li:hover {
+    background: var(--wk-bg-hover);
+}
+
+/* ── User avatar ── */
+.wk-navrail__avatar {
+    width: 30px;
+    height: 30px;
+    border-radius: var(--wk-r-circle, 50%);
+    background: var(--wk-bg-elevated) center/cover no-repeat;
+    border: none;
+    cursor: pointer;
+    transition: opacity var(--wk-dur-fast, 200ms);
+    padding: 0;
+    overflow: hidden;
+}
+
+.wk-navrail__avatar:hover {
+    opacity: 0.85;
+}
+
+/* focus-visible for keyboard nav */
+.wk-navrail__space-btn:focus-visible,
+.wk-navrail__avatar:focus-visible {
+    outline: 2px solid var(--wk-brand-primary);
+    outline-offset: 2px;
+}

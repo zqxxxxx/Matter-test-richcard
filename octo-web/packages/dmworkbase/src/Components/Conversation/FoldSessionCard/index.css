@@ -1,0 +1,358 @@
+.wk-fold-session-card {
+  position: relative;
+  width: 100%;
+  max-width: min(680px, calc(100vw - 120px));
+  background: rgba(28, 28, 35, 0.04);
+  border: none;
+  border-radius: 8px;
+  padding: 12px;
+  overflow: hidden;
+  transition: background var(--wk-dur) var(--wk-ease);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.wk-fold-session-card:hover {
+  border-color: var(--wk-border-glow);
+  box-shadow: var(--wk-shadow-md);
+}
+
+.wk-fold-session-card-active {
+  border-color: var(--wk-border-glow);
+}
+
+.wk-fold-session-card-flash {
+  animation: wk-fold-session-merge-flash 0.8s var(--wk-ease);
+}
+
+.wk-fold-session-card-appearing {
+  animation: wk-fold-session-appear 0.35s var(--wk-ease);
+}
+
+.wk-fold-session-card-flash.wk-fold-session-card-appearing {
+  animation: wk-fold-session-appear 0.35s var(--wk-ease),
+    wk-fold-session-merge-flash 0.8s var(--wk-ease);
+}
+
+/* 卡片头部:已移到外层,这里隐藏 */
+.wk-fold-session-card-head {
+  display: none;
+}
+
+/* 以下样式已移至外层 Conversation,保留代码便于回滚 */
+/*
+.wk-fold-session-card-head-left {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--wk-sp-2);
+}
+
+.wk-fold-session-card-avatars {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.wk-fold-session-card-avatar {
+  width: 24px;
+  height: 24px;
+  margin-right: -6px;
+  border-radius: var(--wk-r-sm);
+  border: 2px solid var(--wk-ai-panel-bg);
+  overflow: hidden;
+  background: var(--wk-bg-elevated);
+  box-shadow: var(--wk-shadow-sm);
+}
+
+.wk-fold-session-card-avatar:last-child {
+  margin-right: 0;
+}
+
+.wk-fold-session-card-avatar > * {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.wk-fold-session-card-title-wrap {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--wk-sp-1);
+}
+
+.wk-fold-session-card-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--wk-text-size-base);
+  font-weight: var(--wk-font-semibold);
+  color: var(--wk-text-primary);
+}
+
+.wk-fold-session-card-tag {
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: var(--wk-font-semibold);
+  color: #FFFFFF;
+  background: #0077FA;
+  padding: 2px 8px;
+  border-radius: 4px;
+  letter-spacing: 0.3px;
+}
+*/
+
+.wk-fold-session-card-meta {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--wk-sp-2);
+}
+
+.wk-fold-session-card-live-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--wk-color-success);
+  animation: wk-fold-session-live-dot 1.5s ease-in-out infinite;
+}
+
+.wk-fold-session-card-status {
+  font: var(--wk-text-mono-sm);
+  color: var(--wk-text-tertiary);
+}
+
+.wk-fold-session-card-count {
+  flex-shrink: 0;
+  background: var(--wk-ai-surface);
+  color: var(--wk-text-accent);
+  padding: 2px 8px;
+  border-radius: var(--wk-r-full);
+  font: var(--wk-text-mono-sm);
+}
+
+.wk-fold-session-card-toggle {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--wk-ai-border);
+  border-radius: var(--wk-r-sm);
+  background: var(--wk-ai-surface);
+  color: var(--wk-text-accent);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color var(--wk-dur) var(--wk-ease),
+    border-color var(--wk-dur) var(--wk-ease),
+    transform var(--wk-dur) var(--wk-ease);
+}
+
+.wk-fold-session-card-toggle:hover {
+  background: var(--wk-bg-hover);
+  border-color: var(--wk-border-glow);
+}
+
+.wk-fold-session-card-toggle svg {
+  width: 14px;
+  height: 14px;
+  stroke: currentColor;
+  stroke-width: 2;
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: transform 0.3s var(--wk-ease);
+}
+
+.wk-fold-session-card-toggle-open svg {
+  transform: rotate(180deg);
+}
+
+/* 分割线: Line + "讨论记录" + Line */
+.wk-fold-session-divider {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+}
+
+.wk-fold-session-divider-line {
+  flex: 1;
+  height: 1px;
+  background: rgba(28, 28, 35, 0.1);
+}
+
+.wk-fold-session-divider-text {
+  font-size: 12px;
+  font-weight: 500;
+  color: rgba(28, 28, 35, 0.4);
+  white-space: nowrap;
+}
+
+/* 展开区域:无动画,直接显示/隐藏 */
+.wk-fold-session-card-expanded {
+  display: none;
+}
+
+.wk-fold-session-card-expanded-show {
+  display: block;
+}
+
+.wk-fold-session-card-expanded-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px 0 0 0; /* 展开区域顶部间距 */
+}
+
+.wk-fold-session-card-summary {
+  padding: 0;
+  display: none;
+  order: -1;
+}
+
+.wk-fold-session-card-summary-show {
+  display: block;
+}
+
+/* 展开时隐藏 summary (折叠卡片) */
+.wk-fold-session-card-expanded-show ~ .wk-fold-session-card-summary-show {
+  display: none;
+}
+
+.wk-fold-session-card-summary-highlight {
+  animation: wk-fold-session-summary-highlight 1.2s var(--wk-ease);
+}
+
+.wk-fold-session-card-summary-inner-selection {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--wk-sp-2);
+}
+
+.wk-fold-session-card-summary-inner-selectable {
+  cursor: pointer;
+  margin: 0 calc(var(--wk-sp-2) * -1);
+  padding: var(--wk-sp-2);
+  border-radius: var(--wk-r-sm);
+  transition: background-color var(--wk-dur-fast) var(--wk-ease);
+}
+
+.wk-fold-session-card-summary-inner-selectable:hover {
+  background: color-mix(in srgb, var(--wk-brand-primary) 4%, transparent);
+}
+
+.wk-fold-session-card-summary-inner-selected {
+  background: color-mix(in srgb, var(--wk-brand-primary) 4%, transparent);
+}
+
+.wk-fold-session-card-summary-check {
+  flex-shrink: 0;
+  min-height: 22px;
+  padding-top: 2px;
+  display: flex;
+  align-items: center;
+}
+
+.wk-fold-session-card-summary-checkbox {
+  gap: 0;
+}
+
+.wk-fold-session-card-summary-checkbox .wk-checkbox__box {
+  border-radius: 50%;
+  border-width: 2px;
+  border-color: color-mix(in srgb, var(--wk-text-primary) 15%, transparent);
+  background: transparent;
+}
+
+.wk-fold-session-card-summary-checkbox:hover .wk-checkbox__box {
+  border-color: color-mix(in srgb, var(--wk-brand-primary) 40%, transparent);
+}
+
+.wk-fold-session-card-summary-checkbox.wk-checkbox--checked .wk-checkbox__box {
+  background: var(--wk-brand-primary);
+  border-color: var(--wk-brand-primary);
+}
+
+.wk-fold-session-card-summary-checkbox .wk-checkbox__check {
+  width: 10px;
+  height: 10px;
+}
+
+.wk-fold-session-card-summary-main {
+  min-width: 0;
+  flex: 1;
+}
+
+.wk-fold-session-card-summary-sender {
+  margin-bottom: var(--wk-sp-1);
+  font-size: var(--wk-text-size-sm);
+  font-weight: var(--wk-font-semibold);
+  color: var(--wk-text-accent);
+}
+
+.wk-fold-session-card-summary-content {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.6;
+  color: rgba(28, 28, 35, 0.8);
+}
+
+/* 隐藏表情图标,折叠状态显示为普通消息 */
+.wk-fold-session-card-summary-icon {
+  display: none;
+}
+
+@keyframes wk-fold-session-live-dot {
+  0%,
+  100% {
+    opacity: 0.45;
+    transform: scale(0.8);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.2);
+  }
+}
+
+@keyframes wk-fold-session-merge-flash {
+  0% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+  30% {
+    box-shadow: 0 0 0 4px var(--wk-brand-glow), var(--wk-shadow-lg);
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
+@keyframes wk-fold-session-appear {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes wk-fold-session-summary-highlight {
+  0% {
+    background: transparent;
+  }
+  35% {
+    background: var(--wk-ai-surface);
+  }
+  100% {
+    background: transparent;
+  }
+}

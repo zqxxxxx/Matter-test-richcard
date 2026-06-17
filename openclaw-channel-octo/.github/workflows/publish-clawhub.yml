@@ -1,0 +1,292 @@
+name: Publish ClawHub
+
+# Triggered on tag push (e.g. v1.0.10, v1.2.0) or manual workflow_dispatch.
+# Only stable MAJOR.MINOR.PATCH versions are accepted — no prereleases (rc / beta / etc).
+# workflow_dispatch is dry-run ONLY (forced server-side) — real publish requires a tag push from main.
+#
+# Auth:
+#   - clawhub CLI auto-tries GitHub Actions OIDC trusted publishing first.
+#   - If ClawHub does not yet have a trusted-publisher config for `octo` (the web
+#     UI does not yet expose this — as of 2026-05), the CLI falls back to the
+#     stored long-lived token written by `clawhub auth login --token`.
+#   - We populate that token from the `CLAWHUB_TOKEN` repo secret in the publish job.
+#   - Once a trusted publisher is configured on ClawHub, the OIDC path wins and
+#     the PAT login becomes a no-op — no workflow change needed.
+#
+# Sequence:
+#   1. verify  — checkout (full history), tag-on-main check, STRICT package.json/tag
+#                match (no auto-bump), CHANGELOG presence, existing release detection,
+#                install/type-check/test/build, npm pack
+#   2. publish — OIDC publish (or PAT fallback) to ClawHub + GitHub Release upload
+#                (release is already created by release-please on the merged release PR)
+#
+# Normal flow (release-please driven):
+#   1. Conventional-commit PRs land on main
+#   2. release-please.yml maintains a "chore(release): release vX.Y.Z" PR with the
+#      version bump (package.json + package-lock.json + src/version.ts + CHANGELOG.md)
+#   3. Release manager merges that PR
+#   4. release-please creates the vX.Y.Z tag + GitHub Release
+#   5. Tag push triggers this workflow → ClawHub publish + tarball upload to the
+#      existing release
+#
+# Manual override (no release-please PR involved):
+#   - Open a regular PR that bumps package.json + package-lock.json + src/version.ts
+#     + CHANGELOG.md, merge it via standard PR review
+#   - Tag the merged commit locally and push the tag
+#   - This workflow handles the rest (creates a new release if none exists)
+#
+# Notes / Troubleshooting:
+#   - package.json MUST equal the tag version. If it does not, the workflow fails
+#     loudly — this is the contract enforced by release-please flow. Auto-bumping
+#     was removed because it required github-actions[bot] to push to main, which
+#     is blocked by the main-branch ruleset (and we want PR-first release hygiene).
+#   - GitHub Release notes for releases created by release-please are NOT
+#     overwritten by this workflow. New releases created here (manual override
+#     path) use the CHANGELOG.md section as notes.
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to dry-run, no leading v, e.g. 1.0.10 — manual dispatch is ALWAYS dry-run; only stable MAJOR.MINOR.PATCH accepted"
+        required: true
+        type: string
+
+permissions:
+  contents: write   # gh release create/upload
+  id-token: write   # ClawHub OIDC
+
+concurrency:
+  group: publish-clawhub-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: verify
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.resolve.outputs.version }}
+      dry_run: ${{ steps.resolve.outputs.dry_run }}
+      use_existing_release: ${{ steps.existing.outputs.use_existing_release }}
+      existing_is_draft: ${{ steps.existing.outputs.existing_is_draft }}
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          # Need full history so we can verify the tagged commit is reachable from origin/main.
+          fetch-depth: 0
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: resolve version + dry_run
+        id: resolve
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          # Read inputs/event from env (NOT GHA expression interpolation) to avoid shell injection.
+          # workflow_dispatch is ALWAYS dry-run (real publish requires tag from main).
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            VERSION="$INPUT_VERSION"
+            DRY_RUN="true"
+          else
+            VERSION="${GITHUB_REF_NAME#v}"
+            DRY_RUN="false"
+          fi
+          # Stable SemVer only (MAJOR.MINOR.PATCH). Prereleases (rc, beta, alpha) are
+          # intentionally rejected — this project ships only stable releases. The strict
+          # regex also rejects anything that could embed shell metacharacters.
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Invalid version '$VERSION'. Expected stable SemVer like 1.0.10 or 1.2.0 (no prereleases)."
+            exit 1
+          fi
+          {
+            echo "version=$VERSION"
+            echo "dry_run=$DRY_RUN"
+          } >> "$GITHUB_OUTPUT"
+          echo "[verify] version=$VERSION dry_run=$DRY_RUN event=$EVENT_NAME"
+
+      - name: assert tag commit is reachable from origin/main
+        if: github.event_name == 'push'
+        run: |
+          git fetch --no-tags origin main
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::Tag commit $GITHUB_SHA is NOT reachable from origin/main."
+            echo "::error::Only tags pushed from a commit already merged to main may publish."
+            exit 1
+          fi
+          echo "[verify] tag commit confirmed reachable from origin/main"
+
+      - name: ensure package.json matches tag (strict, no auto-bump)
+        env:
+          TAG_VER: ${{ steps.resolve.outputs.version }}
+        run: |
+          PKG_VER=$(node -p "require('./package.json').version")
+          if [ "$PKG_VER" != "$TAG_VER" ]; then
+            echo "::error::package.json version ($PKG_VER) does not match tag ($TAG_VER)."
+            echo "::error::Release flow contract: the bump must land on main BEFORE the tag (via release-please PR or a manual bump PR)."
+            echo "::error::See .github/workflows/release-please.yml and the CONTRIBUTING.md Release process section."
+            exit 1
+          fi
+          echo "[verify] package.json version $PKG_VER matches tag $TAG_VER"
+
+      - name: assert CHANGELOG section exists
+        run: ./scripts/extract-changelog.sh "${{ steps.resolve.outputs.version }}" > /dev/null
+
+      - name: detect existing release (created by release-please or manual)
+        id: existing
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Normal flow: release-please created the release when the release PR
+          # was merged → release already exists, we upload the tarball to it.
+          # Manual override flow: no release exists yet → we create one with the
+          # CHANGELOG section as notes.
+          # Distinguish "release not found" (treat as missing) from transient
+          # API errors (auth/rate-limit/5xx) — the latter should fail loudly
+          # instead of being silently swallowed.
+          set +e
+          OUTPUT=$(gh release view "${{ github.ref_name }}" --json isDraft --jq '.isDraft' 2>&1)
+          RC=$?
+          set -e
+          if [ $RC -eq 0 ]; then
+            # Successfully fetched the release. `OUTPUT` is now the literal
+            # value of `.isDraft` ("true" or "false"). Carry it forward so the
+            # publish job can flip the release to non-draft after uploading.
+            # Without this, a tag whose release happens to be a draft (left over
+            # from a prior failed run, or future release-please config drift)
+            # would silently stay draft — tarball uploaded but release invisible.
+            echo "[verify] existing release found for ${{ github.ref_name }} (isDraft=$OUTPUT) — workflow will upload tarball to it"
+            echo "use_existing_release=true" >> "$GITHUB_OUTPUT"
+            echo "existing_is_draft=$OUTPUT" >> "$GITHUB_OUTPUT"
+          elif echo "$OUTPUT" | grep -qiE "release not found|HTTP 404|not found"; then
+            echo "[verify] no existing release for ${{ github.ref_name }} — workflow will create one (manual override path)"
+            echo "use_existing_release=false" >> "$GITHUB_OUTPUT"
+            echo "existing_is_draft=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "::error::Unexpected error from 'gh release view ${{ github.ref_name }}' (rc=$RC):"
+            echo "$OUTPUT"
+            exit 1
+          fi
+
+      - run: npm ci
+
+      - run: npm run type-check
+
+      - run: npm test
+
+      - run: npm run build
+
+      - name: verify build artifacts
+        run: |
+          test -f dist/index.js || (echo "::error::dist/index.js missing" && exit 1)
+          test -f dist/setup-entry.js || (echo "::error::dist/setup-entry.js missing" && exit 1)
+
+      - run: npm pack
+
+      - name: upload tarball
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: clawpack
+          path: octo-*.tgz
+          retention-days: 1
+          if-no-files-found: error
+
+  publish:
+    name: publish
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 22
+
+      - name: download tarball
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: clawpack
+
+      - name: install clawhub CLI
+        run: npm i -g clawhub@latest
+
+      - name: clawhub auth login (PAT fallback)
+        # CLI prefers OIDC trusted publishing when available, but ClawHub web UI
+        # does not yet expose trusted-publisher configuration. Until it does, the
+        # CLI auto-falls back to a stored long-lived token. Once trusted-publisher
+        # is configured for `octo`, this step is a no-op (OIDC path is taken first).
+        env:
+          CLAWHUB_TOKEN: ${{ secrets.CLAWHUB_TOKEN }}
+        run: clawhub auth login --no-browser --token "$CLAWHUB_TOKEN"
+
+      - name: extract changelog notes
+        run: ./scripts/extract-changelog.sh "${{ needs.verify.outputs.version }}" > /tmp/notes.md
+
+      - name: publish to ClawHub (OIDC, falls back to PAT)
+        run: |
+          set -euo pipefail
+          DRY=""
+          if [ "${{ needs.verify.outputs.dry_run }}" = "true" ]; then
+            DRY="--dry-run"
+            echo "[publish] DRY RUN — no upload"
+          fi
+          # Source ref: tag for tag pushes; branch for workflow_dispatch (always dry-run anyway).
+          SOURCE_REF="${{ github.ref_name }}"
+          clawhub package publish \
+            --family code-plugin \
+            --version "${{ needs.verify.outputs.version }}" \
+            --source-repo "${{ github.repository }}" \
+            --source-commit "${{ github.sha }}" \
+            --source-ref "$SOURCE_REF" \
+            --changelog "$(cat /tmp/notes.md)" \
+            --json \
+            $DRY \
+            octo-*.tgz
+
+      - name: publish GitHub Release (upload tarball, sync notes from CHANGELOG.md)
+        # `always()` so we still upload the tarball and sync notes even when
+        # `publish to ClawHub` above times out — that step has known server-side
+        # response issues where the package lands but the HTTP response hangs,
+        # and we don't want a ClawHub timeout to also strand the Release.
+        if: always() && github.event_name == 'push' && needs.verify.outputs.dry_run != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+          USE_EXISTING: ${{ needs.verify.outputs.use_existing_release }}
+          EXISTING_IS_DRAFT: ${{ needs.verify.outputs.existing_is_draft }}
+        run: |
+          set -euo pipefail
+          if [ "$USE_EXISTING" = "true" ]; then
+            echo "[publish] uploading tarball to existing release $TAG (created by release-please)"
+            gh release upload "$TAG" octo-*.tgz --clobber
+
+            # Always overwrite the release body with our CHANGELOG.md section.
+            # release-please auto-generates a one-line-per-commit body that
+            # does not match the project's prose style (现象/根因/修复/兼容性).
+            # We rewrite CHANGELOG.md on the release-please PR before merging,
+            # and the release body should mirror that — every release, not
+            # just when the body happens to be empty.
+            echo "[publish] overwriting release body with CHANGELOG.md section"
+            gh release edit "$TAG" --notes-file /tmp/notes.md
+
+            # If the existing release is a draft (left over from prior failed run
+            # or future release-please config drift), flip to published. Without
+            # this, the tarball would sit on an invisible draft forever.
+            if [ "$EXISTING_IS_DRAFT" = "true" ]; then
+              echo "[publish] existing release is a draft — flipping to published"
+              gh release edit "$TAG" --draft=false
+            fi
+          else
+            echo "[publish] creating new release $TAG (manual override path — no release-please PR was used)"
+            gh release create "$TAG" \
+              --title "$TAG" \
+              --notes-file /tmp/notes.md \
+              octo-*.tgz
+          fi

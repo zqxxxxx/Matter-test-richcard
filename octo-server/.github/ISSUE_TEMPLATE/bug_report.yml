@@ -1,0 +1,105 @@
+name: 🐛 Bug Report
+description: Report a bug
+labels: ["type:bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug! Please fill in as much detail as possible to help us locate the issue quickly.
+  - type: textarea
+    id: summary
+    attributes:
+      label: Description
+      description: Briefly describe the issue
+      placeholder: After sending a message, the recipient receives two duplicate messages
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to Reproduce
+      description: List the steps to reproduce in order
+      placeholder: |
+        1. Create a group chat
+        2. Add a Bot to the group
+        3. Send message "test"
+        4. Observe: Bot replies twice
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      placeholder: Bot replies only once
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual Behavior
+      placeholder: Bot replies twice with identical content
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: DMWork Version
+      placeholder: "v1.1.1"
+    validations:
+      required: true
+  - type: dropdown
+    id: component
+    attributes:
+      label: Affected Component
+      options:
+        - Backend (Server)
+        - Web Frontend
+        - Android Client
+        - Bot API / BotFather
+        - OpenClaw Adapter
+        - WuKongIM
+        - Other
+    validations:
+      required: true
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity
+      options:
+        - P0 - Service Unavailable / Data Loss
+        - P1 - Core Feature Broken
+        - P2 - Non-core Feature Issue
+        - P3 - UX Issue
+    validations:
+      required: true
+  - type: checkboxes
+    id: reproducible
+    attributes:
+      label: Reproducibility
+      options:
+        - label: Consistently reproducible
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, browser, deployment method, etc.
+      placeholder: |
+        - OS: Ubuntu 24.04
+        - Deployment: Docker Compose
+        - Browser: Chrome 133
+    validations:
+      required: false
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / Screenshots
+      description: Relevant logs, error messages, or screenshots (please redact sensitive info)
+    validations:
+      required: false
+  - type: textarea
+    id: workaround
+    attributes:
+      label: Workaround
+      description: Have you found a workaround?
+    validations:
+      required: false

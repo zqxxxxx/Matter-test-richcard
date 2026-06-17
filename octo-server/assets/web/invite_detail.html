@@ -1,0 +1,168 @@
+<html>
+
+<head>
+    <title>邀请详情</title>
+    <meta charset='utf-8'>
+    <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes" /><!-- 删除苹果默认的工具栏和菜单栏 -->
+    <meta name="apple-mobile-web-app-status-bar-style" content="black" /><!-- 设置苹果工具栏颜色 -->
+    <meta name="format-detection" content="telephone=no, email=no" />
+    <!--忽略页面中的数字识别为电话，忽略email识别 -->
+    <link rel="stylesheet" type="text/css" href="css/index.css" />
+    <script type="text/javascript" src="js/config.js"></script>
+    <script type="text/javascript" src="js/jquery-3.4.1.min.js"></script>
+    <script type="text/javascript" src="js/IMJSBridge.js"></script>
+    <script type="text/javascript" src="js/index.js"></script>
+    <style type="text/css">
+        .top {
+            display: flex;
+            align-items: center;
+            flex-direction: column;
+            height: 200px;
+        }
+
+        .avatar {
+            width: 64px;
+            height: 64px;
+            border-radius: 4px;
+            margin-top: 40px;
+        }
+
+        .inviter {
+            margin-top: 5px;
+        }
+
+        /* YUJ-168 / GH #1243: 外部群邀请 landing 页 Space 信任锚点样式。 */
+        .space-info {
+            margin-top: 4px;
+            font-size: 13px;
+            color: #666;
+            text-align: center;
+        }
+
+        .badge-external {
+            display: inline-block;
+            margin-left: 6px;
+            padding: 1px 8px;
+            border-radius: 10px;
+            font-size: 11px;
+            line-height: 16px;
+            background: #fff3e0;
+            color: #f57c00;
+            vertical-align: middle;
+        }
+
+        .tip {
+            margin-top: 15px;
+        }
+
+        .remark {
+            margin-top: 5px;
+        }
+
+        .line {
+            background-color: #eee;
+            height: 1;
+            margin: 20px 20px;
+        }
+
+        .members {
+            display: flex;
+            justify-content: center;
+            padding: 0px 20px;
+            flex-wrap: wrap-reverse;
+        }
+
+        .member {
+            width: 58px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .member img {
+            width: 48px;
+            height: 48px;
+            border-radius: 4px;
+        }
+
+        .member .name {
+            font-size: 12px;
+            text-align: center;
+            width: 48px;
+            color: gray;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="box">
+        <div class="top">
+            <img class="avatar" />
+            <div class="inviter"></div>
+            <div class="space-info" style="display:none"></div>
+            <div class="tip"></div>
+            <div class="remark"></div>
+        </div>
+        <div class="line"></div>
+        <div class="bottom">
+            <div class="members">
+            </div>
+            <div id="ok" class="button primary" style="margin: 40px 20px 20px 20px;">确认邀请</div>
+        </div>
+    </div>
+</body>
+<script language="javascript">
+    let inviteNo = getQueryString('invite_no');
+    let code = getQueryString('auth_code');
+    $(function () {
+        im.onReady();
+
+        $.getJSON(`${apiURL}group/invites/${inviteNo}`).then(function (resp) {
+            let data = resp;
+            $(".avatar").attr('src', `${apiURL}users/${data.inviter}/avatar`);
+            $(".inviter").text(data.inviter_name);
+            // YUJ-168 / GH #1243: 展示群所属 Space 信任锚点。
+            // - space_name 非空 → 渲染「来自 ${space_name}」（即使访问者未登录也显示）
+            // - is_external==1 → 追加「外部」徽标（仅对登录态访问且跨 Space 时置位）
+            if (data.space_name) {
+                let $info = $(".space-info");
+                $info.text(`来自 ${data.space_name}`);
+                if (data.is_external == 1) {
+                    $info.append(' <span class="badge-external">外部</span>');
+                }
+                $info.show();
+            }
+            $(".tip").text(`邀请${data.items.length}位朋友加入群聊`);
+            if (data.remark && data.remark != '') {
+                $(".remark").text(`"${data.remark}"`);
+            }
+            for (let i = 0; i < data.items.length; i++) {
+                let item = data.items[i];
+                let memberElem = $(`<div class="member">
+                    <img src="${apiURL}users/${item.uid}/avatar">
+                    <div class="name">${item.name}</div>
+                </div>`)
+                $('.members').append(memberElem);
+            }
+            if (data.status == 1) {
+                $("#ok").text('已确认');
+            } else {
+                $("#ok").click(function () {
+                    $.postJSON(`${apiURL}group/invite/sure?auth_code=${code}`).then(function (resp) {
+                         im.quit();
+                    }).fail(function (e) {
+
+                    })
+
+                });
+            }
+
+
+        })
+
+    })
+</script>
+
+</html>

@@ -1,0 +1,56 @@
+.wk-search-box {
+    display: flex;
+    align-items: center;
+    min-width: 200px;
+    height: 36px;
+    background-color: var(--wk-bg-elevated);
+    border-radius: var(--wk-r-full);
+    border: 1px solid var(--wk-border-subtle);
+    transition: border-color var(--wk-dur-fast) var(--wk-ease),
+                background-color var(--wk-dur-fast) var(--wk-ease);
+}
+
+.wk-search-box:focus-within {
+    border-color: var(--wk-border-glow);
+    background-color: var(--wk-bg-surface);
+}
+
+.wk-search-icon {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+    padding-left: var(--wk-sp-3);
+    color: var(--wk-text-tertiary);
+}
+
+.wk-search-input {
+    flex: 1;
+    min-width: 0;
+    padding: 0 var(--wk-sp-3);
+}
+
+/* Semi Input 样式重置 */
+.wk-search-input .semi-input-wrapper {
+    height: 100%;
+    background-color: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0;
+}
+
+.wk-search-input .semi-input-wrapper-focus {
+    border: none !important;
+    box-shadow: none !important;
+}
+
+.wk-search-input .semi-input {
+    background-color: transparent;
+    color: var(--wk-text-primary);
+    font-size: var(--wk-text-size-md);
+    font-family: var(--wk-font-sans);
+    padding: 0;
+}
+
+.wk-search-input .semi-input::placeholder {
+    color: var(--wk-text-tertiary);
+}

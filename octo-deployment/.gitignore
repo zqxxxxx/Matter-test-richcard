@@ -1,0 +1,33 @@
+# Docker Compose local env (contains real passwords — never commit)
+docker/.env
+docker/.env.bak.*
+
+# Never commit real Secret files. Templates use the *-secret.example.yaml suffix
+# and are tracked; the populated copies must stay local.
+kustomize/**/*-secret.yaml
+!kustomize/**/*-secret.example.yaml
+
+# Only the canonical OSS-template overlays (dev/prod) are tracked.
+# Any environment-specific overlay (with real credentials) stays local.
+kustomize/overlays/**
+!kustomize/overlays/dev/
+!kustomize/overlays/dev/**
+!kustomize/overlays/prod/
+!kustomize/overlays/prod/**
+
+# nginx TLS material — keep certificates / keys out of the repo. The
+# active TLS mount path is `docker/certs/` (see below); the older
+# `docker/nginx/certs/` layout is no longer referenced by any compose
+# file, so only the canonical path is ignored.
+
+# TLS certificates in docker/certs/ — see docker/certs/README.md
+docker/certs/*.pem
+docker/certs/*.key
+docker/certs/*.crt
+
+# Helm — packaged chart tarballs and personal values (real credentials)
+helm/*.tgz
+helm/**/values.personal.yaml
+
+# macOS
+.DS_Store

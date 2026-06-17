@@ -1,0 +1,20 @@
+# Binary (root only)
+/octo-cli
+/bin/
+# npm postinstall downloads the prebuilt binary here — never commit it
+/npm/bin/
+coverage.out
+
+# Go
+go.work.sum
+*.test
+
+# IDE
+.idea/
+.vscode/
+
+# OS
+.DS_Store
+
+# Claude Code
+.omc/

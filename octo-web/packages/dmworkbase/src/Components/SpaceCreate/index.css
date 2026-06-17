@@ -1,0 +1,38 @@
+.wk-spacecreate-form {
+    padding: 8px 0;
+}
+
+.wk-spacecreate-field {
+    margin-bottom: 16px;
+}
+
+.wk-spacecreate-label {
+    display: block;
+    font-size: 13px;
+    font-weight: 500;
+    margin-bottom: 6px;
+    color: var(--wk-text-secondary);
+}
+
+.wk-spacecreate-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 20px;
+}
+
+.wk-spacecreate-invite {
+    padding: 8px 0 16px;
+}
+
+.wk-spacecreate-invite-tip {
+    font-size: 14px;
+    color: var(--wk-text-secondary);
+    margin-bottom: 12px;
+}
+
+.wk-spacecreate-invite-link {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}

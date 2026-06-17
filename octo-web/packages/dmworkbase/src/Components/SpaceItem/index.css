@@ -1,0 +1,111 @@
+.wk-space-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;                          /* Figma: avatar 到内容 gap=8 */
+    padding: 4px 12px;                 /* Figma: T4 B4 L12 R12 → 行高 46px */
+    min-height: 46px;                  /* Figma: Content 高度 46px */
+    border-radius: var(--wk-r-sm);
+    cursor: pointer;
+    transition: background 0.15s;
+    outline: none;
+    box-sizing: border-box;
+}
+
+.wk-space-item {
+    position: relative;
+}
+
+.wk-space-item:hover::before,
+.wk-space-item--selected::before {
+    content: "";
+    position: absolute;
+    inset: 0 4px;                      /* Figma: 左右各缩 4px */
+    border-radius: 6px;
+    pointer-events: none;
+}
+
+.wk-space-item:hover::before {
+    background: rgba(28, 28, 35, 0.04);
+}
+
+.wk-space-item--selected::before {
+    background: rgba(28, 28, 35, 0.06); /* Figma: rgba(28,28,35,0.06) */
+}
+
+.wk-space-item--selected:hover::before {
+    background: rgba(28, 28, 35, 0.08);
+}
+
+body[theme-mode=dark] .wk-space-item:hover::before {
+    background: rgba(255, 255, 255, 0.06);
+}
+
+body[theme-mode=dark] .wk-space-item--selected::before {
+    background: rgba(255, 255, 255, 0.08);
+}
+
+body[theme-mode=dark] .wk-space-item--selected:hover::before {
+    background: rgba(255, 255, 255, 0.10);
+}
+
+/* info */
+.wk-space-item__info {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+}
+
+.wk-space-item__name {
+    font-size: 14px;                   /* Figma: Space 名称约 14px */
+    font-weight: 500;
+    color: rgba(28, 28, 35, 0.80);    /* Figma: 普通态 80% */
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 20px;
+}
+
+.wk-space-item--selected .wk-space-item__name {
+    color: rgba(13, 13, 13, 1);       /* Figma: 当前选中深色 */
+    font-weight: 500;
+}
+
+body[theme-mode=dark] .wk-space-item__name { color: var(--wk-text-primary); }
+
+.wk-space-item__meta {
+    font-size: 12px;
+    color: rgba(28, 28, 35, 0.40);    /* Figma: 成员数 40% */
+    line-height: 18px;
+    margin-top: 0;
+}
+
+/* trailing slot（checkmark + actions） */
+.wk-space-item__trailing {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    flex-shrink: 0;
+}
+
+/* checkmark（选中时显示） */
+.wk-space-item__check {
+    display: flex;
+    align-items: center;
+    color: var(--wk-brand-accent);
+}
+
+/* actions slot：opacity 0 默认，hover 时 opacity 1，不用 display:none 避免位置跳动 */
+.wk-space-item__actions {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    flex-shrink: 0;
+    opacity: 0;
+    transition: opacity 0.15s;
+}
+
+.wk-space-item:hover .wk-space-item__actions {
+    opacity: 1;
+}

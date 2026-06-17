@@ -1,0 +1,50 @@
+version: 2
+
+project_name: octo-cli
+
+builds:
+  - main: ./cmd/octo-cli
+    binary: octo-cli
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w -X github.com/Mininglamp-OSS/octo-cli/cmd.Version={{.Version}} -X github.com/Mininglamp-OSS/octo-cli/cmd.Commit={{.Commit}} -X github.com/Mininglamp-OSS/octo-cli/cmd.BuildDate={{.Date}}
+
+archives:
+  - format: tar.gz
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    format_overrides:
+      - goos: windows
+        format: zip
+    files:
+      - README.md
+      - LICENSE*
+
+checksum:
+  # Pin the algorithm so it doesn't silently drift with goreleaser defaults.
+  # Lockstep with npm/scripts/install.js's parseChecksumEntry, which asserts
+  # `^[0-9a-f]{64}$` (64 lowercase hex chars = sha256). If you change this
+  # algorithm here, update the regex and the corresponding test in
+  # npm/scripts/install.test.js.
+  algorithm: sha256
+  name_template: "checksums.txt"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+
+release:
+  github:
+    owner: Mininglamp-OSS
+    name: octo-cli

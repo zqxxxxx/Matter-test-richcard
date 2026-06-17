@@ -1,0 +1,304 @@
+# en-US is the source language for octo-matter messages.
+# Keys mirror the constants in keys.go. Templated values use go-i18n
+# {{.Field}} placeholders.
+
+# --- Generic / transport ---
+[err.common.not_found]
+other = "not found"
+
+[err.common.forbidden]
+other = "forbidden"
+
+[err.common.internal]
+other = "internal error"
+
+[err.common.payload_too_large]
+other = "request body exceeds size limit"
+
+# --- Auth + space ---
+[err.auth.missing_token]
+other = "missing token or Authorization header"
+
+[err.auth.unavailable]
+other = "failed to reach auth service"
+
+[err.auth.invalid_token]
+other = "invalid or expired token"
+
+[err.auth.invalid_bot_token]
+other = "invalid bot token"
+
+[err.auth.parse_failed]
+other = "failed to parse auth response"
+
+[err.space.missing_header]
+other = "missing X-Space-Id header"
+
+[err.space.forbidden]
+other = "not a member of this space"
+
+[err.space.unavailable]
+other = "space verification service unavailable"
+
+# --- Validation ---
+[err.validation.invalid_id]
+other = "invalid id format"
+
+[err.validation.invalid_entry_id]
+other = "invalid entry_id format"
+
+[err.validation.invalid_cursor]
+other = "invalid cursor"
+
+[err.validation.invalid_request]
+other = "invalid request body"
+
+[err.validation.matter_id_mismatch]
+other = "body.matter_id must match path :id"
+
+[err.validation.content_required]
+other = "content or attachments required"
+
+[err.validation.content_too_long]
+other = "content too long"
+
+[err.validation.too_many_attachments]
+other = "too many attachments"
+
+[err.validation.file_url_required]
+other = "file_url required"
+
+[err.validation.attachment_too_large]
+other = "attachment too large"
+
+[err.validation.participant_uid_required]
+other = "participant_uid required"
+
+[err.validation.channel_id_required]
+other = "channel_id required"
+
+[err.validation.channel_type_invalid]
+other = "channel_type must be one of 1, 2, 5"
+
+[err.validation.creator_uid_required]
+other = "creator_uid required"
+
+[err.validation.msgs_required]
+other = "msgs required"
+
+[err.validation.msgs_limit]
+other = "msgs exceeds limit of {{.Limit}}"
+
+[err.validation.message_id_limit]
+other = "msgs[{{.Index}}].message_id exceeds limit of {{.Limit}}"
+
+[err.validation.deadline_format]
+other = "deadline must be RFC3339 or empty"
+
+[err.validation.remind_at_format]
+other = "remind_at must be RFC3339 or empty"
+
+[err.validation.status_invalid]
+other = "status must be 'open', 'done', or 'archived'"
+
+[err.validation.assignee_uid_required]
+other = "assignee uid is required"
+
+[err.validation.caller_identity_required]
+other = "caller identity required"
+
+[err.validation.transition_archived]
+other = "cannot transition from archived to done; reopen first"
+
+# --- Forbidden ---
+[err.forbidden.matter_access]
+other = "not authorized to access this matter"
+
+[err.forbidden.matter_view]
+other = "not authorized to view this matter"
+
+[err.forbidden.participant_not_authorized]
+other = "participant_uid not authorized for caller"
+
+[err.forbidden.creator_uid_not_authorized]
+other = "creator_uid not authorized for caller"
+
+[err.forbidden.bot_link_channel]
+other = "bot may not manually link channels"
+
+[err.forbidden.bot_link_existing]
+other = "bot may not link a new channel to an existing matter; ask a channel member to link it first"
+
+[err.forbidden.not_channel_member]
+other = "caller is not a member of channel"
+
+[err.forbidden.only_creator_archive]
+other = "only creator can archive/unarchive"
+
+[err.forbidden.only_creator_or_assignee_status]
+other = "only creator or assignee can change status"
+
+# --- Not found ---
+[err.notfound.matter]
+other = "matter not found"
+
+[err.notfound.assignee]
+other = "assignee not found"
+
+# --- Upstream / rate limit / conflict ---
+[err.upstream.generic]
+other = "upstream service unavailable"
+
+[err.upstream.channel_membership]
+other = "channel membership service unavailable"
+
+[err.ratelimited.generic]
+other = "please wait before retrying"
+
+[err.ratelimited.cooldown]
+other = "please wait {{.Cooldown}} seconds between requests"
+
+[err.conflict.duplicate_assignee]
+other = "assignee already exists"
+
+# --- LLM ---
+[err.llm.empty_extraction]
+other = "LLM returned no extraction"
+
+[err.llm.upstream]
+other = "upstream LLM error"
+
+# --- Notifications ---
+[notify.matter_created]
+other = "📋 New task “{{.Title}}” — {{.Actor}} assigned it to you"
+
+[notify.status_changed]
+other = "📋 Task “{{.Title}}” — {{.Actor}} {{.Action}}"
+
+[notify.assignee_added]
+other = "📋 Task “{{.Title}}” — {{.Actor}} added you as an assignee"
+
+[notify.timeline_entry_added]
+other = "📋 Task “{{.Title}}” — {{.Actor}} added an update"
+
+[notify.action.done]
+other = "marked it done"
+
+[notify.action.archived]
+other = "archived it"
+
+[notify.action.open]
+other = "reopened it"
+
+[notify.action.updated]
+other = "updated it"
+
+# --- Matter v2 engine ---
+[err.matter.version_conflict]
+other = "This matter was just changed by someone else; refresh and retry"
+
+[err.matter.epoch_stale]
+other = "This matter was reassigned; your claim is stale — stop writing back"
+
+[err.matter.children_not_terminal]
+other = "Some subtasks are still open; cannot mark done"
+
+[err.matter.block_reason_required]
+other = "Marking blocked requires a reason"
+
+[err.matter.no_self_acceptance]
+other = "The responsible agent cannot accept its own work; completion is a human call"
+
+[err.matter.only_acceptance_authority]
+other = "Only the creator (or the parent matter's leader) can mark done"
+
+[err.matter.transition_not_allowed]
+other = "This status transition is not allowed"
+
+[err.matter.parent_not_found]
+other = "Parent matter not found"
+
+[err.matter.mode_invalid]
+other = "Invalid collaboration mode"
+
+[err.matter.executor_not_own_bot]
+other = "The executor must be a bot you own"
+
+[err.matter.cron_invalid]
+other = "Invalid cron expression"
+
+[err.matter.feedback_users_only]
+other = "Feedback (圈一笔) can only be sent by a human"
+
+[err.llm.not_configured]
+other = "LLM is not configured (LLM_API_KEY empty); cannot generate"
+
+[err.matter.summary_only_creator]
+other = "Only the creator can distill preferences for this matter"
+
+# --- Doorbells ---
+[notify.doorbell.assigned]
+other = "📌 \"{{.Title}}\" (M-{{.Seq}}) was handed to you"
+
+[notify.doorbell.handed_back]
+other = "👉 \"{{.Title}}\" (M-{{.Seq}}) is back — your turn to review"
+
+[notify.doorbell.child_handed_back]
+other = "📥 Subtask \"{{.Title}}\" was handed back"
+
+[notify.doorbell.next_segment]
+other = "⏭ Previous segment finished; \"{{.Title}}\" is your turn"
+
+[notify.doorbell.verify]
+other = "🔍 \"{{.Title}}\" awaits your verification"
+
+[notify.doorbell.sent_back]
+other = "↩ \"{{.Title}}\" was sent back for rework"
+
+[notify.doorbell.feedback]
+other = "✏️ New annotation feedback on \"{{.Title}}\""
+
+[notify.doorbell.blocked]
+other = "⚠️ \"{{.Title}}\" is stuck: {{.Reason}}"
+
+[notify.doorbell.cancelled]
+other = "⊘ \"{{.Title}}\" was cancelled"
+
+[notify.doorbell.reassigned]
+other = "🔄 \"{{.Title}}\" was reassigned"
+
+[notify.doorbell.done]
+other = "✅ \"{{.Title}}\" is done"
+
+[notify.doorbell.reflect]
+other = "🧠 \"{{.Title}}\" accepted — distill preferences: review the annotations and sendbacks on this matter, record reusable taste per your preference workflow, and note in the matter what you saved"
+
+[notify.doorbell.context_added]
+other = "📎 Project \"{{.Title}}\" gained shared context \"{{.Source}}\" (project_id={{.ProjectID}}) — check whether it affects your in-flight work"
+
+[err.matter.sendback_no_source]
+other = "This matter has no source conversation to send back to"
+
+[err.matter.sendback_no_bot]
+other = "The responsible party is not a bot — no identity to post as"
+
+[err.matter.summary_only_leader_bot]
+other = "Only the responsible bot may submit a preference draft"
+
+[notify.doorbell.summary_draft]
+other = "🧠 The agent on \"{{.Title}}\" wants to save preferences from this matter — draft awaiting your approval"
+
+[notify.doorbell.summary_approved]
+other = "✅ Preference draft on \"{{.Title}}\" approved — flip the candidate entry to confirmed"
+
+[notify.doorbell.summary_rejected]
+other = "🚫 Preference draft on \"{{.Title}}\" rejected — drop the candidate entry"
+
+[notify.doorbell.revive]
+other = "🔔 \"{{.Title}}\" is still waiting (reminder)"
+
+[notify.doorbell.watchdog_blocked]
+other = "⚠️ \"{{.Title}}\" went silent for too long; marked blocked"
+
+[notify.doorbell.schedule]
+other = "⏰ Scheduled matter \"{{.Title}}\" was created; your turn"

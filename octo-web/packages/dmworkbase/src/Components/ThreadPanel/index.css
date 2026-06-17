@@ -1,0 +1,661 @@
+/* ThreadPanel 右侧面板 */
+.wk-thread-panel {
+  pointer-events: auto;
+  width: var(--wk-width-thread-panel);
+  height: 100%;
+  transition: margin-right 150ms ease-in-out 0s;
+  position: absolute;
+  z-index: 100;
+  top: 0;
+  right: 0;
+  border-left: var(--wk-line);
+  margin-right: calc(0px - var(--wk-width-thread-panel));
+  background-color: var(--wk-bg-base);
+  box-shadow: var(--wk-shadow-md);
+  display: flex;
+  flex-direction: column;
+}
+
+body[theme-mode="dark"] .wk-thread-panel {
+  box-shadow: var(--wk-shadow-md);
+}
+
+.wk-chat-content-right.wk-chat-threadpanel-open .wk-thread-panel {
+  margin-right: 0;
+}
+
+/* 面板头部 */
+.wk-thread-panel-header {
+  height: var(--wk-height-chat-conversation-header);
+  min-height: var(--wk-height-chat-conversation-header);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 var(--wk-sp-4);
+  border-bottom: 1px solid var(--wk-border-default);
+  background-color: var(--wk-bg-surface);
+}
+
+.wk-thread-panel-header-title {
+  display: flex;
+  align-items: center;
+  gap: var(--wk-sp-2);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--wk-text-primary);
+}
+
+.wk-thread-panel-header-icon {
+  width: 20px;
+  height: 20px;
+  color: var(--wk-text-secondary);
+}
+
+.wk-thread-panel-header-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--wk-sp-1);
+}
+
+.wk-thread-panel-header-btn {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--wk-r-sm);
+  cursor: pointer;
+  color: var(--wk-text-tertiary);
+  transition: background 0.15s, color 0.15s;
+}
+
+.wk-thread-panel-header-btn:hover {
+  background: var(--wk-bg-hover);
+  color: var(--wk-text-primary);
+}
+
+/* 父消息区域 */
+.wk-thread-panel-parent {
+  padding: var(--wk-sp-3) var(--wk-sp-4);
+  border-bottom: 1px dashed var(--wk-border-default);
+  background-color: var(--wk-bg-surface);
+}
+
+.wk-thread-panel-parent-author {
+  display: flex;
+  align-items: center;
+  gap: var(--wk-sp-2);
+  margin-bottom: var(--wk-sp-2);
+}
+
+.wk-thread-panel-parent-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+}
+
+.wk-thread-panel-parent-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--wk-text-primary);
+}
+
+.wk-thread-panel-parent-time {
+  font-size: 11px;
+  color: var(--wk-text-tertiary);
+}
+
+.wk-thread-panel-parent-content {
+  font-size: 13px;
+  color: var(--wk-text-secondary);
+  line-height: 1.5;
+}
+
+/* 回复消息流 */
+.wk-thread-panel-replies {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--wk-sp-3) var(--wk-sp-4);
+}
+
+.wk-thread-panel-reply {
+  display: flex;
+  gap: var(--wk-sp-2);
+  margin-bottom: var(--wk-sp-3);
+}
+
+.wk-thread-panel-reply-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.wk-thread-panel-reply-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.wk-thread-panel-reply-header {
+  display: flex;
+  align-items: baseline;
+  gap: var(--wk-sp-2);
+  margin-bottom: var(--wk-sp-1);
+}
+
+.wk-thread-panel-reply-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--wk-text-primary);
+}
+
+.wk-thread-panel-reply-time {
+  font-size: 11px;
+  color: var(--wk-text-tertiary);
+}
+
+.wk-thread-panel-reply-content {
+  font-size: 13px;
+  color: var(--wk-text-primary);
+  line-height: 1.5;
+}
+
+/* 输入框区域 */
+.wk-thread-panel-input {
+  padding: var(--wk-sp-3) var(--wk-sp-4);
+  border-top: 1px solid var(--wk-border-default);
+  background-color: var(--wk-bg-base);
+}
+
+.wk-thread-panel-input-box {
+  display: flex;
+  align-items: center;
+  gap: var(--wk-sp-2);
+  padding: var(--wk-sp-2) var(--wk-sp-3);
+  background-color: var(--wk-bg-surface);
+  border: 1px solid var(--wk-border-default);
+  border-radius: var(--wk-r-lg);
+}
+
+.wk-thread-panel-input-field {
+  flex: 1;
+  border: none;
+  background: transparent;
+  outline: none;
+  font-size: 13px;
+  color: var(--wk-text-primary);
+}
+
+.wk-thread-panel-input-field::placeholder {
+  color: var(--wk-text-tertiary);
+}
+
+.wk-thread-panel-input-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--wk-sp-1);
+}
+
+.wk-thread-panel-input-btn {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--wk-r-sm);
+  cursor: pointer;
+  color: var(--wk-text-tertiary);
+  transition: background 0.15s, color 0.15s;
+}
+
+.wk-thread-panel-input-btn:hover {
+  background: var(--wk-bg-hover);
+  color: var(--wk-text-primary);
+}
+
+/* 空状态 */
+.wk-thread-panel-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: var(--wk-text-tertiary);
+  font-size: 13px;
+}
+
+/* 加载状态 */
+.wk-thread-panel-loading {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 列表视图模式 */
+.wk-thread-panel-list {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.wk-thread-panel-list-section {
+  padding: var(--wk-sp-2) var(--wk-sp-4);
+}
+
+.wk-thread-panel-list-section-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--wk-text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: var(--wk-sp-2);
+}
+
+.wk-thread-panel-list-item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--wk-sp-3);
+  padding: var(--wk-sp-3);
+  border-radius: var(--wk-r-md);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.wk-thread-panel-list-item:hover {
+  background: var(--wk-bg-hover);
+}
+
+.wk-thread-panel-list-item-unread {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--wk-color-info);
+  flex-shrink: 0;
+  margin-top: 6px;
+}
+
+.wk-thread-panel-list-item-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.wk-thread-panel-list-item-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--wk-text-primary);
+  margin-bottom: var(--wk-sp-1);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.wk-thread-panel-list-item-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--wk-sp-2);
+  font-size: 12px;
+  color: var(--wk-text-tertiary);
+}
+
+.wk-thread-panel-list-item-preview {
+  font-size: 12px;
+  color: var(--wk-text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: var(--wk-sp-1);
+}
+
+/* Thread 详情视图的 Conversation 容器 */
+.wk-thread-panel-conversation {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.wk-thread-panel-conversation .wk-conversation {
+  height: 100%;
+}
+
+/* 文件预览内容容器（包含侧边文件列表 + 预览区域） */
+.wk-thread-panel-file-content {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: row;
+  min-height: 0;
+}
+
+/* 侧边文件列表面板展开时的布局 */
+
+.wk-thread-panel-file-content--with-list > .wk-file-list-panel {
+  width: 30%;
+  min-width: 200px;
+  max-width: 300px;
+  flex-shrink: 0;
+}
+
+.wk-thread-panel-file-content--with-list > .wk-thread-panel-file-preview {
+  flex: 1;
+  min-width: 0;
+}
+
+/* 文件预览内容区 */
+.wk-thread-panel-file-preview {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.wk-thread-panel-file-preview > * {
+  flex: 1;
+  min-height: 0;
+}
+
+.wk-thread-panel-conversation .wk-conversation-content {
+  height: 100%;
+}
+
+/* 切换视图的 tabs */
+.wk-thread-panel-tabs {
+  display: flex;
+  gap: var(--wk-sp-1);
+  padding: var(--wk-sp-2) var(--wk-sp-4);
+  border-bottom: 1px solid var(--wk-border-default);
+}
+
+.wk-thread-panel-tab {
+  padding: var(--wk-sp-1-5) var(--wk-sp-3);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--wk-text-secondary);
+  border-radius: var(--wk-r-sm);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.wk-thread-panel-tab:hover {
+  background: var(--wk-bg-hover);
+}
+
+.wk-thread-panel-tab-active {
+  background: var(--wk-brand-tint-06);
+  color: var(--wk-text-accent);
+}
+
+/* 列表视图容器 */
+.wk-thread-panel-list-view {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 新建子区按钮 */
+.wk-thread-panel-create-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin: var(--wk-sp-3) var(--wk-sp-4);
+  padding: 8px 0;
+  border-radius: var(--wk-r-sm);
+  border: 1px dashed var(--wk-ai-border);
+  background: var(--wk-ai-surface);
+  color: var(--wk-text-accent);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.wk-thread-panel-create-btn:hover {
+  background: var(--wk-brand-tint-06);
+  border-color: var(--wk-border-glow);
+}
+
+/* 分组 */
+.wk-thread-panel-group {
+  margin-bottom: var(--wk-sp-2);
+}
+
+.wk-thread-panel-group-header {
+  display: flex;
+  align-items: center;
+  gap: var(--wk-sp-1);
+  padding: var(--wk-sp-2) var(--wk-sp-4);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--wk-text-tertiary);
+  cursor: pointer;
+  user-select: none;
+}
+
+.wk-thread-panel-group-header:hover {
+  color: var(--wk-text-secondary);
+}
+
+.wk-thread-panel-group-arrow {
+  transition: transform 0.15s;
+}
+
+.wk-thread-panel-group-arrow-collapsed {
+  transform: rotate(-90deg);
+}
+
+.wk-thread-panel-group-list {
+  padding: 0 var(--wk-sp-2);
+}
+
+/* 讨论串列表项 */
+.wk-thread-panel-item {
+  padding: var(--wk-sp-3);
+  margin: 0 var(--wk-sp-2) var(--wk-sp-1);
+  border-radius: var(--wk-r-md);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.wk-thread-panel-item:hover {
+  background: var(--wk-bg-hover);
+}
+
+.wk-thread-panel-item-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--wk-sp-1);
+}
+
+.wk-thread-panel-item-header-right {
+  display: flex;
+  align-items: center;
+  gap: var(--wk-sp-1);
+  flex-shrink: 0;
+}
+
+.wk-thread-panel-item-follow-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  padding: 2px;
+  cursor: pointer;
+  border-radius: 4px;
+  opacity: 0;
+  transition: opacity 0.15s;
+  line-height: 1;
+}
+
+.wk-thread-panel-item:hover .wk-thread-panel-item-follow-btn,
+.wk-thread-panel-item-follow-btn[data-followed="true"] {
+  opacity: 1;
+}
+
+.wk-thread-panel-item-follow-btn:hover {
+  background: var(--semi-color-fill-1);
+}
+
+.wk-thread-panel-item-archive-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  background: var(--semi-color-fill-0);
+  border: 1px solid var(--wk-border-default);
+  padding: 2px 8px;
+  cursor: pointer;
+  border-radius: var(--wk-r-full);
+  color: var(--wk-text-secondary);
+  font-size: 12px;
+  line-height: 1;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.wk-thread-panel-item-archive-btn-label {
+  font-size: 12px;
+}
+
+.wk-thread-panel-item-archive-btn:hover {
+  background: var(--semi-color-fill-1);
+  border-color: var(--wk-border-glow);
+  color: var(--wk-text-primary);
+}
+
+.wk-thread-archive-undo-toast {
+  display: flex;
+  align-items: center;
+  gap: var(--wk-sp-3);
+}
+
+.wk-thread-archive-undo-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--semi-color-primary);
+}
+
+.wk-thread-archive-undo-btn:hover {
+  text-decoration: underline;
+}
+
+.wk-thread-panel-item-title {
+  display: flex;
+  align-items: center;
+  gap: var(--wk-sp-2);
+  flex: 1;
+  min-width: 0;
+}
+
+.wk-thread-panel-item-unread {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--wk-brand-primary);
+  flex-shrink: 0;
+}
+
+.wk-thread-panel-item-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--wk-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.wk-thread-panel-item-time {
+  font-size: 12px;
+  color: var(--wk-text-tertiary);
+  flex-shrink: 0;
+}
+
+.wk-thread-panel-item-meta {
+  font-size: 12px;
+  color: var(--wk-text-tertiary);
+  margin-bottom: var(--wk-sp-1);
+}
+
+.wk-thread-panel-item-preview {
+  font-size: 13px;
+  color: var(--wk-text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.wk-thread-panel-item-preview-empty {
+  color: var(--wk-text-tertiary);
+  font-style: italic;
+}
+
+/* ··· 更多菜单 */
+.wk-thread-more-menu {
+  min-width: 140px;
+  padding: 4px 0;
+  border-radius: 8px;
+  background: var(--wk-bg-elevated);
+}
+.wk-thread-more-menu-item {
+  padding: 8px 16px;
+  font-size: 14px;
+  color: var(--wk-text-primary);
+  cursor: pointer;
+  border-radius: 6px;
+  transition: background 0.12s;
+}
+.wk-thread-more-menu-item:hover {
+  background: var(--wk-bg-hover);
+}
+.wk-thread-more-menu-item-danger {
+  color: var(--wk-color-danger);
+}
+.wk-thread-more-menu-item-danger:hover {
+  background: var(--wk-brand-tint-08);
+}
+
+/* ── Thread Panel Splitter (left edge) ── */
+.wk-thread-panel-splitter {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 12px;
+  margin-left: -6px;
+  cursor: col-resize;
+  z-index: 101; /* just above .wk-thread-panel(z:100), below modals/tooltips(z:200+) */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.wk-thread-panel-splitter-line {
+  width: 0;
+  height: 100%;
+  transition: width var(--wk-dur-fast) var(--wk-ease),
+    background var(--wk-dur-fast) var(--wk-ease);
+}
+
+.wk-thread-panel-splitter:hover .wk-thread-panel-splitter-line,
+.wk-thread-panel-splitter-active .wk-thread-panel-splitter-line {
+  width: 3px;
+  background: var(--wk-brand-primary);
+  border-radius: var(--wk-r-full);
+}
+
+/* Drag overlay — prevents content from stealing mouse events during resize */
+.wk-thread-panel-drag-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  cursor: col-resize;
+}

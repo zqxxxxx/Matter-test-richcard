@@ -1,0 +1,64 @@
+/* Thread 卡片 (对齐 Figma 387-62845) */
+.wk-thread-created-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px;
+  background: rgba(28, 28, 35, 0.04);
+  border-left: 4px solid rgba(28, 28, 35, 0.8);
+  border-radius: 0 4px 4px 0;
+  cursor: pointer;
+  transition: background 0.2s;
+  max-width: 680px;
+  min-width: 0;
+}
+
+.wk-thread-created-card:hover {
+  background: rgba(28, 28, 35, 0.06);
+}
+
+/* 消息正文预览 */
+.wk-thread-created-preview {
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 22px;
+  color: rgba(28, 28, 35, 1.0);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+/* 底部元数据行 */
+.wk-thread-created-meta {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  font-size: 12px;
+}
+
+/* Thread 链接 */
+.wk-thread-created-link {
+  color: rgba(127, 59, 245, 1.0);
+  font-weight: 400;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 参与者头像组 */
+.wk-thread-created-avatars {
+  display: flex;
+  align-items: center;
+  flex-direction: row-reverse;
+  margin-left: -8px;
+}
+
+/* 参与者文字 */
+.wk-thread-created-participants {
+  color: rgba(28, 28, 35, 0.6);
+  font-size: 12px;
+  white-space: nowrap;
+  margin-left: auto;
+}

@@ -1,0 +1,33 @@
+/**
+ * Owner identity registry — maps accountId to the bot owner's UID.
+ *
+ * The owner_uid is obtained from registerBot() and registered during startAccount().
+ * Owner users have full access to all cross-session queries.
+ *
+ * Case-insensitive lookup: octo-server BotFather can emit mixed-case bot IDs.
+ * OpenClaw routes lowercased ones to plugin code, so this map normalizes at
+ * the boundary to ensure register / query against any case form hits the
+ * same entry. See issue #33 / src/account-id.ts.
+ */
+
+import { normalizeAccountId } from "./account-id.js";
+
+const _ownerUidMap = new Map<string, string>(); // normalized accountId → owner_uid
+
+export function registerOwnerUid(accountId: string, ownerUid: string): void {
+  _ownerUidMap.set(normalizeAccountId(accountId), ownerUid);
+}
+
+export function isOwner(accountId: string, uid: string): boolean {
+  return _ownerUidMap.get(normalizeAccountId(accountId)) === uid;
+}
+
+/** The owner uid for an account, or undefined if not registered. */
+export function getOwnerUid(accountId: string): string | undefined {
+  return _ownerUidMap.get(normalizeAccountId(accountId));
+}
+
+/** Visible for testing — clears all owner registrations. */
+export function _clearOwnerRegistry(): void {
+  _ownerUidMap.clear();
+}

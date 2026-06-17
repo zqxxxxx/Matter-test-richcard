@@ -1,0 +1,60 @@
+name: 💡 Feature Request
+description: Suggest a new feature
+labels: ["type:feature"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for your suggestion! Please describe the use case and expected solution.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / Motivation
+      description: What problem are you trying to solve?
+      placeholder: Search results cannot be sorted by time, making it hard to find recent messages
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed Solution
+      description: How would you like this to work?
+      placeholder: Add a "Sort by time" option in search results
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: Have you considered other approaches?
+    validations:
+      required: false
+  - type: dropdown
+    id: component
+    attributes:
+      label: Affected Component
+      options:
+        - Conversation / Chat
+        - Message List
+        - Message Input
+        - Global Search
+        - Contacts
+        - Channel Settings
+        - Login / Registration
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: technical
+    attributes:
+      label: Technical Approach (optional)
+      description: Any initial ideas on implementation?
+    validations:
+      required: false
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional Context
+      description: Mockups, reference links, related issues, etc.
+    validations:
+      required: false

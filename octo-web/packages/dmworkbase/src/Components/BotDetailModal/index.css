@@ -1,0 +1,419 @@
+.wk-bot-detail-modal .wk-modal-shell {
+    padding: 0;
+}
+.wk-bot-detail-content {
+    padding: 24px;
+}
+.wk-bot-detail-header {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-bottom: 16px;
+}
+.wk-bot-detail-name {
+    font-size: 18px;
+    font-weight: 600;
+    margin-top: 12px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.wk-bot-detail-id {
+    font-size: 13px;
+    color: #aaa;
+    margin-top: 2px;
+    font-family: monospace;
+}
+.wk-bot-detail-creator {
+    font-size: 13px;
+    color: #999;
+    margin-top: 4px;
+}
+.wk-bot-detail-desc {
+    margin-bottom: 12px;
+    font-size: 14px;
+    color: #666;
+}
+.wk-bot-detail-empty {
+    color: #999;
+}
+.wk-bot-detail-label {
+    font-size: 12px;
+    color: #999;
+    font-weight: 500;
+}
+.wk-bot-detail-field-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    min-height: 24px;
+    margin-bottom: 4px;
+}
+.wk-bot-detail-edit-action {
+    height: 22px;
+    padding: 0 4px;
+    color: #777;
+    font-size: 12px;
+}
+.wk-bot-detail-edit-action:hover {
+    color: var(--wk-color-theme, #1C1C23);
+}
+.wk-bot-detail-remark-line {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    max-width: 100%;
+}
+.wk-bot-detail-value-edit {
+    width: 22px;
+    height: 22px;
+    min-width: 22px;
+    padding: 0;
+    color: #777;
+    opacity: 0.72;
+}
+.wk-bot-detail-value-edit:hover,
+.wk-bot-detail-value-edit:focus-visible {
+    color: var(--wk-color-theme, #1C1C23);
+    opacity: 1;
+}
+.wk-bot-detail-commands {
+    margin-bottom: 8px;
+}
+.wk-bot-detail-cmd {
+    display: flex;
+    gap: 8px;
+    padding: 4px 0;
+    font-size: 13px;
+}
+.wk-bot-detail-cmd-name {
+    color: var(--wk-color-theme, #1C1C23);
+    font-family: monospace;
+    white-space: nowrap;
+}
+.wk-bot-detail-cmd-desc {
+    color: #888;
+}
+.wk-bot-detail-agent-card {
+    margin-top: 14px;
+    margin-bottom: 8px;
+    padding: 12px 14px;
+    border: 1px solid rgba(28, 28, 35, 0.10);
+    border-radius: var(--wk-r-sm, 8px);
+    background: linear-gradient(180deg, rgba(28, 28, 35, 0.018), rgba(28, 28, 35, 0.038));
+}
+.wk-bot-detail-agent-card-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 8px;
+}
+.wk-bot-detail-agent-card-title {
+    font-size: 12px;
+    font-weight: 700;
+    color: #333;
+    letter-spacing: 0;
+}
+.wk-bot-detail-agent-card-badges {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+.wk-bot-detail-agent-card-badge {
+    display: inline-flex;
+    align-items: center;
+    height: 22px;
+    padding: 0 8px;
+    border-radius: 999px;
+    border: 1px solid rgba(28, 28, 35, 0.10);
+    background: #fff;
+    color: #64748b;
+    font-size: 11px;
+    font-weight: 600;
+}
+.wk-bot-detail-agent-card-badge--private {
+    color: #9a3412;
+    border-color: rgba(249, 115, 22, 0.22);
+    background: rgba(249, 115, 22, 0.08);
+}
+.wk-bot-detail-agent-card-summary {
+    margin-bottom: 10px;
+    color: #555;
+    font-size: 13px;
+    line-height: 1.45;
+}
+.wk-bot-detail-agent-card-summary--muted {
+    color: #777;
+}
+.wk-bot-detail-agent-card-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px;
+}
+.wk-bot-detail-agent-card-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    min-height: 26px;
+    max-width: 100%;
+    padding: 3px 8px;
+    border: 1px solid rgba(28, 28, 35, 0.10);
+    border-radius: 7px;
+    background: #fff;
+    color: #2f3440;
+    font-size: 12px;
+    font-weight: 600;
+}
+.wk-bot-detail-agent-card-tag span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.wk-bot-detail-agent-card-tag em {
+    padding-left: 5px;
+    border-left: 1px solid rgba(28, 28, 35, 0.10);
+    color: #737b8c;
+    font-size: 11px;
+    font-style: normal;
+    font-weight: 500;
+    white-space: nowrap;
+}
+.wk-bot-detail-agent-card-tag--more {
+    border-style: dashed;
+    color: #667085;
+    background: rgba(28, 28, 35, 0.025);
+    font-weight: 600;
+}
+.wk-bot-detail-agent-card-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 12px;
+    margin-top: 10px;
+    padding-top: 9px;
+    border-top: 1px solid rgba(28, 28, 35, 0.08);
+    color: #666;
+    font-size: 12px;
+    line-height: 1.4;
+}
+
+/* Owner 头像编辑：hover 显示 📷 遮罩 */
+.wk-bot-detail-avatar {
+    position: relative;
+    display: inline-block;
+    line-height: 0;
+}
+.wk-bot-detail-avatar--owner {
+    cursor: pointer;
+}
+.wk-bot-detail-avatar--preview {
+    width: 64px;
+    height: 64px;
+    border-radius: var(--wk-r-sm, 8px);
+    overflow: hidden;
+    cursor: zoom-in;
+}
+.wk-bot-detail-avatar--preview .semi-image,
+.wk-bot-detail-avatar--preview .semi-image-img,
+.wk-bot-detail-avatar--preview img {
+    width: 64px;
+    height: 64px;
+    border-radius: var(--wk-r-sm, 8px);
+    object-fit: cover;
+}
+.wk-bot-detail-avatar-overlay {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.45);
+    color: #fff;
+    font-size: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.15s ease-in-out;
+    pointer-events: none;
+}
+.wk-bot-detail-avatar--owner:hover .wk-bot-detail-avatar-overlay,
+.wk-bot-detail-avatar--owner:focus-visible .wk-bot-detail-avatar-overlay {
+    opacity: 1;
+}
+/* keyboard focus ring: hover-only 📷 overlay 在键盘聚焦时也要可见 */
+.wk-bot-detail-avatar--owner:focus-visible {
+    outline: 2px solid var(--wk-border-glow);
+    outline-offset: 2px;
+    border-radius: 50%;
+}
+.wk-bot-detail-avatar-loading {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.wk-bot-avatar-crop-editor {
+    display: flex;
+    justify-content: center;
+}
+/* OctoPush 状态 chip（头像下方，@username 之后） */
+.wk-bot-detail-octopush-chip {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    margin-top: 6px;
+    padding: 3px 10px;
+    border-radius: 100px;
+    font-size: 11px;
+    line-height: 1.5;
+    width: fit-content;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+/* A: 已管理·已上报 → 绿色 */
+.wk-bot-detail-octopush-chip--reported {
+    background: rgba(34, 197, 94, 0.10);
+    color: #16a34a;
+}
+
+/* B: 已管理·未上报 → 橙色 */
+.wk-bot-detail-octopush-chip--managed_unreported {
+    background: rgba(245, 158, 11, 0.12);
+    color: #b45309;
+}
+
+/* C: 未接入 OctoPush → 灰色 */
+.wk-bot-detail-octopush-chip--unmanaged {
+    background: rgba(148, 163, 184, 0.15);
+    color: #64748b;
+}
+
+.wk-bot-detail-octopush-chip-icon {
+    font-size: 11px;
+    line-height: 1;
+}
+
+.wk-bot-detail-octopush-chip-text {
+    font-weight: 500;
+    letter-spacing: 0.3px;
+}
+
+/* 查看龙虾信息按钮 */
+.wk-bot-detail-claw-btn {
+    background: #f1f0fc;
+    border: 1px solid #cac6f3;
+    color: #5b5fd6;
+    font-weight: 500;
+    transition: all 0.15s ease-in-out;
+}
+
+.wk-bot-detail-claw-btn:not(.wk-bot-detail-claw-btn--disabled):hover {
+    background: #e5e3f7;
+    border-color: #a6a1ec;
+}
+
+/* 灰态按钮（B/C 状态） */
+.wk-bot-detail-claw-btn--disabled {
+    background: #f5f5f5 !important;
+    border-color: #e5e5e5 !important;
+    color: #b0b0b0 !important;
+    cursor: not-allowed !important;
+}
+
+/* 灰态按钮的 tooltip（通过 data-tooltip 属性实现，避免与浏览器原生 tooltip 冲突） */
+.wk-bot-detail-claw-btn--disabled[data-tooltip]:hover::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    bottom: calc(100% + 6px);
+    background: rgba(0, 0, 0, 0.85);
+    color: #fff;
+    padding: 6px 10px;
+    border-radius: 6px;
+    font-size: 11px;
+    white-space: normal;
+    text-align: center;
+    line-height: 1.4;
+    pointer-events: none;
+    z-index: 1000;
+    max-width: 260px;
+    width: max-content;
+}
+
+.wk-bot-detail-claw-btn--disabled[data-tooltip]:hover::before {
+    content: '';
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    bottom: calc(100% + 1px);
+    border: 5px solid transparent;
+    border-top-color: rgba(0, 0, 0, 0.85);
+    pointer-events: none;
+    z-index: 1000;
+}
+
+/* ❓ 帮助按钮（B 状态专属） */
+.wk-bot-detail-help-btn {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #e5e5e5;
+    color: #888;
+    border: none;
+    font-size: 10px;
+    font-weight: 600;
+    cursor: help;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-left: 4px;
+    transition: all 0.15s ease-in-out;
+    position: relative;
+}
+
+.wk-bot-detail-help-btn:hover {
+    background: #e5e3f7;
+    color: #5b5fd6;
+}
+
+/* 帮助按钮 tooltip（通过 title 属性实现） */
+.wk-bot-detail-help-btn[title]:hover::after {
+    content: attr(title);
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    bottom: calc(100% + 8px);
+    background: rgba(0, 0, 0, 0.85);
+    color: #fff;
+    padding: 6px 10px;
+    border-radius: 8px;
+    font-size: 12px;
+    white-space: normal;
+    text-align: left;
+    line-height: 1.4;
+    pointer-events: none;
+    z-index: 1000;
+    max-width: 280px;
+    width: max-content;
+}
+
+.wk-bot-detail-help-btn[title]:hover::before {
+    content: '';
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    bottom: calc(100% + 3px);
+    border: 5px solid transparent;
+    border-top-color: rgba(0, 0, 0, 0.85);
+    pointer-events: none;
+    z-index: 1000;
+}

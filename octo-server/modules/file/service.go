@@ -1,0 +1,587 @@
+package file
+
+import (
+	"bytes"
+	"context"
+	"errors"
+	"fmt"
+	"image"
+	"image/color"
+	"image/draw"
+	_ "image/jpeg"
+	"image/png"
+	_ "image/png"
+	"io"
+	"mime/multipart"
+	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/Mininglamp-OSS/octo-lib/config"
+	"github.com/Mininglamp-OSS/octo-lib/pkg/log"
+	limlog "github.com/Mininglamp-OSS/octo-lib/pkg/log"
+	"github.com/Mininglamp-OSS/octo-lib/pkg/util"
+	"github.com/disintegration/imaging"
+	"go.uber.org/zap"
+)
+
+type IUploadService interface {
+	UploadFile(filePath string, contentType string, contentDisposition string, copyFileWriter func(io.Writer) error) (map[string]interface{}, error)
+	// 获取下载地址
+	DownloadURL(path string, filename string) (string, error)
+	// 直接读取文件内容（用于 MinIO 等非 public bucket）
+	GetFile(path string) (io.ReadCloser, string, error)
+}
+
+// IService IService
+type IService interface {
+	IUploadService
+	DownloadAndMakeCompose(uploadPath string, downloadURLs []string) (map[string]interface{}, error)
+	DownloadImage(url string, ctx context.Context) (io.ReadCloser, error)
+	// PresignedPutURL signs a direct-to-storage PUT URL. `fileSize` is the
+	// exact byte length the client commits to upload; the storage backend
+	// signs `Content-Length: <fileSize>` (or its OSS equivalent) into the
+	// canonical headers, so any deviation at PUT time is rejected by the
+	// gateway with a SignatureDoesNotMatch / SizeMismatch response. This
+	// is what lets the presigned-PUT path enforce the same MaxFileSize cap
+	// the multipart `uploadFile` handler enforces server-side; without it
+	// any authenticated caller could upload arbitrary bytes under an
+	// allowed extension and bypass the size gate entirely.
+	PresignedPutURL(objectPath string, contentType string, contentDisposition string, fileSize int64, expires time.Duration) (uploadURL string, downloadURL string, err error)
+	PresignedGetURL(objectPath string, filename string, disposition string, expires time.Duration) (string, error)
+}
+
+// NewService NewService
+func NewService(ctx *config.Context) IService {
+	var uploadService IUploadService
+	service := ctx.GetConfig().FileService
+	if service == config.FileServiceMinio {
+		uploadService = NewServiceMinio(ctx)
+	} else if service == config.FileServiceAliyunOSS {
+		uploadService = NewServiceOSS(ctx)
+	} else if service == config.FileServiceQiniu {
+		uploadService = NewServiceQiniu(ctx)
+	} else if service == config.FileServiceTencentCOS {
+		uploadService = NewServiceCOS(ctx)
+	} else if service == fileServiceAwsS3 {
+		// octo-lib has not (yet) declared a FileServiceAwsS3 constant;
+		// the local fileServiceAwsS3 (see const.go) collapses the
+		// literal to one place so the dispatch site here and the
+		// round-trip URL strip in api.go cannot drift. A follow-up
+		// upstream PR will add the typed constant and both sites will
+		// switch over together.
+		uploadService = NewServiceS3(ctx)
+	} else {
+		uploadService = NewSeaweedFS(ctx)
+	}
+	return &Service{
+		Log: log.NewTLog("Service"),
+		ctx: ctx,
+		downloadClient: &http.Client{
+			Timeout: time.Second * 30,
+		},
+		uploadService: uploadService,
+	}
+	// return NewServiceMinio(ctx)
+}
+
+// Service Service
+type Service struct {
+	downloadClient *http.Client
+	log.Log
+	ctx           *config.Context
+	uploadService IUploadService
+}
+
+func (s *Service) UploadFile(filePath string, contentType string, contentDisposition string, copyFileWriter func(io.Writer) error) (map[string]interface{}, error) {
+	return s.uploadService.UploadFile(filePath, contentType, contentDisposition, copyFileWriter)
+}
+
+func (s *Service) DownloadURL(path string, filename string) (string, error) {
+
+	return s.uploadService.DownloadURL(path, filename)
+}
+
+func (s *Service) GetFile(path string) (io.ReadCloser, string, error) {
+	return s.uploadService.GetFile(path)
+}
+
+type PresignedPutter interface {
+	PresignedPutURL(objectPath string, contentType string, contentDisposition string, fileSize int64, expires time.Duration) (uploadURL string, downloadURL string, err error)
+}
+
+type PresignedGetter interface {
+	PresignedGetURL(objectPath string, filename string, disposition string, expires time.Duration) (string, error)
+}
+
+func (s *Service) PresignedPutURL(objectPath string, contentType string, contentDisposition string, fileSize int64, expires time.Duration) (string, string, error) {
+	putter, ok := s.uploadService.(PresignedPutter)
+	if !ok {
+		return "", "", fmt.Errorf("当前文件服务不支持预签名上传")
+	}
+	return putter.PresignedPutURL(objectPath, contentType, contentDisposition, fileSize, expires)
+}
+
+func (s *Service) PresignedGetURL(objectPath string, filename string, disposition string, expires time.Duration) (string, error) {
+	getter, ok := s.uploadService.(PresignedGetter)
+	if !ok {
+		return "", fmt.Errorf("当前文件服务不支持预签名下载")
+	}
+	return getter.PresignedGetURL(objectPath, filename, disposition, expires)
+}
+
+func (s *Service) DownloadImage(url string, ctx context.Context) (io.ReadCloser, error) {
+	reader, err := s.downloadImage(url, ctx)
+	if err != nil {
+		return nil, err
+	}
+	return reader, nil
+}
+
+// defaultAvatarReader 返回一个纯色占位图（灰色），用于头像下载失败时的替代
+func defaultAvatarReader() io.ReadCloser {
+	img := image.NewRGBA(image.Rect(0, 0, 128, 128))
+	placeholderColor := color.RGBA{R: 192, G: 192, B: 192, A: 255}
+	for y := 0; y < 128; y++ {
+		for x := 0; x < 128; x++ {
+			img.Set(x, y, placeholderColor)
+		}
+	}
+	var buf bytes.Buffer
+	_ = png.Encode(&buf, img)
+	return io.NopCloser(&buf)
+}
+
+// DownloadAndMakeCompose 下载并组合图片
+func (s *Service) DownloadAndMakeCompose(uploadPath string, downloadURLs []string) (map[string]interface{}, error) {
+	if len(downloadURLs) == 0 {
+		return nil, nil
+	}
+
+	s.Debug("DownloadAndMakeCompose", zap.Strings("downloadURLs", downloadURLs))
+	var w = sync.WaitGroup{}
+	var mu sync.Mutex
+	readers := make([]io.ReadCloser, 0, len(downloadURLs))
+	cancels := make([]context.CancelFunc, 0, len(downloadURLs))
+	for _, downloadURL := range downloadURLs {
+		w.Add(1)
+		go func(srcUrl string) {
+			defer w.Done()
+			timeoutCtx, cancel := context.WithTimeout(context.Background(), time.Minute*1)
+			mu.Lock()
+			cancels = append(cancels, cancel)
+			mu.Unlock()
+			imgReader, err := s.downloadImage(srcUrl, timeoutCtx)
+			if err != nil {
+				s.Warn("下载头像失败，使用默认占位图", zap.String("srcPath", srcUrl), zap.Error(err))
+				imgReader = defaultAvatarReader()
+			} else if imgReader == nil {
+				imgReader = defaultAvatarReader()
+			}
+			mu.Lock()
+			readers = append(readers, imgReader)
+			mu.Unlock()
+		}(downloadURL)
+	}
+
+	w.Wait()
+
+	if len(readers) == 0 {
+		return nil, errors.New("下载图片失败！")
+	}
+	s.Debug("readers-->", zap.Int("len", len(readers)))
+	defer func() {
+		for _, reader := range readers {
+			if reader != nil {
+				reader.Close()
+			}
+		}
+		for _, cancel := range cancels {
+			cancel()
+		}
+	}()
+	// 拼图
+	img, err := s.MakeCompose(readers)
+	if err != nil {
+		s.Error("组合图片失败！", zap.Error(err))
+		return nil, err
+	}
+
+	// uploadURL := fmt.Sprintf("%s/public%s", s.ctx.GetConfig().UploadURL, uploadPath)
+	// 上传文件
+	resultMap, err := s.UploadFile(uploadPath, "image/png", "", func(w io.Writer) error {
+		return png.Encode(w, img)
+	})
+	if err != nil {
+		s.Error("上传文件失败！", zap.Error(err))
+		return nil, err
+	}
+	return resultMap, nil
+}
+
+// MakeCompose 组合图片
+func (s *Service) MakeCompose(srcImgFiles []io.ReadCloser) (image.Image, error) {
+
+	var minwidth int = 42
+	var minheight int = 42
+	var maxwidth int = 64
+	var maxheight int = 64
+	var borderWidth = 4
+
+	groupWith := 128 + borderWidth
+	groupHeight := 128 + borderWidth
+	// bounds := image.Rect(0, 0, groupWith, groupHeight)
+	num := len(srcImgFiles)
+	backgroundColor := color.RGBA{255, 255, 255, 255}
+	newImg := imaging.New(groupWith, groupHeight, backgroundColor)
+	newImg = opacityAdjust(newImg, 0) // 透明
+	wx := 0                           //第几列
+	hy := 0                           // 第几行
+	for i := 0; i < num; i++ {
+
+		if num == 3 {
+			if i == 0 || i == 1 {
+				hy += 1
+				wx = 0
+			}
+		} else if num == 4 {
+			if i > 0 && i%2 == 0 {
+				hy += 1
+				wx = 0
+			}
+		} else if num == 5 {
+			if i == 1 || i == 0 {
+				hy = 0
+			} else if i == 2 {
+				wx = 0
+				hy += 1
+			}
+		} else if num == 7 {
+			if i > 0 {
+				if (i-1)%3 == 0 {
+					hy = hy + 1
+					wx = 0
+				}
+			}
+		} else if num == 8 {
+			if i > 1 {
+				if (i-2)%3 == 0 {
+					hy = hy + 1
+					wx = 0
+				}
+			}
+		} else {
+			if i > 0 && i%3 == 0 {
+				hy += 1
+				wx = 0
+			}
+		}
+		file := srcImgFiles[i]
+
+		// fileExt := filepath.Ext(file.Name())
+
+		var memberImg image.Image
+		var err error
+		var format string
+
+		memberImg, format, err = image.Decode(file)
+		if err != nil {
+			s.Error("图片编码错误", zap.String("useFormat", format), zap.Error(err))
+			continue
+		}
+
+		// 画圆角
+		imgWidth := memberImg.Bounds().Dx()
+		imgHeight := memberImg.Bounds().Dy()
+		c := radius{p: image.Point{X: memberImg.Bounds().Dx(), Y: memberImg.Bounds().Dy()}, r: int(float32(imgWidth) * 0.4)}
+		smallImgWithRadiuRGBA := image.NewRGBA(image.Rect(0, 0, imgWidth, imgHeight))
+		draw.DrawMask(smallImgWithRadiuRGBA, smallImgWithRadiuRGBA.Bounds(), memberImg, image.Point{}, &c, image.Point{}, draw.Over)
+
+		var mbounds image.Rectangle
+		var smallImgWithRadiu image.Image
+		//缩略图
+		if num >= 5 {
+			smallImgWithRadiu = imaging.Resize(smallImgWithRadiuRGBA, minwidth, minheight, imaging.Lanczos)
+		} else {
+			smallImgWithRadiu = imaging.Resize(smallImgWithRadiuRGBA, maxwidth, maxheight, imaging.Lanczos)
+		}
+
+		var x, y int
+		var width, height int
+		if num == 1 {
+			width = maxwidth
+			height = width
+			x, y = (groupWith-maxwidth)/2, (groupHeight-maxheight)/2
+		} else if num == 2 { // 两张图
+			width = (groupWith - borderWidth) / 2
+			height = width
+			if i == 0 {
+				x, y = 0, (groupHeight-height)/2
+			} else {
+				x, y = borderWidth+width, (groupHeight-height)/2
+			}
+		} else if num == 3 {
+			width = (groupWith - borderWidth) / 2
+			height = width
+			if i == 0 {
+				x, y = (groupWith-width)/2, (groupHeight-(height*2+borderWidth))/2
+			} else {
+				x, y = wx*width+wx*borderWidth, (groupHeight-(height*2+borderWidth))/2+height+borderWidth
+			}
+		} else if num == 4 {
+			width = (groupWith - borderWidth) / 2
+			height = width
+			x, y = wx*width+wx*borderWidth, (groupHeight-(height*2+borderWidth))/2+hy*(height+borderWidth)
+
+		} else if num == 5 {
+			width = (groupWith - borderWidth*2) / 3
+			height = width
+			if i == 0 || i == 1 {
+				offset := (groupWith - (width*2 + borderWidth)) / 2
+				x, y = offset+wx*width+wx*borderWidth, (groupHeight-(height*2+borderWidth))/2
+			} else {
+				x, y = wx*width+wx*borderWidth, (groupHeight-(height*2+borderWidth))/2+hy*(height+borderWidth)
+			}
+		} else if num == 6 {
+			width = (groupWith - borderWidth*2) / 3
+			height = width
+			x, y = wx*width+wx*borderWidth, (groupHeight-(height*2+borderWidth))/2+hy*(height+borderWidth)
+		} else if num == 7 {
+			width = (groupWith - borderWidth*2) / 3
+			height = width
+			if i == 0 {
+				offset := (groupWith - width) / 2
+				x, y = offset+wx*width+wx*borderWidth, (groupHeight-(height*3+borderWidth*2))/2
+			} else {
+				x, y = wx*width+wx*borderWidth, hy*(height+borderWidth)
+			}
+		} else if num == 8 {
+			width = (groupWith - borderWidth*2) / 3
+			height = width
+			if i == 0 || i == 1 {
+				offset := (groupWith - (width*2 + borderWidth)) / 2
+				x, y = offset+wx*width+wx*borderWidth, (groupHeight-(height*3+borderWidth*2))/2
+			} else {
+				x, y = wx*width+wx*borderWidth, (groupHeight-(height*3+borderWidth*2))/2+hy*(height+borderWidth)
+			}
+		} else if num == 9 {
+			width = (groupWith - borderWidth*2) / 3
+			height = width
+			x, y = wx*width+wx*borderWidth, (groupHeight-(height*3+borderWidth*2))/2+hy*(height+borderWidth)
+		}
+		mbounds = image.Rect(x, y, width+x, height+y)
+		smallImgWithRadiu = imaging.Resize(smallImgWithRadiuRGBA, width, height, imaging.Lanczos)
+		draw.Draw(newImg, mbounds, smallImgWithRadiu, image.Point{}, draw.Src)
+		wx++
+	}
+
+	return newImg, nil
+}
+
+// 圆角
+type radius struct {
+	p image.Point // 矩形右下角位置
+	r int
+}
+
+func (c *radius) ColorModel() color.Model {
+	return color.AlphaModel
+}
+func (c *radius) Bounds() image.Rectangle {
+	return image.Rect(0, 0, c.p.X, c.p.Y)
+}
+
+// 对每个像素点进行色值设置，分别处理矩形的四个角，在四个角的内切圆的外侧，色值设置为全透明，其他区域不透明
+func (c *radius) At(x, y int) color.Color {
+	var xx, yy, rr float64
+	var inArea bool
+	// left up
+	if x <= c.r && y <= c.r {
+		xx, yy, rr = float64(c.r-x)+0.5, float64(y-c.r)+0.5, float64(c.r)
+		inArea = true
+	}
+	// right up
+	if x >= (c.p.X-c.r) && y <= c.r {
+		xx, yy, rr = float64(x-(c.p.X-c.r))+0.5, float64(y-c.r)+0.5, float64(c.r)
+		inArea = true
+	}
+	// left bottom
+	if x <= c.r && y >= (c.p.Y-c.r) {
+		xx, yy, rr = float64(c.r-x)+0.5, float64(y-(c.p.Y-c.r))+0.5, float64(c.r)
+		inArea = true
+	}
+	// right bottom
+	if x >= (c.p.X-c.r) && y >= (c.p.Y-c.r) {
+		xx, yy, rr = float64(x-(c.p.X-c.r))+0.5, float64(y-(c.p.Y-c.r))+0.5, float64(c.r)
+		inArea = true
+	}
+	if inArea && xx*xx+yy*yy >= rr*rr {
+		return color.Alpha{}
+	}
+	return color.Alpha{A: 255}
+}
+
+func imageTypeToRGBA64(m *image.NRGBA) *image.RGBA64 {
+	bounds := (*m).Bounds()
+	dx := bounds.Dx()
+	dy := bounds.Dy()
+	newRgba := image.NewRGBA64(bounds)
+	for i := 0; i < dx; i++ {
+		for j := 0; j < dy; j++ {
+			colorRgb := (*m).At(i, j)
+			r, g, b, a := colorRgb.RGBA()
+			nR := uint16(r)
+			nG := uint16(g)
+			nB := uint16(b)
+			alpha := uint16(a)
+			newRgba.SetRGBA64(i, j, color.RGBA64{R: nR, G: nG, B: nB, A: alpha})
+		}
+	}
+	return newRgba
+
+}
+
+// 将输入图像m的透明度变为原来的倍数。若原来为完成全不透明，则percentage = 0.5将变为半透明
+func opacityAdjust(m *image.NRGBA, percentage float64) *image.NRGBA {
+	bounds := m.Bounds()
+	dx := bounds.Dx()
+	dy := bounds.Dy()
+	// newRgba := image.NewRGBA64(bounds)
+	for i := 0; i < dx; i++ {
+		for j := 0; j < dy; j++ {
+			colorRgb := m.At(i, j)
+			r, g, b, a := colorRgb.RGBA()
+			opacity := uint16(float64(a) * percentage)
+			//颜色模型转换，至关重要！
+			v := m.ColorModel().Convert(color.NRGBA64{R: uint16(r), G: uint16(g), B: uint16(b), A: opacity})
+			//Alpha = 0: Full transparent
+			rr, gg, bb, aa := v.RGBA()
+			m.SetRGBA64(i, j, color.RGBA64{R: uint16(rr), G: uint16(gg), B: uint16(bb), A: uint16(aa)})
+		}
+	}
+	return m
+}
+
+var uploadClient *http.Client
+var onceUploadClient sync.Once
+
+// UploadFile 上传文件
+func uploadFile(uploadURL, fileName string, copyFileWriter func(io.Writer) error) (map[string]interface{}, error) {
+	body := &bytes.Buffer{}
+	bodyWriter := multipart.NewWriter(body)
+	fileWriter, err := bodyWriter.CreateFormFile("file", fileName)
+	if err != nil {
+		limlog.Error("构建formFile失败！", zap.Error(err))
+		return nil, err
+	}
+	err = copyFileWriter(fileWriter)
+	if err != nil {
+		limlog.Error("复制文件内容失败！", zap.String("uploadURL", uploadURL), zap.Error(err))
+		return nil, err
+	}
+	bodyWriter.Close()
+	fRequest, err := http.NewRequest("POST", uploadURL, body)
+	if err != nil {
+		limlog.Error("创建上传请求失败！", zap.String("uploadURL", uploadURL), zap.Error(err))
+		return nil, err
+	}
+	fRequest.Header.Set("Content-Type", bodyWriter.FormDataContentType())
+	onceUploadClient.Do(func() {
+		uploadClient = &http.Client{
+			Timeout: time.Second * 120,
+		}
+	})
+	resp, err := uploadClient.Do(fRequest)
+	if err != nil {
+		limlog.Error("上传文件失败！", zap.String("uploadURL", uploadURL), zap.Error(err))
+		return nil, err
+	}
+	if resp == nil {
+		return nil, errors.New("上传文件返回失败！")
+	}
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
+		limlog.Error("文件上传返回状态有误！", zap.Int("status", resp.StatusCode), zap.String("uploadURL", uploadURL), zap.String("fileName", fileName))
+		return nil, errors.New("文件上传返回状态有误！")
+	}
+	defer resp.Body.Close()
+	respData, err := io.ReadAll(resp.Body)
+	if err != nil {
+		limlog.Error("读取上传返回的数据失败！", zap.Error(err))
+		return nil, err
+	}
+	var resultMap map[string]interface{}
+	err = util.ReadJsonByByte(respData, &resultMap)
+	if err != nil {
+		limlog.Error("上传返回的json格式有误！", zap.String("uploadURL", uploadURL), zap.String("fileName", fileName), zap.String("resp", string(respData)), zap.Error(err))
+		return nil, err
+	}
+	return resultMap, err
+}
+
+func (s *Service) downloadImage(url string, ctx context.Context) (io.ReadCloser, error) {
+
+	s.Debug("开始下载图片！", zap.String("url", url))
+
+	// Validate URL to prevent SSRF attacks
+	if err := util.ValidateExternalURL(url); err != nil {
+		s.Error("URL validation failed", zap.String("url", url), zap.Error(err))
+		return nil, fmt.Errorf("invalid URL: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+	client := &http.Client{
+		Timeout: 30 * time.Second,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			if len(via) >= 3 {
+				return fmt.Errorf("too many redirects")
+			}
+			// Validate redirect target to prevent SSRF via redirect
+			if err := util.ValidateExternalURL(req.URL.String()); err != nil {
+				return fmt.Errorf("redirect URL validation failed: %w", err)
+			}
+			return nil
+		},
+	}
+	// resp, err := s.downloadClient.Get(url)
+	resp, err := client.Do(req)
+	// resp, err := s.downloadClient.Do(req)
+	if err != nil {
+		s.Error("下载图片错误！", zap.String("url", url), zap.Error(err))
+		return nil, err
+	}
+	if resp == nil {
+		s.Error("没有返回数据，下载图片失败！", zap.String("url", url))
+		return nil, errors.New("没有返回数据，下载图片失败！")
+	}
+	if resp.StatusCode != http.StatusOK {
+		s.Error("下载图片返回状态有误！", zap.Int("status", resp.StatusCode), zap.String("url", url))
+		return nil, errors.New("下载图片返回状态有误！")
+	}
+	return resp.Body, nil
+}
+
+func (s *Service) removeFile(filePaths []string) {
+	for _, filePath := range filePaths {
+		// Sanitize path to prevent directory traversal
+		cleanPath := filepath.Clean(filePath)
+		if cleanPath == "." || cleanPath == "/" || cleanPath == ".." {
+			s.Warn("refusing to remove dangerous path", zap.String("filePath", filePath))
+			continue
+		}
+		if strings.Contains(cleanPath, "..") {
+			s.Warn("refusing to remove path with traversal", zap.String("filePath", filePath))
+			continue
+		}
+		// Use os.Remove instead of os.RemoveAll to prevent recursive directory deletion
+		err := os.Remove(cleanPath)
+		if err != nil {
+			s.Warn("移除文件失败！", zap.String("filePath", cleanPath), zap.Error(err))
+		}
+	}
+}

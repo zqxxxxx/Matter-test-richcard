@@ -1,0 +1,335 @@
+# -----------------------------------------------------------------------------
+# OCTO Server runtime config — minimal single-host deployment.
+# -----------------------------------------------------------------------------
+# This file is mounted over the legacy default path inside the container
+# (/home/configs/tsdd.yaml) so the Go binary picks it up without CLI flags.
+#
+# Values shared with MySQL / Redis / MinIO / WuKongIM match the service
+# names (not ports) on the `octo-net` bridge network declared in
+# docker-compose.yaml. Do not change those strings unless you also rename
+# the corresponding compose services.
+# -----------------------------------------------------------------------------
+
+# Runtime mode: debug | release
+# `release` turns off smsCode and tightens several safety checks.
+# ⚠️  Default is `release` for safe OSS deployment. Override via the
+#     TS_MODE env var (or edit this file) if you need the convenience
+#     features of debug mode for local development.
+mode: "release"
+
+# External HTTP base URL used when generating absolute links (QR codes,
+# email payloads, etc). Match your nginx-exposed hostname.
+external:
+  ip: "127.0.0.1"
+  baseURL: "http://octo.local:28080"
+  # web login URL (optional). Uncomment + set once you integrate octo-web.
+  # webLoginURL: "http://octo.local:28080/"
+
+# Test-only SMS verification code — any inbound SMS request will accept
+# this string. Ignored in release mode.
+# ⚠️  Leaving a value here while mode=debug means ANYONE with the default
+#     code can complete registration. See README → Production Hardening.
+smsCode: ""
+
+# ---------- Database ---------------------------------------------------------
+db:
+  mysqlAddr: "root:CHANGE_ME_MYSQL_PASSWORD@tcp(mysql:3306)/octo?charset=utf8mb4&parseTime=true&loc=Local"
+  redisAddr: "redis:6379"
+  redisPass: ""
+
+# ---------- WuKongIM ---------------------------------------------------------
+wukongIM:
+  apiURL: "http://wukongim:5001"
+  # Populate if you have enabled `tokenAuthOn` on WuKongIM. See configs/wk.yaml.
+  managerToken: ""
+
+# ---------- Object storage (MinIO, S3-compatible) ----------------------------
+# Note: For browser-direct upload via presigned PUT, the object-storage
+# bucket must allow PUT from the octo-web origin. For Aliyun OSS this is a
+# CORS rule on the bucket (Aliyun OSS console → 权限管理 → 跨域设置).
+# The same caveat applies to MinIO and Tencent COS whenever the upload host
+# differs from the octo-web origin (e.g. files.example.com vs octo.example.com).
+# Without the CORS rule the browser will block the PUT before it ever leaves
+# the page, regardless of how the URL was signed.
+#
+# SigV4 / OSS signed-header contract — REQUIRED for the browser:
+#
+# `GET /v1/file/upload-credentials` (modules/file/api.go getUploadCredentials)
+# returns `contentType` and (when set) `contentDisposition`. The browser
+# MUST echo them as the matching PUT request headers — they are covered by
+# the canonical-headers section of the SigV4 signature (and the OSS
+# equivalent), so any deviation produces `403 SignatureDoesNotMatch` at
+# upload time. This is enforced at the storage layer; no server-side retry
+# can rescue a client that does not echo them.
+#
+# Presigned-URL support matrix (current as of the file/presigned-URL implementation):
+#
+#   fileService value | presigned PUT (browser direct upload) | presigned GET (signed download)
+#   ------------------+---------------------------------------+--------------------------------
+#   "minio"           | yes — direct PUT signed by minio-go   | yes — signed GET via minio-go
+#   "tencentCOS"      | yes — direct PUT signed by minio-go   | yes — signed GET via minio-go
+#   "awsS3"           | yes — direct PUT signed by minio-go   | yes — signed GET via minio-go
+#                     |       (AWS S3, R2, B2, Wasabi,        |
+#                     |        MinIO with custom endpoint)    |
+#   "aliyunOSS"       | yes — direct PUT signed by OSS SDK    | yes — signed GET via OSS SDK
+#   "qiniu"           | no  — Qiniu uploads use a token+form  | yes — MakePrivateURLv2 signed URL
+#                     |       model that does not map to a    |
+#                     |       single PUT URL                  |
+#   "seaweedFS"       | no  — no presign primitive in SDK     | no  — public reads are unsigned
+#
+# Fallback when a backend does not support a presigned operation: the server
+# returns a clear error from the corresponding endpoint, and clients should
+# fall back to the regular server-side upload flow (POST /file/upload) or
+# unsigned DownloadURL. Switch to MinIO/COS/OSS for browser-direct upload.
+#
+# Tencent COS — supported BucketURL shapes:
+#
+#   * Default (BucketURL empty) — SDK virtual-hosts to
+#     `<bucket>.cos.<region>.myqcloud.com`. Recommended.
+#   * Custom domain that carries the `<bucket>.` subdomain — e.g.
+#     `https://my-bucket-12345678.cos.example.com`. Stripped + re-prefixed
+#     internally so the signed URL host matches the browser's DNS view.
+#   * Custom CDN / accelerator domain WITHOUT a `<bucket>.` subdomain —
+#     e.g. `https://cdn.example.com`. The server switches the SDK to
+#     BucketLookupPath and signs path-style URLs of the form
+#     `https://cdn.example.com/<bucket>/<key>`. Added in YUJ-846 hotfix.
+#
+# Aliyun OSS — V1 signing does NOT cover Content-Length or
+# Content-Disposition: deviating values at PUT time are silently
+# persisted instead of producing 403 SignatureDoesNotMatch. The
+# `maxFileSize` / `contentDisposition` fields in the presigned response
+# are advisory on OSS; enforce hard caps at the bucket / RAM-policy
+# layer, or use MinIO/COS for full SigV4 coverage.
+fileService: "minio"
+minio:
+  # Server-internal base URL — what the Go process uses to reach MinIO.
+  # In compose this is the `minio` service name on the `octo-net` bridge.
+  # Browsers cannot resolve this; do NOT expose it to clients.
+  url: "http://minio:9000"
+  # uploadURL: ""    # optional override; falls back to `url` when empty.
+  #                  # Used by UploadFile / GetFile (server-side I/O) and by
+  #                  # the bucket-bootstrap path. Keep it pointed at the
+  #                  # internal hostname.
+  #
+  # downloadURL is the BROWSER-FACING base URL: the host the user's browser
+  # actually resolves and the host that presigned PUT/GET URLs are signed
+  # against. SigV4 covers `host` and the canonical URI in the signed
+  # headers, so this MUST be the URL the browser will hit — there is no
+  # post-sign rewriting.
+  #
+  # Strict contract: downloadURL is a `scheme://host[:port]` URL with NO
+  # path component. The MinIO API must be reachable directly at that
+  # endpoint. Path-prefixed values (e.g. `https://octo.example.com/minio`)
+  # are rejected loudly at sign time — they cannot work under standard
+  # nginx `proxy_pass <upstream>/` semantics, where the matched prefix is
+  # stripped before forwarding and the gateway's view of the canonical
+  # URI no longer matches the one SigV4 signed.
+  #
+  # Typical values:
+  #   - docker-compose default:  http://octo.local:29000
+  #     (MinIO API exposed on host port 29000 — see OCTO_MINIO_API_PORT
+  #      in the deployment repo's docker-compose .env)
+  #   - dedicated subdomain:     https://minio.octo.example.com
+  #     (operator-driven; requires DNS + TLS cert pointing at MinIO)
+  #   - direct LAN MinIO:        http://minio.local:9000
+  #
+  # NOT supported (rejected at startup / first sign):
+  #   - https://octo.example.com/minio  (path-prefixed via nginx)
+  #
+  # If left empty, downloadURL falls back to `url` and presigned URLs will
+  # carry the internal `minio:9000` host — which works only when the Go
+  # process and the browser share the same DNS view (i.e. for inside-cluster
+  # service-to-service tests, not real users). Set this once your MinIO API
+  # port mapping or subdomain is finalized.
+  #
+  # Default: matches the bundled docker-compose stack with the MinIO API
+  # port published to the host on the default `octo.local` domain. Viper
+  # does NOT expand shell-style `${VAR:-default}` placeholders in this
+  # file (only `docker compose` does, in `docker-compose.yaml`), so this
+  # value MUST be a literal browser-reachable URL. This file is a
+  # snapshot taken from the previous octo-deployment compose stack
+  # (the live compose now lives in `Mininglamp-OSS/octo-deployment` and
+  # sets `TS_MINIO_DOWNLOADURL` from the `OCTO_DOMAIN` /
+  # `OCTO_MINIO_API_PORT` env vars — Viper's `TS_` env prefix turns
+  # that into an authoritative override over this yaml value);
+  # operators running the binary outside Docker should either edit
+  # this line or export `TS_MINIO_DOWNLOADURL` directly. The internal
+  # hostname `minio` is intentionally NOT used here because browsers
+  # cannot resolve it.
+  #
+  # NOTE: SigV4 signed-header contract — `presignedUpload` returns a
+  # `contentType` (and optional `contentDisposition`) that the client
+  # MUST echo as the matching PUT request headers. Any deviation
+  # produces `403 SignatureDoesNotMatch` because those headers are
+  # covered by the signature; see modules/file/api.go presignedUpload
+  # for the response shape.
+  downloadURL: "http://octo.local:29000"
+  accessKeyID: "octoadmin"
+  secretAccessKey: "CHANGE_ME_MINIO_PASSWORD"
+
+# ---------- AWS S3 / S3-compatible (alternative to the blocks above) --------
+# Activate this backend with `fileService: "awsS3"` above, then fill in the
+# `s3:` block below.
+#
+# Use this for AWS S3, Cloudflare R2, Backblaze B2, Wasabi, or any other
+# provider that implements the S3 protocol with SigV4. ServiceS3 is a
+# single-bucket backend — the upload "type" segment (chat/, moment/, ...)
+# lives inside the object key, not as a separate bucket — so you only
+# need ONE bucket pre-created with appropriate IAM + CORS.
+#
+# Pre-deployment checklist:
+#
+#   1. Pre-create the bucket in your provider's console (octo-server does
+#      NOT auto-create on S3 — the IAM permissions for CreateBucket should
+#      remain UNGRANTED to avoid accidental cross-region bucket creation).
+#   2. Attach a minimum IAM policy granting only the object operations
+#      ServiceS3 actually performs:
+#        s3:ListBucket, s3:GetBucketLocation       — on the bucket arn
+#        s3:GetObject, s3:PutObject, s3:DeleteObject, s3:AbortMultipartUpload
+#                                                  — on the bucket arn + "/*"
+#   3. Configure CORS on the bucket so browser-direct presigned PUT works
+#      from the octo-web origin. Example (AWS S3 JSON):
+#        [{
+#          "AllowedOrigins": ["https://octo.example.com"],
+#          "AllowedMethods": ["GET", "PUT", "HEAD"],
+#          "AllowedHeaders": ["*"],
+#          "ExposeHeaders": ["ETag"],
+#          "MaxAgeSeconds": 3000
+#        }]
+#   4. Browser-facing URL posture: with Block Public Access ON (the AWS
+#      default), the unsigned URLs returned by `/v1/file/preview/*` and
+#      stored in upload responses cannot be opened directly by clients.
+#      Two clean deployment shapes:
+#
+#      (A) CloudFront + Origin Access Control (RECOMMENDED for AWS)
+#          • Bucket: keep Block Public Access ON.
+#          • Front the bucket with CloudFront; attach an OAC so
+#            CloudFront identifies itself to the bucket; bucket policy
+#            grants `s3:GetObject` to that CloudFront principal only.
+#          • Set `s3.downloadURL` to the CloudFront distribution URL
+#            (e.g. https://d123.cloudfront.net). Browser GETs flow
+#            through CloudFront; presigned PUT/GET still go directly
+#            to S3 (signed against `s3.endpoint`, not the CDN host —
+#            no cache-poisoning or signature-mismatch risk).
+#
+#      (B) All-presigned: keep Block Public Access ON, route every
+#          client read through `/v1/file/download/url` (presigned GET),
+#          and avoid persisting unsigned URLs. Leave `s3.downloadURL`
+#          empty. Trade-off: URLs expire (default 30 min) and stored
+#          `path` fields must be re-signed before use.
+#
+# Region / endpoint semantics:
+#
+#   * Endpoint MUST match the bucket's actual region — Region is signed
+#     into the SigV4 canonical request, so a region mismatch produces
+#     AuthorizationHeaderMalformed at the gateway.
+#   * AWS S3: minio-go internally canonicalizes Amazon endpoints to
+#     `s3.dualstack.<region>.amazonaws.com`; this is the publicly
+#     resolvable IPv4+IPv6 endpoint and works in all browsers. Operators
+#     allow-listing the non-dual-stack hostname in firewalls / WAF
+#     should add the dual-stack variant.
+#   * Cloudflare R2: use `auto` as the region (R2 ignores it but the
+#     SDK still requires non-empty for SigV4).
+#   * Backblaze B2 S3 API: endpoint shape is `s3.<region>.backblazeb2.com`.
+#
+# SigV4 signed-header contract (REQUIRED for the browser direct PUT path):
+#
+#   The contract is identical to the COS / MinIO backends — see the
+#   `getUploadCredentials` block at modules/file/api.go for the
+#   per-header rules. The presigned PUT URL covers `Content-Type`,
+#   `Content-Length`, and (when present) `Content-Disposition` in
+#   `X-Amz-SignedHeaders`. The browser MUST echo each verbatim or AWS
+#   returns 403 SignatureDoesNotMatch and the upload aborts before any
+#   bytes leave the browser. This is also the server-side enforcement
+#   of MaxFileSize on the presigned path.
+#fileService: "awsS3"
+#s3:
+#  # API endpoint hostname (NO scheme — the SDK adds https). Pasting a
+#  # full URL is tolerated (scheme is stripped), but the canonical form
+#  # is host[:port] only.
+#  endpoint: "s3.us-west-2.amazonaws.com"
+#
+#  # SigV4 signing region. Must match the bucket's actual region for
+#  # AWS S3. Use "auto" for Cloudflare R2; required (non-empty) for all
+#  # providers because the SDK signs it into the canonical request.
+#  region: "us-west-2"
+#
+#  # The single bucket all uploads land in. Pre-create it on the
+#  # provider side; ServiceS3 does NOT call CreateBucket.
+#  bucket: "my-octo-bucket"
+#
+#  # Long-lived IAM access keys (static credentials). Also overridable
+#  # via env vars (all consumed by octo-lib's S3Config wiring):
+#  #
+#  #   AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY  — standard AWS env
+#  #     variable names. Convenient when your deployment env already
+#  #     exports them (CI runners, EC2 host with IAM-user creds in env).
+#  #   TS_S3_ACCESS_KEY_ID / TS_S3_SECRET_ACCESS_KEY  — project-specific
+#  #     overrides that WIN over both the YAML and the AWS_* env vars.
+#  #     Use these when your host has unrelated AWS_* set and you want
+#  #     octo-server to talk to a different account (e.g. R2 / B2).
+#  #
+#  accessKeyID: "AKIA..."
+#  secretAccessKey: "..."
+#
+#  # OPTIONAL: SessionToken — AWS STS session token paired with
+#  # temporary credentials (IRSA, IMDSv2, EKS Pod Identity, AWS SSO,
+#  # `aws sts assume-role`). Leave empty for long-lived IAM user
+#  # keys. ServiceS3 forwards the token verbatim into SigV4; the
+#  # signed URL gains `X-Amz-Security-Token` in its query.
+#  #
+#  # Lifecycle: ServiceS3 does NOT refresh tokens itself. Your
+#  # deployment pipeline must rotate AccessKeyID / SecretAccessKey /
+#  # SessionToken (typically via env vars) before STS expiry (default
+#  # 1h, max 12h depending on role configuration). A stale token
+#  # produces 403 ExpiredToken on every signed request — fail loud,
+#  # not silent.
+#  #
+#  # Env-var precedence (octo-lib wiring, project-prefixed wins):
+#  #   AWS_SESSION_TOKEN
+#  #   TS_S3_SESSION_TOKEN  (preferred for octo deployments)
+#  # sessionToken: ""
+#
+#  # OPTIONAL: DownloadURL — browser-facing base URL for UNSIGNED
+#  # object access (preview redirects, upload-response `path` field).
+#  # NEVER signs SigV4: presigned PUT/GET URLs are ALWAYS signed
+#  # against `s3.endpoint`, regardless of this value. Set this when
+#  # you front the bucket with CloudFront / a custom domain for
+#  # browser reads.
+#  #
+#  # Must be scheme://host[:port] with NO path component (same
+#  # contract as MinioConfig.DownloadURL).
+#  #
+#  # Typical values:
+#  #   - empty                              → URLs use the canonical
+#  #                                          virtual-hosted form
+#  #                                          `https://<bucket>.<endpoint>/<key>`
+#  #   - CloudFront distribution            → https://d123.cloudfront.net
+#  #   - bucket-subdomain custom domain     → https://my-octo-bucket.cdn.example.com
+#  # downloadURL: "https://d123.cloudfront.net"
+#
+#  # OPTIONAL: object-key prefix for multi-environment isolation
+#  # against a shared bucket. Mirrors COS Prefix.
+#  # prefix: "prod/"
+#
+#  # OPTIONAL: force path-style addressing (https://endpoint/bucket/key)
+#  # instead of virtual-hosted (https://bucket.endpoint/key). AWS S3
+#  # accepts both modern-style; some S3 gateways (MinIO with custom
+#  # endpoint, older B2 configurations) require true.
+#  # usePathStyle: false
+
+# ---------- Logging ----------------------------------------------------------
+logger:
+  level: 2          # 1=debug 2=info 3=warn 4=error
+  dir: "./logs"
+  lineNum: false
+
+# ---------- Registration -----------------------------------------------------
+# Disable open registration in production or restrict to your mobile region.
+# ⚠️  Default is `off: true` for safe OSS deployment. Set to false (via
+#     .env → TS_REGISTER_OFF or by editing this file) once you have
+#     email/SMS providers wired up and are ready to accept public signups.
+register:
+  off: true
+  onlyChina: false
+  emailOn: false

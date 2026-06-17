@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>群邀请</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no">
+    <meta name="robots" content="noindex,nofollow">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f5f5f5; color: #333; min-height: 100vh; }
+        .container { max-width: 420px; margin: 0 auto; padding: 0 16px; }
+        .card { margin-top: 32px; padding: 24px 20px; background: #fff; border-radius: 12px; box-shadow: 0 2px 12px rgba(0,0,0,0.08); text-align: center; }
+        .avatar { width: 72px; height: 72px; border-radius: 12px; background: #e6e6e6; object-fit: cover; display: block; margin: 0 auto 12px; }
+        .group-name { font-size: 18px; font-weight: 600; color: #222; line-height: 1.4; word-break: break-all; }
+        .space-line {
+            font-size: 13px; color: #666; margin-top: 6px;
+            line-height: 1.5; word-break: break-all;
+        }
+        .space-line .space-icon { margin-right: 4px; }
+        .meta { font-size: 13px; color: #999; margin-top: 6px; }
+        .tip { font-size: 14px; color: #666; line-height: 1.6; margin-top: 16px; }
+        .btn-group { margin-top: 24px; display: flex; flex-direction: column; gap: 12px; }
+        .btn {
+            height: 44px; border: none; border-radius: 22px;
+            font-size: 15px; font-weight: 600; cursor: pointer;
+            transition: opacity 0.2s; text-decoration: none;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .btn:active { opacity: 0.7; }
+        .btn[disabled], .btn.disabled { opacity: 0.5; pointer-events: none; }
+        .btn-primary { background: #07c160; color: #fff; }
+        .btn-secondary { background: #f0f0f0; color: #333; }
+        .badge {
+            display: inline-block; padding: 2px 10px; border-radius: 10px;
+            font-size: 12px; line-height: 18px; margin-top: 8px;
+        }
+        .badge-warn { background: #fff3e0; color: #f57c00; }
+        .toast {
+            position: fixed; left: 50%; top: 32px; transform: translateX(-50%);
+            padding: 10px 16px; border-radius: 8px; font-size: 14px;
+            background: rgba(0,0,0,0.78); color: #fff; z-index: 1000;
+            max-width: 80%; text-align: center; display: none;
+        }
+        .loading { text-align: center; padding: 80px 20px; color: #999; font-size: 15px; }
+        .state-page { text-align: center; padding: 64px 20px; display: none; }
+        .state-page .icon { font-size: 48px; margin-bottom: 16px; }
+        .state-page .title { font-size: 17px; font-weight: 600; color: #333; margin-bottom: 8px; }
+        .state-page .desc { font-size: 14px; color: #999; line-height: 1.6; }
+    </style>
+</head>
+<body>
+    <div id="toast" class="toast"></div>
+    <div class="container">
+        <div id="loading" class="loading">加载中...</div>
+
+        <div id="content" style="display:none">
+            <div class="card">
+                <img class="avatar" id="v-avatar" alt="" />
+                <div class="group-name" id="v-name"></div>
+                <div class="space-line" id="v-space" style="display:none">
+                    <span class="space-icon">📁</span>属于 "<span id="v-space-name"></span>" Space
+                </div>
+                <div class="meta" id="v-meta"></div>
+                <div class="badge badge-warn" id="v-badge" style="display:none"></div>
+                <div class="tip" id="v-tip" style="display:none"></div>
+            </div>
+            <div class="btn-group">
+                <button class="btn btn-primary" id="btn-join" style="display:none">加入群聊</button>
+                <a class="btn btn-secondary" id="btn-download" href="#" target="_blank" rel="noopener">下载 App</a>
+            </div>
+        </div>
+
+        <div class="state-page" id="state-expired">
+            <div class="icon">⏰</div>
+            <div class="title">邀请链接已过期</div>
+            <div class="desc">请联系群成员重新分享邀请链接</div>
+        </div>
+
+        <div class="state-page" id="state-not-found">
+            <div class="icon">🚫</div>
+            <div class="title">群聊不存在或已解散</div>
+            <div class="desc">请确认链接是否正确</div>
+        </div>
+
+        <div class="state-page" id="state-external-blocked">
+            <div class="icon">🔒</div>
+            <div class="title">该群不允许外部成员加入</div>
+            <div class="desc">该群仅允许所属空间（Space）内成员扫码入群，<br/>请联系管理员确认邀请方式</div>
+            <div class="desc" id="state-external-space" style="display:none; margin-top:8px">你不是「<span id="state-external-space-name"></span>」Space 的成员</div>
+        </div>
+
+        <div class="state-page" id="state-need-space">
+            <div class="icon">🛂</div>
+            <div class="title">请先加入一个 Space 后再加入群聊</div>
+            <div class="desc">你的账号尚未加入任何 Space，无法通过邀请链接入群。<br/>请打开 App 或 Web 首页，用邀请码加入一个 Space 后重试。</div>
+            <div class="btn-group" style="margin-top:24px">
+                <button class="btn btn-primary" id="btn-need-space-home">回主页加入 Space</button>
+            </div>
+        </div>
+
+        <div class="state-page" id="state-already-member">
+            <div class="icon">👤</div>
+            <div class="title">你已在此群内</div>
+            <div class="desc">即将跳转到 Web 首页...</div>
+        </div>
+
+        <div class="state-page" id="state-joined">
+            <div class="icon">✅</div>
+            <div class="title">加入成功</div>
+            <div class="desc">即将返回首页...</div>
+        </div>
+
+        <div class="state-page" id="state-rate-limited">
+            <div class="icon">⏳</div>
+            <div class="title">请稍后再试</div>
+            <div class="desc">当前访问人数较多，请稍等片刻后刷新页面重试</div>
+        </div>
+
+        <div class="state-page" id="state-server-error">
+            <div class="icon">⚠️</div>
+            <div class="title">加载失败</div>
+            <div class="desc">服务暂时不可用，请稍后刷新重试</div>
+        </div>
+
+        <div class="state-page" id="state-network-error">
+            <div class="icon">📡</div>
+            <div class="title">网络异常</div>
+            <div class="desc">无法连接服务器，请检查网络后刷新重试</div>
+        </div>
+    </div>
+
+<script>
+var API_BASE = "{{API_BASE_URL}}";
+var code = new URLSearchParams(location.search).get("code") || "";
+
+function show(id) {
+    var el = document.getElementById(id);
+    if (el) el.style.display = "block";
+}
+function hide(id) {
+    var el = document.getElementById(id);
+    if (el) el.style.display = "none";
+}
+
+function showState(stateID) {
+    hide("loading");
+    hide("content");
+    show(stateID);
+}
+
+function toast(msg, ms) {
+    var el = document.getElementById("toast");
+    el.textContent = msg;
+    el.style.display = "block";
+    clearTimeout(toast._t);
+    toast._t = setTimeout(function () { el.style.display = "none"; }, ms || 2200);
+}
+
+// 抓取 dmwork-web / admin 后台的登录 token。当前生产实际约定（im-test 验证得来）：
+//   1. sessionStorage 里 "token{sid}" → value 直接就是 token（dmwork-web 与 admin 都写这里）
+//   2. localStorage 里 "token{sid}" → 历史 / 兼容路径（旧版本或个别页面才会写）
+//   3. localStorage "dm-admin-auth" → JSON，token 在 state.token（仅 admin 后台）
+//
+// 历史版本只扫 localStorage 的 "tokenXXX"，在 IM Web / admin 后台（走 sessionStorage）
+// 的环境里直接读不到，从而短路成「请先登录 Web 端」，看不到「加入群聊」按钮。
+// 这里按 sessionStorage → localStorage → dm-admin-auth 的顺序依次尝试，保持纯只读，
+// 不依赖框架。返回 {token: "", sid: ""}；找不到 / Safari 隐私模式等异常场景同样返回空串。
+function findTokenAndSid() {
+    function scanByPrefix(storage) {
+        try {
+            for (var i = 0; i < storage.length; i++) {
+                var key = storage.key(i);
+                if (key && key.indexOf("token") === 0 && key !== "tokenCallback") {
+                    var val = storage.getItem(key);
+                    if (val && val.length > 10) {
+                        return { token: val, sid: key.substring(5) };
+                    }
+                }
+            }
+        } catch (e) { /* Safari 隐私模式等 */ }
+        return null;
+    }
+    var hit = scanByPrefix(sessionStorage) || scanByPrefix(localStorage);
+    if (hit) return hit;
+
+    // admin 后台的 dm-admin-auth 是 JSON 结构（zustand persist），存了 state.token / state.uid。
+    try {
+        var raw = localStorage.getItem("dm-admin-auth");
+        if (raw) {
+            var parsed = JSON.parse(raw);
+            var state = parsed && parsed.state;
+            if (state && typeof state.token === "string" && state.token.length > 10) {
+                return { token: state.token, sid: state.uid || "" };
+            }
+        }
+    } catch (e) { /* 损坏的 JSON、隐私模式等 */ }
+
+    return { token: "", sid: "" };
+}
+
+function renderInfo(data) {
+    document.getElementById("v-name").textContent = data.group_name || "群聊";
+    if (typeof data.member_count === "number") {
+        document.getElementById("v-meta").textContent = "共 " + data.member_count + " 人";
+    }
+    if (data.avatar) {
+        document.getElementById("v-avatar").src = API_BASE + "/v1/" + data.avatar;
+    }
+    // YUJ-211: 渲染「📁 属于 "XX" Space」归属行。space_name 为空（公共群 /
+    // 降级路径）时保持隐藏，保证不破坏公共群极简卡片；后端 space_id 缺失的
+    // 旧客户端也会命中同一空串分支，向后兼容。
+    if (data.space_name) {
+        document.getElementById("v-space-name").textContent = data.space_name;
+        document.getElementById("v-space").style.display = "block";
+    }
+    // 邀请确认开启时，在落地页展示「需管理员审批」徽标，提示用户在 App 内走审批流
+    if (data.status === "invite_required") {
+        var badge = document.getElementById("v-badge");
+        badge.textContent = "需管理员审批";
+        badge.style.display = "inline-block";
+        var tip = document.getElementById("v-tip");
+        tip.textContent = "该群已开启邀请确认，请在 App 内由管理员审批后入群。";
+        tip.style.display = "block";
+    }
+    // 「下载 App」回退到产品官网（无独立配置时复用 BaseURL）
+    document.getElementById("btn-download").href = API_BASE;
+
+    // Web 已登录 & 群可直接入群 → 显示「加入群聊」按钮
+    // invite_required 场景仍交由 App 内审批，不在落地页直接入群
+    if (data.status === "joinable" && findTokenAndSid().token) {
+        var joinBtn = document.getElementById("btn-join");
+        joinBtn.style.display = "flex";
+        joinBtn.addEventListener("click", onJoinClick);
+    }
+
+    hide("loading");
+    show("content");
+}
+
+function onJoinClick() {
+    var btn = document.getElementById("btn-join");
+    if (btn.disabled) return;
+    btn.disabled = true;
+    btn.textContent = "正在加入...";
+
+    var session = findTokenAndSid();
+    var token = session.token;
+    if (!token) {
+        toast("请先登录 Web 端后再加入群聊");
+        btn.disabled = false;
+        btn.textContent = "加入群聊";
+        return;
+    }
+
+    // 1. 用公开 code 换出当前登录用户的 auth_code
+    fetch(API_BASE + "/v1/group/invite/authorize?code=" + encodeURIComponent(code), {
+        method: "POST",
+        headers: { "token": token }
+    }).then(function (r) {
+        return r.json().then(function (d) { return { ok: r.ok, data: d }; });
+    }).then(function (r) {
+        if (!r.ok || !r.data) {
+            throw new Error((r.data && r.data.msg) || "邀请链接已过期");
+        }
+        // 已经在群内：不再生成 auth_code，直接给提示 + 跳回首页（带 sid 保留登录态）。
+        if (r.data.already_member) {
+            toast("你已在此群内");
+            showState("state-already-member");
+            setTimeout(function () { redirectHome(session.sid); }, 1200);
+            return null;
+        }
+        // 群属于某 Space 且 allow_external=0：兜底短路（detail 已经把按钮藏掉，
+        // 这里是防御性分支，避免 H5 版本错位时直接撞到 scanjoin 的模糊错误）。
+        if (r.data.status === "external_blocked") {
+            showState("state-external-blocked");
+            return null;
+        }
+        // GH #1319 / Direction A：零 Space 用户禁止入群。
+        // 后端在 authorize 入口就会短路返回，不生成 auth_code；H5 这边给出
+        // 明确提示 + 「回主页加入 Space」CTA（复用 redirectHome 保留 sid），
+        // 避免用户点了「加入群聊」按钮后看到一条通用「加入失败」toast。
+        if (r.data.status === "need_space") {
+            showNeedSpaceState(session.sid);
+            return null;
+        }
+        if (!r.data.auth_code || !r.data.group_no) {
+            throw new Error((r.data && r.data.msg) || "邀请链接已过期");
+        }
+        var groupNo = r.data.group_no;
+        var authCode = r.data.auth_code;
+        // 2. 复用和移动端一致的入群接口，内部已覆盖外部成员 / allow_external / invite 校验
+        // YUJ-199 / GH#1265：把当前 Space 用 X-Space-ID header 透出，后端
+        // groupScanJoin 用它写 source_space_id，避免群错落在 home Space。
+        // currentSpaceId 由 Web 主应用写 localStorage（YUJ-88/EP3）；读不到
+        // 就不传，后端 fallback 到 home（与历史行为一致）。
+        var scanHeaders = { "token": token };
+        try {
+            var currentSpaceId = localStorage.getItem('currentSpaceId') || '';
+            if (currentSpaceId) { scanHeaders['X-Space-ID'] = currentSpaceId; }
+        } catch (e) { /* best-effort */ }
+        return fetch(API_BASE + "/v1/groups/" + encodeURIComponent(groupNo) +
+                     "/scanjoin?auth_code=" + encodeURIComponent(authCode), {
+            method: "GET",
+            headers: scanHeaders
+        }).then(function (r2) {
+            return r2.text().then(function (txt) {
+                // YUJ-170 round 3 / octo-server#1255: scanjoin 成功响应带
+                // space_id / space_name / group_no / group_name（groupScanJoin
+                // 新字段），保留整个对象供下游 crossSpace notice 判定使用。
+                // 失败响应仅需 msg 做 toast；解析失败走空对象兜底。
+                var data = {};
+                try { data = JSON.parse(txt) || {}; } catch (e) { /* ignore */ }
+                return {
+                    ok: r2.ok,
+                    msg: data.msg || "",
+                    space_id: data.space_id || "",
+                    space_name: data.space_name || "",
+                    group_no: data.group_no || groupNo,
+                    group_name: data.group_name || ""
+                };
+            });
+        });
+    }).then(function (r) {
+        // 已在群内 / external_blocked 已提前 return null，这里什么都不做。
+        if (r === null) return;
+        if (!r.ok) {
+            throw new Error(r.msg || "加入失败");
+        }
+        // YUJ-170 round 3 / dmwork-web#1100 / octo-server#1255:
+        // 跨 Space 加群引导 — 若群所属 Space 与端视角 currentSpaceId 不一致，
+        // 写 sessionStorage.pendingJoinSuccessNotice（YUJ-106 契约 key），
+        // Web 首页 consumeJoinSuccessNotice + showJoinSuccessToast 会按
+        // kind='group' 渲染「已加入「<群名>」群聊 / 位于「<Space 名>」空间 [切换过去]」。
+        // 同 Space / 私群（space_id=""）/ 未登录：跳过，保持原行为。
+        try {
+            var prevSpaceId = localStorage.getItem('currentSpaceId') || '';
+            var groupSpaceId = r.space_id || '';
+            if (groupSpaceId && prevSpaceId && groupSpaceId !== prevSpaceId) {
+                sessionStorage.setItem('pendingJoinSuccessNotice', JSON.stringify({
+                    kind: 'group',
+                    spaceId: groupSpaceId,
+                    spaceName: r.space_name || '',
+                    entityName: r.group_name || '',
+                    groupNo: r.group_no,
+                    groupName: r.group_name || '',
+                    crossSpace: true,
+                    ts: Date.now()
+                }));
+            }
+        } catch (e) { /* best-effort，不阻塞跳转 */ }
+        // 3. 入群成功：提示 + 跳回 Web 首页（带 sid 保证登录态可恢复）
+        toast("加入成功");
+        showState("state-joined");
+        setTimeout(function () { redirectHome(session.sid); }, 1200);
+    }).catch(function (err) {
+        toast((err && err.message) || "加入失败");
+        btn.disabled = false;
+        btn.textContent = "加入群聊";
+    });
+}
+
+// redirectHome 把 Web 落地页跳回 dmwork-web 首页（保留 sid）；失败时兜底到 "/"。
+function redirectHome(sid) {
+    try {
+        var basePath = window.location.pathname.replace(/\/+$/, '').replace(/\/v1\/group\/invite$/, '').replace(/^\/api(?:\/v\d+)?(?=\/|$)/, '');
+        var target = window.location.origin + (basePath || "/") + (sid ? "?sid=" + encodeURIComponent(sid) : "");
+        window.location.href = target;
+    } catch (e) {
+        window.location.href = "/";
+    }
+}
+
+// showNeedSpaceState 渲染「零 Space 用户」的 need_space 状态页，并把
+// 「回主页加入 Space」按钮的点击处理器挂好（跳回 dmwork-web 首页走
+// checkSpaceOnColdStart → JoinSpacePage，Gate 完成后用户可回到邀请链接重试入群）。
+// sid 可能为空（邀请链接直接被未登录用户打开），空串时兜底回根路径。
+function showNeedSpaceState(sid) {
+    showState("state-need-space");
+    var btn = document.getElementById("btn-need-space-home");
+    if (btn && !btn._bound) {
+        btn._bound = true;
+        btn.addEventListener("click", function () { redirectHome(sid); });
+    }
+}
+
+if (!code) {
+    showState("state-expired");
+} else {
+    fetch(API_BASE + "/v1/group/invite/detail?code=" + encodeURIComponent(code))
+        .then(function(r) {
+            // 先按 HTTP 状态分流：429 / 5xx 都不是「邀请过期」，不能让用户误以为链接失效。
+            // 这些分支里的 body 通常也不是合法 JSON（网关页 / 空响应），所以不 .json()。
+            if (r.status === 429) {
+                showState("state-rate-limited");
+                return null;
+            }
+            if (r.status >= 500) {
+                showState("state-server-error");
+                return null;
+            }
+            return r.json().then(function(d) { return { ok: r.ok, status: r.status, data: d }; });
+        })
+        .then(function(r) {
+            if (r === null) return;
+            if (!r.ok) {
+                // 4xx（主要是 404 / 400）：链接确实不存在或非法，保持「已过期」语义不回归。
+                showState("state-expired");
+                return;
+            }
+            switch (r.data.status) {
+                case "joinable":
+                case "invite_required":
+                    renderInfo(r.data);
+                    break;
+                case "external_blocked":
+                    // 群属于某 Space 且 allow_external=0：groupScanJoin 的最终裁决仍会拒绝，
+                    // 这里提前给明确状态页、藏掉「加入群聊」按钮，避免点了才看到错误。
+                    // YUJ-211: space_name 非空时追加「你不是「XX」Space 的成员」提示，
+                    // 让用户立刻明白被拦的原因；公共群降级时不渲染保持旧行为。
+                    if (r.data && r.data.space_name) {
+                        document.getElementById("state-external-space-name").textContent = r.data.space_name;
+                        document.getElementById("state-external-space").style.display = "block";
+                    }
+                    showState("state-external-blocked");
+                    break;
+                case "need_space":
+                    // GH #1319 / Direction A：detail 使用可选鉴权发现登录用户尚未加入
+                    // 任何 Space。优先级高于 external_blocked（加 Space 是用户侧修复，
+                    // 比群级硬拦截更可操作），直接展示「请先加入 Space」引导 +
+                    // 「回主页加入 Space」CTA。未登录访问者后端不会返回 need_space，
+                    // 保持公共预览体验。
+                    showNeedSpaceState(findTokenAndSid().sid);
+                    break;
+                case "not_found":
+                    showState("state-not-found");
+                    break;
+                case "expired":
+                default:
+                    showState("state-expired");
+                    break;
+            }
+        })
+        .catch(function() {
+            // fetch reject / JSON parse 失败通常意味着网络层问题，而非链接过期。
+            showState("state-network-error");
+        });
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,30 @@
+# Internal design docs — not needed in build context.
+# EXCEPTIONS: docs/SKILL.md + docs/embed.go are compiled into the binary
+# (served at GET /skill.md), and the embedded webui/i18n assets must stay.
+*.md
+docs/*
+!docs/SKILL.md
+!docs/embed.go
+
+# VCS metadata
+.git
+.gitignore
+.github
+
+# Local dev
+docker-compose*.yaml
+.env
+.env.*
+!.env.example
+
+# Conductor workspace state
+.context
+
+# Editor / IDE
+.idea
+.vscode
+*.swp
+
+# Test artifacts
+coverage.out
+*.test
