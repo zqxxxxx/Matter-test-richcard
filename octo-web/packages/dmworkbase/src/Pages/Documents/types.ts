@@ -31,6 +31,9 @@ export interface DocumentSpace {
   owner: string;
   fileCount: number;
   memberCount: number;
+  members: string[];
+  boundConversations: string[];
+  pinnedFileIds: string[];
   description: string;
 }
 

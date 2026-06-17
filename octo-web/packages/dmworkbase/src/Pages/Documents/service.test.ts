@@ -11,6 +11,7 @@ describe("DocumentRepository", () => {
     expect(archived?.status).toBe("archived");
     expect(archived?.visibility).toBe("space");
     expect(archived?.spaceName).toBe("产品部公共空间");
+    expect(next.spaces.find((space) => space.name === "产品部公共空间")?.fileCount).toBe(95);
     expect(next.audits[0]).toMatchObject({
       actor: "管理员 王珂",
       action: "归档",
@@ -98,6 +99,20 @@ describe("DocumentRepository", () => {
     expect(next.audits[0]).toMatchObject({
       action: "上传",
       target: "客户现场会议纪要.docx",
+    });
+  });
+
+  it("binds a conversation to a document space for default collaboration", async () => {
+    const repo = new MockDocumentRepository();
+
+    const next = await repo.bindConversationToSpace("space-product", "需求评审群", "陈一");
+    const productSpace = next.spaces.find((space) => space.id === "space-product");
+
+    expect(productSpace?.boundConversations).toContain("产品方案讨论群");
+    expect(productSpace?.boundConversations).toContain("需求评审群");
+    expect(next.audits[0]).toMatchObject({
+      action: "绑定群聊",
+      target: "产品部公共空间",
     });
   });
 });

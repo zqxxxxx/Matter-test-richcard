@@ -14,6 +14,7 @@ export interface DocumentRepository {
   archiveFile(fileId: string, spaceName: string, actor?: string): Promise<DocumentState>;
   archiveMessageFile(input: ArchiveMessageFileInput, spaceName: string, actor?: string): Promise<DocumentState>;
   uploadFile(input: UploadDocumentInput, spaceName: string, actor?: string): Promise<DocumentState>;
+  bindConversationToSpace(spaceId: string, conversationName: string, actor?: string): Promise<DocumentState>;
   deleteFile(fileId: string, actor?: string): Promise<DocumentState>;
   restoreFile(fileId: string, actor?: string): Promise<DocumentState>;
 }
@@ -69,6 +70,14 @@ function findFile(state: DocumentState, fileId: string) {
   return file;
 }
 
+function findSpace(state: DocumentState, spaceIdOrName: string) {
+  const space = state.spaces.find((item) => item.id === spaceIdOrName || item.name === spaceIdOrName);
+  if (!space) {
+    throw new Error(`Document space not found: ${spaceIdOrName}`);
+  }
+  return space;
+}
+
 export function createDocumentSummary(state: DocumentState): DocumentSummary {
   const activeFiles = state.files.filter((file) => file.status !== "deleted").length;
   const spaceFiles = state.files.filter((file) => file.status === "archived").length;
@@ -95,11 +104,15 @@ export class MockDocumentRepository implements DocumentRepository {
   async archiveFile(fileId: string, spaceName: string, actor = DEFAULT_ACTOR) {
     const next = cloneState(this.state);
     const file = findFile(next, fileId);
+    const wasSpaceFile = file.status === "archived";
 
     file.status = "archived";
     file.visibility = "space";
     file.spaceName = spaceName;
     appendFlow(file, `归档到${spaceName}`);
+    if (!wasSpaceFile) {
+      findSpace(next, spaceName).fileCount += 1;
+    }
     next.audits.unshift(createAudit("归档", file.name, `从${file.sourceName}归档到${spaceName}`, actor));
 
     this.state = next;
@@ -186,6 +199,23 @@ export class MockDocumentRepository implements DocumentRepository {
       space.fileCount += 1;
     }
     next.audits.unshift(createAudit("上传", file.name, `上传到${spaceName}`, actor));
+
+    this.state = next;
+    return this.load();
+  }
+
+  async bindConversationToSpace(spaceId: string, conversationName: string, actor = DEFAULT_ACTOR) {
+    const name = conversationName.trim();
+    if (!name) {
+      throw new Error("Conversation name is required");
+    }
+
+    const next = cloneState(this.state);
+    const space = findSpace(next, spaceId);
+    if (!space.boundConversations.includes(name)) {
+      space.boundConversations = [...space.boundConversations, name];
+      next.audits.unshift(createAudit("绑定群聊", space.name, `${name} 设为${space.name}默认归档空间`, actor));
+    }
 
     this.state = next;
     return this.load();

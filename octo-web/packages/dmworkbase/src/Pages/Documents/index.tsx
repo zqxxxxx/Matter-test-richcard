@@ -5,10 +5,12 @@ import {
   ExternalLink,
   Eye,
   FolderOpen,
+  MessageSquare,
   RotateCcw,
   Search,
   Trash2,
   Upload,
+  Users,
 } from "lucide-react";
 import { Button, Input, Modal, Select, Toast } from "@douyinfe/semi-ui";
 import { Channel } from "wukongimjssdk";
@@ -16,7 +18,7 @@ import WKApp from "../../App";
 import { wkConfirm } from "../../Components/WKModal";
 import { formatFileSize, getFileIconInfo } from "../../Messages/File";
 import { createDocumentSummary, documentRepository } from "./service";
-import type { DocumentAsset, DocumentState, DocumentTab } from "./types";
+import type { DocumentAsset, DocumentSpace, DocumentState, DocumentTab } from "./types";
 import "./index.css";
 
 const tabOptions: Array<{ key: DocumentTab; label: string }> = [
@@ -195,12 +197,35 @@ export function DocumentsWorkspace() {
   const [uploadVisible, setUploadVisible] = useState(false);
   const [uploadSpaceName, setUploadSpaceName] = useState("");
   const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [selectedSpaceId, setSelectedSpaceId] = useState<string | null>(null);
+  const [conversationName, setConversationName] = useState("");
 
   const summary = useMemo(() => (state ? createDocumentSummary(state) : null), [state]);
+  const selectedSpace = useMemo(() => {
+    if (!state) return null;
+    return state.spaces.find((space) => space.id === selectedSpaceId) || state.spaces[0] || null;
+  }, [state, selectedSpaceId]);
+  const selectedSpaceFiles = useMemo(() => {
+    if (!state || !selectedSpace) return [];
+    return state.files
+      .filter((file) => file.status === "archived" && file.spaceName === selectedSpace.name)
+      .sort((a, b) => b.lastAccessAt.localeCompare(a.lastAccessAt));
+  }, [state, selectedSpace]);
+  const selectedSpaceActivities = useMemo(() => {
+    if (!state || !selectedSpace) return [];
+    const fileNames = new Set(selectedSpaceFiles.map((file) => file.name));
+    return state.audits
+      .filter((audit) => audit.detail.includes(selectedSpace.name) || audit.target === selectedSpace.name || fileNames.has(audit.target))
+      .slice(0, 5);
+  }, [state, selectedSpace, selectedSpaceFiles]);
   const visibleFiles = useMemo(() => {
     if (!state) return [];
-    return filterFiles(state.files, tab, keyword, kind);
-  }, [state, tab, keyword, kind]);
+    const files = filterFiles(state.files, tab, keyword, kind);
+    if (tab === "space" && selectedSpace) {
+      return files.filter((file) => file.spaceName === selectedSpace.name);
+    }
+    return files;
+  }, [state, tab, keyword, kind, selectedSpace]);
   const selectedFile = useMemo(() => {
     if (!state) return null;
     return state.files.find((file) => file.id === selectedId) || visibleFiles[0] || null;
@@ -222,6 +247,11 @@ export function DocumentsWorkspace() {
     if (!state || uploadSpaceName) return;
     setUploadSpaceName(state.spaces[0]?.name || "");
   }, [state, uploadSpaceName]);
+
+  useEffect(() => {
+    if (!state || selectedSpaceId) return;
+    setSelectedSpaceId(state.spaces[0]?.id || null);
+  }, [state, selectedSpaceId]);
 
   async function apply(nextState: Promise<DocumentState>, message: string) {
     const next = await nextState;
@@ -280,10 +310,38 @@ export function DocumentsWorkspace() {
     );
     setState(next);
     setTab("space");
+    setSelectedSpaceId(next.spaces.find((space) => space.name === uploadSpaceName)?.id || selectedSpaceId);
     setSelectedId(next.files[0]?.id || null);
     setUploadVisible(false);
     setUploadFile(null);
     Toast.success(`已上传到${uploadSpaceName}`);
+  }
+
+  async function bindConversation(space: DocumentSpace) {
+    if (!conversationName.trim()) {
+      Toast.warning("请输入要绑定的群聊名称");
+      return;
+    }
+
+    const next = await documentRepository.bindConversationToSpace(
+      space.id,
+      conversationName,
+      WKApp.loginInfo.name || "陈一",
+    );
+    setState(next);
+    setConversationName("");
+    Toast.success(`已将${conversationName}绑定到${space.name}`);
+  }
+
+  function openSpace(space: DocumentSpace) {
+    setSelectedSpaceId(space.id);
+    setTab("space");
+    setSelectedId(null);
+  }
+
+  function uploadToSpace(space: DocumentSpace) {
+    setUploadSpaceName(space.name);
+    setUploadVisible(true);
   }
 
   function confirmDelete(file: DocumentAsset) {
@@ -333,6 +391,106 @@ export function DocumentsWorkspace() {
           </button>
         ))}
       </div>
+
+      {state && selectedSpace && (
+        <section className="wk-docs-space-collab" aria-label="空间协同">
+          <div className="wk-docs-space-collab-list">
+            <div className="wk-docs-section-title">
+              <span>空间协同</span>
+            </div>
+            {state.spaces.map((space) => (
+              <button
+                key={space.id}
+                className={`wk-docs-space-card ${space.id === selectedSpace.id ? "active" : ""}`}
+                onClick={() => openSpace(space)}
+              >
+                <FolderOpen size={16} />
+                <span>
+                  <strong>{space.name}</strong>
+                  <em>{space.memberCount} 人 · {space.fileCount} 个文件</em>
+                </span>
+              </button>
+            ))}
+          </div>
+
+          <div className="wk-docs-space-collab-detail">
+            <div className="wk-docs-space-collab-head">
+              <div>
+                <h2>{selectedSpace.name}</h2>
+                <p>{selectedSpace.description}</p>
+              </div>
+              <div className="wk-docs-space-collab-actions">
+                <Button icon={<Upload size={15} />} onClick={() => uploadToSpace(selectedSpace)}>
+                  空间上传
+                </Button>
+                <Button theme="solid" icon={<FolderOpen size={15} />} onClick={() => {
+                  setTab("space");
+                  setSelectedId(selectedSpaceFiles[0]?.id || null);
+                }}>
+                  查看文件
+                </Button>
+              </div>
+            </div>
+
+            <div className="wk-docs-space-collab-grid">
+              <div className="wk-docs-space-block">
+                <h3><FolderOpen size={15} />空间文件</h3>
+                <div className="wk-docs-space-mini-files">
+                  {selectedSpaceFiles.slice(0, 3).map((file) => (
+                    <button key={file.id} onClick={() => {
+                      setTab("space");
+                      setSelectedId(file.id);
+                    }}>
+                      <strong>{file.name}</strong>
+                      <span>{formatFileSize(file.size)}</span>
+                    </button>
+                  ))}
+                  {selectedSpaceFiles.length === 0 && <p>暂无空间文件</p>}
+                </div>
+              </div>
+
+              <div className="wk-docs-space-block">
+                <h3><Users size={15} />成员</h3>
+                <div className="wk-docs-chip-list">
+                  {selectedSpace.members.map((member) => (
+                    <span key={member}>{member}</span>
+                  ))}
+                </div>
+              </div>
+
+              <div className="wk-docs-space-block">
+                <h3><MessageSquare size={15} />默认群聊</h3>
+                <div className="wk-docs-chip-list">
+                  {selectedSpace.boundConversations.map((conversation) => (
+                    <span key={conversation}>{conversation}</span>
+                  ))}
+                </div>
+                <div className="wk-docs-bind-row">
+                  <Input
+                    value={conversationName}
+                    onChange={setConversationName}
+                    placeholder="输入群聊名称"
+                  />
+                  <Button onClick={() => bindConversation(selectedSpace)}>绑定</Button>
+                </div>
+              </div>
+
+              <div className="wk-docs-space-block">
+                <h3>空间动态</h3>
+                <div className="wk-docs-space-activity-list">
+                  {selectedSpaceActivities.map((activity) => (
+                    <div key={activity.id}>
+                      <strong>{activity.action}</strong>
+                      <span>{activity.detail}</span>
+                    </div>
+                  ))}
+                  {selectedSpaceActivities.length === 0 && <p>暂无空间动态</p>}
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
 
       <div className="wk-docs-main">
         <section className="wk-docs-list-panel">
