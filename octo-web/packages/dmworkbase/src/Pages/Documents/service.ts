@@ -11,10 +11,28 @@ import type {
 
 export interface DocumentRepository {
   load(): Promise<DocumentState>;
-  archiveFile(fileId: string, spaceName: string, actor?: string): Promise<DocumentState>;
-  archiveMessageFile(input: ArchiveMessageFileInput, spaceName: string, actor?: string): Promise<DocumentState>;
-  uploadFile(input: UploadDocumentInput, spaceName: string, actor?: string): Promise<DocumentState>;
-  bindConversationToSpace(spaceId: string, conversationName: string, actor?: string): Promise<DocumentState>;
+  archiveFile(
+    fileId: string,
+    spaceName: string,
+    actor?: string
+  ): Promise<DocumentState>;
+  archiveMessageFile(
+    input: ArchiveMessageFileInput,
+    spaceName: string,
+    actor?: string
+  ): Promise<DocumentState>;
+  uploadFile(
+    input: UploadDocumentInput,
+    spaceName: string,
+    actor?: string
+  ): Promise<DocumentState>;
+  bindConversationToSpace(
+    spaceId: string,
+    conversationName: string,
+    actor?: string
+  ): Promise<DocumentState>;
+  previewFile(fileId: string, actor?: string): Promise<DocumentState>;
+  downloadFile(fileId: string, actor?: string): Promise<DocumentState>;
   deleteFile(fileId: string, actor?: string): Promise<DocumentState>;
   restoreFile(fileId: string, actor?: string): Promise<DocumentState>;
 }
@@ -38,7 +56,12 @@ function nowText() {
   return formatter.format(new Date()).replace(/\//g, "-");
 }
 
-function createAudit(action: string, target: string, detail: string, actor = DEFAULT_ACTOR): DocumentAudit {
+function createAudit(
+  action: string,
+  target: string,
+  detail: string,
+  actor = DEFAULT_ACTOR
+): DocumentAudit {
   return {
     id: `AUD-${Date.now()}-${Math.round(Math.random() * 1000)}`,
     time: nowText(),
@@ -71,7 +94,9 @@ function findFile(state: DocumentState, fileId: string) {
 }
 
 function findSpace(state: DocumentState, spaceIdOrName: string) {
-  const space = state.spaces.find((item) => item.id === spaceIdOrName || item.name === spaceIdOrName);
+  const space = state.spaces.find(
+    (item) => item.id === spaceIdOrName || item.name === spaceIdOrName
+  );
   if (!space) {
     throw new Error(`Document space not found: ${spaceIdOrName}`);
   }
@@ -79,9 +104,15 @@ function findSpace(state: DocumentState, spaceIdOrName: string) {
 }
 
 export function createDocumentSummary(state: DocumentState): DocumentSummary {
-  const activeFiles = state.files.filter((file) => file.status !== "deleted").length;
-  const spaceFiles = state.files.filter((file) => file.status === "archived").length;
-  const conversationFiles = state.files.filter((file) => file.status === "conversation").length;
+  const activeFiles = state.files.filter(
+    (file) => file.status !== "deleted"
+  ).length;
+  const spaceFiles = state.files.filter(
+    (file) => file.status === "archived"
+  ).length;
+  const conversationFiles = state.files.filter(
+    (file) => file.status === "conversation"
+  ).length;
 
   return {
     activeFiles,
@@ -113,13 +144,24 @@ export class MockDocumentRepository implements DocumentRepository {
     if (!wasSpaceFile) {
       findSpace(next, spaceName).fileCount += 1;
     }
-    next.audits.unshift(createAudit("归档", file.name, `从${file.sourceName}归档到${spaceName}`, actor));
+    next.audits.unshift(
+      createAudit(
+        "归档",
+        file.name,
+        `从${file.sourceName}归档到${spaceName}`,
+        actor
+      )
+    );
 
     this.state = next;
     return this.load();
   }
 
-  async archiveMessageFile(input: ArchiveMessageFileInput, spaceName: string, actor = DEFAULT_ACTOR) {
+  async archiveMessageFile(
+    input: ArchiveMessageFileInput,
+    spaceName: string,
+    actor = DEFAULT_ACTOR
+  ) {
     const next = cloneState(this.state);
     const existing = next.files.find((item) => item.id === input.id);
     const createdAt = input.createdAt || nowText();
@@ -130,7 +172,14 @@ export class MockDocumentRepository implements DocumentRepository {
       existing.spaceName = spaceName;
       existing.lastAccessAt = nowText();
       appendFlow(existing, `归档到${spaceName}`);
-      next.audits.unshift(createAudit("归档", existing.name, `从${existing.sourceName}归档到${spaceName}`, actor));
+      next.audits.unshift(
+        createAudit(
+          "归档",
+          existing.name,
+          `从${existing.sourceName}归档到${spaceName}`,
+          actor
+        )
+      );
       this.state = next;
       return this.load();
     }
@@ -153,7 +202,11 @@ export class MockDocumentRepository implements DocumentRepository {
       createdAt,
       lastAccessAt: nowText(),
       downloads: 0,
-      previewable: input.previewable ?? !["zip", "rar", "7z"].includes(input.extension.toLowerCase().replace(/^\./, "")),
+      previewable:
+        input.previewable ??
+        !["zip", "rar", "7z"].includes(
+          input.extension.toLowerCase().replace(/^\./, "")
+        ),
       flow: [`来自${input.sourceName}`, `归档到${spaceName}`],
     };
 
@@ -162,17 +215,29 @@ export class MockDocumentRepository implements DocumentRepository {
     if (space) {
       space.fileCount += 1;
     }
-    next.audits.unshift(createAudit("归档", file.name, `从${file.sourceName}归档到${spaceName}`, actor));
+    next.audits.unshift(
+      createAudit(
+        "归档",
+        file.name,
+        `从${file.sourceName}归档到${spaceName}`,
+        actor
+      )
+    );
 
     this.state = next;
     return this.load();
   }
 
-  async uploadFile(input: UploadDocumentInput, spaceName: string, actor = DEFAULT_ACTOR) {
+  async uploadFile(
+    input: UploadDocumentInput,
+    spaceName: string,
+    actor = DEFAULT_ACTOR
+  ) {
     const next = cloneState(this.state);
     const createdAt = input.createdAt || nowText();
     const file: DocumentAsset = {
-      id: input.id || `UPLOAD-${Date.now()}-${Math.round(Math.random() * 1000)}`,
+      id:
+        input.id || `UPLOAD-${Date.now()}-${Math.round(Math.random() * 1000)}`,
       name: input.name || "未命名文件",
       kind: getDocumentKind(input.extension),
       extension: input.extension,
@@ -189,7 +254,11 @@ export class MockDocumentRepository implements DocumentRepository {
       createdAt,
       lastAccessAt: nowText(),
       downloads: 0,
-      previewable: input.previewable ?? !["zip", "rar", "7z"].includes(input.extension.toLowerCase().replace(/^\./, "")),
+      previewable:
+        input.previewable ??
+        !["zip", "rar", "7z"].includes(
+          input.extension.toLowerCase().replace(/^\./, "")
+        ),
       flow: ["直接上传", `保存到${spaceName}`],
     };
 
@@ -198,13 +267,19 @@ export class MockDocumentRepository implements DocumentRepository {
     if (space) {
       space.fileCount += 1;
     }
-    next.audits.unshift(createAudit("上传", file.name, `上传到${spaceName}`, actor));
+    next.audits.unshift(
+      createAudit("上传", file.name, `上传到${spaceName}`, actor)
+    );
 
     this.state = next;
     return this.load();
   }
 
-  async bindConversationToSpace(spaceId: string, conversationName: string, actor = DEFAULT_ACTOR) {
+  async bindConversationToSpace(
+    spaceId: string,
+    conversationName: string,
+    actor = DEFAULT_ACTOR
+  ) {
     const name = conversationName.trim();
     if (!name) {
       throw new Error("Conversation name is required");
@@ -214,8 +289,44 @@ export class MockDocumentRepository implements DocumentRepository {
     const space = findSpace(next, spaceId);
     if (!space.boundConversations.includes(name)) {
       space.boundConversations = [...space.boundConversations, name];
-      next.audits.unshift(createAudit("绑定群聊", space.name, `${name} 设为${space.name}默认归档空间`, actor));
+      next.audits.unshift(
+        createAudit(
+          "绑定群聊",
+          space.name,
+          `${name} 设为${space.name}默认归档空间`,
+          actor
+        )
+      );
     }
+
+    this.state = next;
+    return this.load();
+  }
+
+  async previewFile(fileId: string, actor = DEFAULT_ACTOR) {
+    const next = cloneState(this.state);
+    const file = findFile(next, fileId);
+
+    file.lastAccessAt = nowText();
+    appendFlow(file, `${actor} 预览文件`);
+    next.audits.unshift(
+      createAudit("预览", file.name, `${actor}在线预览`, actor)
+    );
+
+    this.state = next;
+    return this.load();
+  }
+
+  async downloadFile(fileId: string, actor = DEFAULT_ACTOR) {
+    const next = cloneState(this.state);
+    const file = findFile(next, fileId);
+
+    file.downloads += 1;
+    file.lastAccessAt = nowText();
+    appendFlow(file, `${actor} 下载文件`);
+    next.audits.unshift(
+      createAudit("下载", file.name, `${actor}下载文件`, actor)
+    );
 
     this.state = next;
     return this.load();
@@ -224,10 +335,19 @@ export class MockDocumentRepository implements DocumentRepository {
   async deleteFile(fileId: string, actor = DEFAULT_ACTOR) {
     const next = cloneState(this.state);
     const file = findFile(next, fileId);
+    const wasSpaceFile = file.status === "archived";
 
     file.status = "deleted";
     appendFlow(file, "移动到回收站");
-    next.audits.unshift(createAudit("删除", file.name, "移动到回收站，保留期 30 天", actor));
+    if (wasSpaceFile) {
+      const space = next.spaces.find((item) => item.name === file.spaceName);
+      if (space) {
+        space.fileCount = Math.max(0, space.fileCount - 1);
+      }
+    }
+    next.audits.unshift(
+      createAudit("删除", file.name, "移动到回收站，保留期 30 天", actor)
+    );
 
     this.state = next;
     return this.load();
@@ -236,16 +356,24 @@ export class MockDocumentRepository implements DocumentRepository {
   async restoreFile(fileId: string, actor = DEFAULT_ACTOR) {
     const next = cloneState(this.state);
     const file = findFile(next, fileId);
+    const restoreToSpace = file.spaceName !== "会话文件";
 
-    file.status = file.spaceName === "会话文件" ? "conversation" : "archived";
-    file.visibility = file.spaceName === "会话文件" ? "conversation" : "space";
+    file.status = restoreToSpace ? "archived" : "conversation";
+    file.visibility = restoreToSpace ? "space" : "conversation";
     appendFlow(file, "从回收站恢复");
-    next.audits.unshift(createAudit("恢复", file.name, `恢复到${file.spaceName}`, actor));
+    if (restoreToSpace) {
+      const space = next.spaces.find((item) => item.name === file.spaceName);
+      if (space) {
+        space.fileCount += 1;
+      }
+    }
+    next.audits.unshift(
+      createAudit("恢复", file.name, `恢复到${file.spaceName}`, actor)
+    );
 
     this.state = next;
     return this.load();
   }
-
 }
 
 export const documentRepository = new MockDocumentRepository();

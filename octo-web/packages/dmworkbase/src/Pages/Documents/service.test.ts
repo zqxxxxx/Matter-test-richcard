@@ -5,13 +5,19 @@ describe("DocumentRepository", () => {
   it("archives conversation files into a controlled document space", async () => {
     const repo = new MockDocumentRepository();
 
-    const next = await repo.archiveFile("DOC-240617-003", "产品部公共空间", "管理员 王珂");
+    const next = await repo.archiveFile(
+      "DOC-240617-003",
+      "产品部公共空间",
+      "管理员 王珂"
+    );
     const archived = next.files.find((file) => file.id === "DOC-240617-003");
 
     expect(archived?.status).toBe("archived");
     expect(archived?.visibility).toBe("space");
     expect(archived?.spaceName).toBe("产品部公共空间");
-    expect(next.spaces.find((space) => space.name === "产品部公共空间")?.fileCount).toBe(95);
+    expect(
+      next.spaces.find((space) => space.name === "产品部公共空间")?.fileCount
+    ).toBe(95);
     expect(next.audits[0]).toMatchObject({
       actor: "管理员 王珂",
       action: "归档",
@@ -23,13 +29,17 @@ describe("DocumentRepository", () => {
     const repo = new MockDocumentRepository();
 
     const deleted = await repo.deleteFile("DOC-240617-001", "管理员 王珂");
-    const fileInTrash = deleted.files.find((file) => file.id === "DOC-240617-001");
+    const fileInTrash = deleted.files.find(
+      (file) => file.id === "DOC-240617-001"
+    );
 
     expect(fileInTrash?.status).toBe("deleted");
     expect(fileInTrash?.sourceName).toBe("华东项目交付群");
 
     const restored = await repo.restoreFile("DOC-240617-001", "管理员 王珂");
-    const activeFile = restored.files.find((file) => file.id === "DOC-240617-001");
+    const activeFile = restored.files.find(
+      (file) => file.id === "DOC-240617-001"
+    );
 
     expect(activeFile?.status).toBe("archived");
     expect(activeFile?.visibility).toBe("space");
@@ -56,7 +66,7 @@ describe("DocumentRepository", () => {
         createdAt: "2026-06-17 10:30",
       },
       "项目交付空间",
-      "陈一",
+      "陈一"
     );
     const archived = next.files.find((file) => file.id === "MSG-10001");
 
@@ -83,7 +93,7 @@ describe("DocumentRepository", () => {
         createdAt: "2026-06-17 11:05",
       },
       "产品部公共空间",
-      "陈一",
+      "陈一"
     );
     const uploaded = next.files.find((file) => file.id === "UPLOAD-10001");
 
@@ -105,14 +115,47 @@ describe("DocumentRepository", () => {
   it("binds a conversation to a document space for default collaboration", async () => {
     const repo = new MockDocumentRepository();
 
-    const next = await repo.bindConversationToSpace("space-product", "需求评审群", "陈一");
-    const productSpace = next.spaces.find((space) => space.id === "space-product");
+    const next = await repo.bindConversationToSpace(
+      "space-product",
+      "需求评审群",
+      "陈一"
+    );
+    const productSpace = next.spaces.find(
+      (space) => space.id === "space-product"
+    );
 
     expect(productSpace?.boundConversations).toContain("产品方案讨论群");
     expect(productSpace?.boundConversations).toContain("需求评审群");
     expect(next.audits[0]).toMatchObject({
       action: "绑定群聊",
       target: "产品部公共空间",
+    });
+  });
+
+  it("records preview and download as closed-loop file interactions", async () => {
+    const repo = new MockDocumentRepository();
+
+    const previewed = await repo.previewFile("DOC-240617-002", "陈一");
+    const previewedFile = previewed.files.find(
+      (file) => file.id === "DOC-240617-002"
+    );
+
+    expect(previewedFile?.flow.at(-1)).toBe("陈一 预览文件");
+    expect(previewed.audits[0]).toMatchObject({
+      action: "预览",
+      target: "Octo 文件空间需求清单.xlsx",
+    });
+
+    const downloaded = await repo.downloadFile("DOC-240617-002", "陈一");
+    const downloadedFile = downloaded.files.find(
+      (file) => file.id === "DOC-240617-002"
+    );
+
+    expect(downloadedFile?.downloads).toBe(19);
+    expect(downloadedFile?.flow.at(-1)).toBe("陈一 下载文件");
+    expect(downloaded.audits[0]).toMatchObject({
+      action: "下载",
+      target: "Octo 文件空间需求清单.xlsx",
     });
   });
 });

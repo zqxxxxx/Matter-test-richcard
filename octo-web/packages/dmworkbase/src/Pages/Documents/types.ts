@@ -1,7 +1,6 @@
 export type DocumentStatus = "conversation" | "archived" | "deleted";
 export type DocumentVisibility = "conversation" | "space" | "specified";
 export type DocumentKind = "pdf" | "doc" | "sheet" | "image" | "zip";
-export type DocumentTab = "recent" | "conversation" | "space" | "mine" | "trash";
 
 export interface DocumentAsset {
   id: string;
