@@ -107,6 +107,7 @@ import {
 } from "./Utils/clipboard";
 import { shouldSkipMessageForSpace } from "./Service/SpaceService";
 import { t } from "./i18n";
+import { documentRepository } from "./Pages/Documents/service";
 import {
   ThreadCreatedCell,
   ThreadCreatedContent,
@@ -809,6 +810,105 @@ export default class BaseModule implements IModule {
         };
       },
       1100
+    );
+
+    WKApp.endpoints.registerMessageContextMenus(
+      "contextmenus.archiveFileToDocuments",
+      (message) => {
+        if (message.contentType !== MessageContentTypeConst.file) {
+          return null;
+        }
+
+        return {
+          title: t("base.module.contextMenus.archiveFileToDocuments"),
+          onClick: async () => {
+            const content = message.content as FileContent;
+            const documentState = await documentRepository.load();
+            let selectedSpaceName = documentState.spaces[0]?.name || "";
+
+            wkConfirm({
+              title: t("base.module.contextMenus.archiveFileToDocumentsTitle"),
+              okText: t("base.module.contextMenus.archiveFileToDocumentsOk"),
+              cancelText: t("base.common.cancel"),
+              content: (
+                <div>
+                  <div
+                    style={{
+                      marginBottom: "8px",
+                      fontSize: "14px",
+                      color: "var(--wk-text-secondary)",
+                    }}
+                  >
+                    {content.name || t("base.module.contextMenus.unnamedFile")}
+                  </div>
+                  <select
+                    defaultValue={selectedSpaceName}
+                    onChange={(event) => {
+                      selectedSpaceName = event.currentTarget.value;
+                    }}
+                    style={{
+                      width: "100%",
+                      padding: "10px 12px",
+                      background: "var(--wk-bg-base)",
+                      border: "1px solid var(--wk-border-default)",
+                      borderRadius: "6px",
+                      color: "var(--wk-text-primary)",
+                      outline: "none",
+                    }}
+                  >
+                    {documentState.spaces.map((space) => (
+                      <option key={space.id} value={space.name}>
+                        {space.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ),
+              onOk: async () => {
+                if (!selectedSpaceName) {
+                  Toast.warning(t("base.module.contextMenus.archiveFileToDocumentsSelectSpace"));
+                  return;
+                }
+
+                const channelInfo = WKSDK.shared().channelManager.getChannelInfo(message.channel);
+                const senderInfo = WKSDK.shared().channelManager.getChannelInfo(
+                  new Channel(message.fromUID, ChannelTypePerson)
+                );
+                const sourceName = channelInfo?.title || message.channel.channelID;
+                const actor = WKApp.loginInfo.name || WKApp.loginInfo.uid || "我";
+                const sourceType =
+                  message.channel.channelType === ChannelTypePerson
+                    ? "单聊"
+                    : message.channel.channelType === ChannelTypeGroup
+                      ? "群聊"
+                      : "应用";
+
+                await documentRepository.archiveMessageFile(
+                  {
+                    id: `MSG-${message.messageID || message.clientMsgNo || `${message.channel.channelID}-${content.name}`}`,
+                    name: content.name || t("base.module.contextMenus.unnamedFile"),
+                    extension: content.extension || "",
+                    size: content.size || 0,
+                    sourceName,
+                    sourceChannelId: message.channel.channelID,
+                    sourceChannelType: message.channel.channelType,
+                    sourceType,
+                    uploader: senderInfo?.title || message.fromUID || actor,
+                  },
+                  selectedSpaceName,
+                  actor
+                );
+                Toast.success(
+                  t("base.module.contextMenus.archiveFileToDocumentsSuccess", {
+                    values: { space: selectedSpaceName },
+                  })
+                );
+              },
+            });
+          },
+        };
+      },
+      1800
     );
 
     WKApp.endpoints.registerMessageContextMenus(
