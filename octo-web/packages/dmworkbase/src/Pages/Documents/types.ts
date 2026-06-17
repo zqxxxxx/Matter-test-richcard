@@ -79,4 +79,6 @@ export interface UploadDocumentInput {
   uploader: string;
   createdAt?: string;
   previewable?: boolean;
+  file?: File;
+  storagePath?: string;
 }

@@ -497,6 +497,7 @@ export function DocumentsWorkspace() {
         extension: getExtension(uploadFile.name),
         size: uploadFile.size,
         uploader: WKApp.loginInfo.name || "陈一",
+        file: uploadFile,
       },
       uploadSpaceName,
       currentUser

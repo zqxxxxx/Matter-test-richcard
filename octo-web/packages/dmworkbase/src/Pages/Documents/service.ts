@@ -1,4 +1,5 @@
 import { initialDocumentState } from "./mock";
+import APIClient from "../../Service/APIClient";
 import type {
   ArchiveMessageFileInput,
   DocumentAsset,
@@ -8,6 +9,11 @@ import type {
   DocumentSummary,
   UploadDocumentInput,
 } from "./types";
+
+interface DocumentApiClient {
+  get<T = any>(path: string, config?: any): Promise<T>;
+  post(path: string, data?: any, config?: any): Promise<any>;
+}
 
 export interface DocumentRepository {
   load(): Promise<DocumentState>;
@@ -399,4 +405,236 @@ export class MockDocumentRepository implements DocumentRepository {
   }
 }
 
-export const documentRepository = new MockDocumentRepository();
+function notifyListeners(
+  listeners: Set<(state: DocumentState) => void>,
+  state: DocumentState
+) {
+  const snapshot = cloneState(state);
+  listeners.forEach((listener) => listener(snapshot));
+}
+
+function sanitizeUploadPath(name: string) {
+  return name.replace(/[\\/:*?"<>|#%{}^~[\]`]/g, "_");
+}
+
+export class ApiDocumentRepository implements DocumentRepository {
+  private state: DocumentState | null = null;
+  private listeners = new Set<(state: DocumentState) => void>();
+
+  constructor(private apiClient: DocumentApiClient = APIClient.shared) {}
+
+  async load() {
+    const state = await this.apiClient.get<DocumentState>("documents/state");
+    this.state = cloneState(state);
+    return cloneState(state);
+  }
+
+  subscribe(listener: (state: DocumentState) => void) {
+    this.listeners.add(listener);
+    return () => {
+      this.listeners.delete(listener);
+    };
+  }
+
+  private async applyState(nextState: Promise<DocumentState>) {
+    const next = await nextState;
+    this.state = cloneState(next);
+    notifyListeners(this.listeners, next);
+    return cloneState(next);
+  }
+
+  private async currentState() {
+    if (!this.state) {
+      await this.load();
+    }
+    return this.state as DocumentState;
+  }
+
+  private async resolveSpaceId(spaceName: string) {
+    const state = await this.currentState();
+    const space = state.spaces.find(
+      (item) => item.id === spaceName || item.name === spaceName
+    );
+    if (!space) {
+      throw new Error(`Document space not found: ${spaceName}`);
+    }
+    return space.id;
+  }
+
+  async archiveFile(fileId: string, spaceName: string) {
+    const spaceId = await this.resolveSpaceId(spaceName);
+    return this.applyState(
+      this.apiClient.post("documents/archive", {
+        asset_id: fileId,
+        document_space_id: spaceId,
+      })
+    );
+  }
+
+  async archiveMessageFile(input: ArchiveMessageFileInput, spaceName: string) {
+    const spaceId = await this.resolveSpaceId(spaceName);
+    return this.applyState(
+      this.apiClient.post("documents/archive", {
+        asset_id: input.id,
+        document_space_id: spaceId,
+        name: input.name,
+        extension: input.extension,
+        size: input.size,
+        source_name: input.sourceName,
+        source_channel_id: input.sourceChannelId,
+        source_channel_type: input.sourceChannelType,
+        source_type: input.sourceType,
+        uploader_name: input.uploader,
+      })
+    );
+  }
+
+  async uploadFile(input: UploadDocumentInput, spaceName: string) {
+    const spaceId = await this.resolveSpaceId(spaceName);
+    const storagePath =
+      input.storagePath ||
+      (input.file ? await this.uploadObject(input.file) : "");
+    return this.applyState(
+      this.apiClient.post("documents/upload", {
+        name: input.name,
+        extension: input.extension,
+        size: input.size,
+        storage_path: storagePath,
+        document_space_id: spaceId,
+      })
+    );
+  }
+
+  async bindConversationToSpace() {
+    return this.load();
+  }
+
+  async previewFile(fileId: string) {
+    return this.applyState(
+      this.apiClient.post(`documents/${encodeURIComponent(fileId)}/preview`)
+    );
+  }
+
+  async downloadFile(fileId: string) {
+    return this.applyState(
+      this.apiClient.post(`documents/${encodeURIComponent(fileId)}/download`)
+    );
+  }
+
+  async deleteFile(fileId: string) {
+    return this.applyState(
+      this.apiClient.post(`documents/${encodeURIComponent(fileId)}/trash`)
+    );
+  }
+
+  async restoreFile(fileId: string) {
+    return this.applyState(
+      this.apiClient.post(`documents/${encodeURIComponent(fileId)}/restore`)
+    );
+  }
+
+  private async uploadObject(file: File) {
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("contenttype", file.type || "application/octet-stream");
+    const path = `/documents/${Date.now()}-${sanitizeUploadPath(file.name)}`;
+    const resp = await this.apiClient.post(
+      `file/upload?type=common&path=${encodeURIComponent(path)}`,
+      formData
+    );
+    return resp?.path || path;
+  }
+}
+
+export class FallbackDocumentRepository implements DocumentRepository {
+  private usingFallback = false;
+
+  constructor(
+    private primary: DocumentRepository,
+    private fallback: DocumentRepository
+  ) {}
+
+  async load() {
+    if (this.usingFallback) return this.fallback.load();
+    try {
+      return await this.primary.load();
+    } catch (error) {
+      this.usingFallback = true;
+      return this.fallback.load();
+    }
+  }
+
+  subscribe(listener: (state: DocumentState) => void) {
+    const unsubscribePrimary = this.primary.subscribe(listener);
+    const unsubscribeFallback = this.fallback.subscribe(listener);
+    return () => {
+      unsubscribePrimary();
+      unsubscribeFallback();
+    };
+  }
+
+  private active() {
+    return this.usingFallback ? this.fallback : this.primary;
+  }
+
+  private async run(
+    operation: (repo: DocumentRepository) => Promise<DocumentState>
+  ) {
+    if (this.usingFallback) return operation(this.fallback);
+    try {
+      return await operation(this.primary);
+    } catch (error) {
+      this.usingFallback = true;
+      return operation(this.fallback);
+    }
+  }
+
+  archiveFile(fileId: string, spaceName: string, actor?: string) {
+    return this.run((repo) => repo.archiveFile(fileId, spaceName, actor));
+  }
+
+  archiveMessageFile(
+    input: ArchiveMessageFileInput,
+    spaceName: string,
+    actor?: string
+  ) {
+    return this.run((repo) => repo.archiveMessageFile(input, spaceName, actor));
+  }
+
+  uploadFile(input: UploadDocumentInput, spaceName: string, actor?: string) {
+    return this.run((repo) => repo.uploadFile(input, spaceName, actor));
+  }
+
+  bindConversationToSpace(
+    spaceId: string,
+    conversationName: string,
+    actor?: string
+  ) {
+    return this.active().bindConversationToSpace(
+      spaceId,
+      conversationName,
+      actor
+    );
+  }
+
+  previewFile(fileId: string, actor?: string) {
+    return this.run((repo) => repo.previewFile(fileId, actor));
+  }
+
+  downloadFile(fileId: string, actor?: string) {
+    return this.run((repo) => repo.downloadFile(fileId, actor));
+  }
+
+  deleteFile(fileId: string, actor?: string) {
+    return this.run((repo) => repo.deleteFile(fileId, actor));
+  }
+
+  restoreFile(fileId: string, actor?: string) {
+    return this.run((repo) => repo.restoreFile(fileId, actor));
+  }
+}
+
+export const documentRepository = new FallbackDocumentRepository(
+  new ApiDocumentRepository(),
+  new MockDocumentRepository()
+);

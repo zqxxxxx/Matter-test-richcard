@@ -1,5 +1,10 @@
-import { describe, expect, it } from "vitest";
-import { MockDocumentRepository, createDocumentSummary } from "./service";
+import { describe, expect, it, vi } from "vitest";
+import {
+  ApiDocumentRepository,
+  FallbackDocumentRepository,
+  MockDocumentRepository,
+  createDocumentSummary,
+} from "./service";
 
 describe("DocumentRepository", () => {
   it("archives conversation files into a controlled document space", async () => {
@@ -195,5 +200,67 @@ describe("createDocumentSummary", () => {
       spaceFiles: 2,
       conversationFiles: 2,
     });
+  });
+});
+
+describe("ApiDocumentRepository", () => {
+  it("loads document state from the backend document API", async () => {
+    const apiClient = {
+      get: vi.fn().mockResolvedValue({
+        files: [],
+        spaces: [],
+        audits: [],
+      }),
+      post: vi.fn(),
+    };
+    const repo = new ApiDocumentRepository(apiClient);
+
+    const state = await repo.load();
+
+    expect(apiClient.get).toHaveBeenCalledWith("documents/state");
+    expect(state).toEqual({ files: [], spaces: [], audits: [] });
+  });
+
+  it("archives files by resolving the selected document space name", async () => {
+    const apiClient = {
+      get: vi.fn().mockResolvedValue({
+        files: [],
+        spaces: [{ id: "space-product", name: "产品部公共空间" }],
+        audits: [],
+      }),
+      post: vi.fn().mockResolvedValue({
+        files: [],
+        spaces: [{ id: "space-product", name: "产品部公共空间" }],
+        audits: [],
+      }),
+    };
+    const repo = new ApiDocumentRepository(apiClient);
+
+    await repo.load();
+    await repo.archiveFile("asset-1", "产品部公共空间", "陈一");
+
+    expect(apiClient.post).toHaveBeenCalledWith("documents/archive", {
+      asset_id: "asset-1",
+      document_space_id: "space-product",
+    });
+  });
+});
+
+describe("FallbackDocumentRepository", () => {
+  it("keeps the local prototype usable when document APIs are unavailable", async () => {
+    const apiRepo = {
+      load: vi.fn().mockRejectedValue(new Error("api down")),
+      subscribe: vi.fn(() => () => {}),
+    };
+    const fallbackRepo = new MockDocumentRepository();
+    const repo = new FallbackDocumentRepository(
+      apiRepo as unknown as MockDocumentRepository,
+      fallbackRepo
+    );
+
+    const state = await repo.load();
+
+    expect(state.files.length).toBeGreaterThan(0);
+    expect(apiRepo.load).toHaveBeenCalled();
   });
 });
