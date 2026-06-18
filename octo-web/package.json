@@ -24,7 +24,8 @@
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
     "gen:component": "node scripts/gen-component.mjs",
     "new:worktree": "bash scripts/new-worktree.sh",
-    "cleanup:worktree": "bash scripts/cleanup-worktree.sh"
+    "cleanup:worktree": "bash scripts/cleanup-worktree.sh",
+    "serve:richcard-preview": "node serve-richcard-preview.mjs"
   },
   "devDependencies": {
     "@playwright/test": "^1.58.2",

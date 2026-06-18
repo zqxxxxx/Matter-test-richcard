@@ -45,6 +45,7 @@ export { default as MessageBase } from "./Messages/Base"
 export  * from "./Messages/Image"
 export * from "./Messages/File"
 export * from "./Messages/Base"
+export * from "./Messages/BusinessCard"
 
 export * from "./Messages/MessageCell"
 

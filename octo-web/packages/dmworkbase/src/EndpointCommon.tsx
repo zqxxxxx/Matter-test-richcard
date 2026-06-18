@@ -326,10 +326,11 @@ export class EndpointCommon {
   }
 
   /** v0.7 Matter 详情面板（跟子区/文件预览/事项列表可并存） */
-  chatMatterDetailPanel(channel: Channel, onClose: () => void): JSX.Element | undefined {
+  chatMatterDetailPanel(channel: Channel, onClose: () => void, matterId?: string): JSX.Element | undefined {
     return EndpointManager.shared.invoke(EndpointCategory.chatMatterDetailPanel, {
       channel,
       onClose,
+      matterId,
     });
   }
 

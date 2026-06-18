@@ -23,7 +23,7 @@ export type MittEvents = {
   "wk:close-thread-panel": undefined;
   "wk:toggle-matter-panel": { channelId: string; channelType: number };
   /** v0.7 Matter 详情面板切换（跟子区/文件预览/任务列表可并存） */
-  "wk:toggle-matter-detail-panel": { channelId: string; channelType: number };
+  "wk:toggle-matter-detail-panel": { channelId: string; channelType: number; matterId?: string; forceOpen?: boolean };
   "wk:toggle-summary-panel": { channelId: string; channelType: number; summaryPanelView: 'history' | 'new'; forceOpen?: boolean };
   "wk:open-summary-modal": { channelId: string; channelType: number };
   /** 打开多选→同步到项目的弹出菜单（由 dmworktodo 模块接管渲染） */
@@ -81,6 +81,33 @@ export type MittEvents = {
   'wk:matter-updated': { matterId: string };
   /** Matter 被删除后广播, 接收方据此从列表移除 */
   'wk:matter-deleted': { matterId: string };
+  /** 富格式业务卡片按钮动作，由 Matter / Summary 等业务模块接管 */
+  "wk:business-card-action": {
+    card: {
+      id: string;
+      cardType: string;
+      title: string;
+      entityId?: string;
+      entityType?: string;
+      sourceChannelId?: string;
+      sourceChannelType?: number;
+    };
+    action: {
+      label: string;
+      type: string;
+      kind?: string;
+      url?: string;
+      value?: string;
+      disabled?: boolean;
+    };
+    message?: {
+      messageID?: string;
+      messageSeq?: number;
+      clientMsgNo?: string;
+      channelId?: string;
+      channelType?: number;
+    };
+  };
   "summary-space-changed": undefined;
   /**
    * Chat VM 完成 requestConversationList()（切 Space / 重连后会触发）后广播。

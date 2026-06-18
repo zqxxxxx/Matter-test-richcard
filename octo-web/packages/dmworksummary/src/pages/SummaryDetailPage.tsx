@@ -10,10 +10,9 @@ import {
     TextArea,
 } from "@douyinfe/semi-ui";
 import { IconEdit, IconMore, IconSend, IconClock, IconTick, IconClose, IconInfoCircle, IconHistory, IconUser } from "@douyinfe/semi-icons";
-import { Channel, ChannelTypeGroup, ChannelTypePerson, MessageText, WKSDK } from "wukongimjssdk";
-import { I18nContext, t } from "@octo/base";
+import { Channel, ChannelTypePerson, WKSDK } from "wukongimjssdk";
+import { BusinessCardContent, I18nContext, t } from "@octo/base";
 import WKApp from "@octo/base/src/App";
-import { splitSummaryText } from "../utils/splitMessage";
 import SummaryConfirmPage from "./SummaryConfirmPage";
 import * as api from "../api/summaryApi";
 import OverflowTooltip from "../components/OverflowTooltip";
@@ -41,6 +40,7 @@ import ScheduleConfigModal from "../components/ScheduleConfigModal";
 import MatterPickerModal from "../components/MatterPickerModal";
 import * as matterBridge from "../api/matterBridge";
 import SummaryEditor from "../components/SummaryEditor";
+import { buildSummaryFeedbackCard } from "../utils/businessCard";
 
 interface SummaryDetailPageProps {
     taskId?: number;
@@ -68,8 +68,6 @@ interface SummaryDetailPageState {
     regenerateTopic: string;
     regenerateSubmitting: boolean;
 }
-
-const INTER_MESSAGE_DELAY_MS = 200;
 
 export default class SummaryDetailPage extends Component<SummaryDetailPageProps, SummaryDetailPageState> {
     static contextType = I18nContext;
@@ -576,32 +574,29 @@ export default class SummaryDetailPage extends Component<SummaryDetailPageProps,
         const { detail } = this.state;
         if (!detail?.result?.content?.trim()) return;
         WKApp.shared.baseContext.showConversationSelect(async (channels: Channel[]) => {
-            const cleanContent = (detail?.result?.content ?? '').replace(/\[\d+\]/g, '').replace(/  +/g, ' ').trim();
-            const chunks = splitSummaryText(cleanContent);
             const errors: string[] = [];
 
             for (const ch of channels) {
                 try {
-                    for (let i = 0; i < chunks.length; i++) {
-                        const msg = new MessageText(chunks[i]);
+                    const msg = new BusinessCardContent(buildSummaryFeedbackCard(detail, {
+                        sourceChannelId: ch.channelID,
+                        sourceChannelType: ch.channelType,
+                        time: new Date().toLocaleString(),
+                    }));
 
-                        // Inject space_id for person channels (matching ConversationVM.sendMessage pattern)
-                        const spaceId = WKApp.shared.currentSpaceId;
-                        if (spaceId && ch.channelType === ChannelTypePerson) {
-                            const originalEncodeJSON = msg.encodeJSON.bind(msg);
-                            msg.encodeJSON = () => {
-                                const obj = originalEncodeJSON();
-                                obj.space_id = spaceId;
-                                return obj;
-                            };
-                            msg.contentObj = { ...(msg.contentObj || {}), space_id: spaceId };
-                        }
-
-                        await WKSDK.shared().chatManager.send(msg, ch);
-                        if (i < chunks.length - 1) {
-                            await new Promise((r) => setTimeout(r, INTER_MESSAGE_DELAY_MS));
-                        }
+                    // Inject space_id for person channels (matching ConversationVM.sendMessage pattern)
+                    const spaceId = WKApp.shared.currentSpaceId;
+                    if (spaceId && ch.channelType === ChannelTypePerson) {
+                        const originalEncodeJSON = msg.encodeJSON.bind(msg);
+                        msg.encodeJSON = () => {
+                            const obj = originalEncodeJSON();
+                            obj.space_id = spaceId;
+                            return obj;
+                        };
+                        msg.contentObj = { ...(msg.contentObj || {}), space_id: spaceId };
                     }
+
+                    await WKSDK.shared().chatManager.send(msg, ch);
                 } catch {
                     errors.push(ch.channelID);
                 }

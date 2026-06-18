@@ -199,6 +199,8 @@ export interface ChatContentPageState {
   showMatterPanel: boolean;
   /** v0.7 Matter 详情面板是否显示（跟子区/文件预览/任务列表可并存） */
   showMatterDetailPanel: boolean;
+  /** 当前通过卡片/列表打开的 Matter ID */
+  activeMatterId: string | null;
   /**
    * 从事项详情面板触发文件预览时记下来源 matter ID。
    * 关闭/返回预览时, 据此把事项面板重新拉起来并自动选回这条 matter,
@@ -239,6 +241,7 @@ export class ChatContentPage extends Component<
       activePreviewMessageId: null,
       showMatterPanel: false,
       showMatterDetailPanel: false,
+      activeMatterId: null,
       previewReturnMatterId: null,
       previewHadThreadShell: false,
       showSummaryPanel: false,
@@ -400,6 +403,7 @@ export class ChatContentPage extends Component<
           showMatterDetailPanel: opening
             ? false
             : prevState.showMatterDetailPanel,
+          activeMatterId: opening ? null : prevState.activeMatterId,
           showThreadPanel: opening ? false : prevState.showThreadPanel,
           activeThread: opening ? null : prevState.activeThread,
           previewFile: opening ? null : prevState.previewFile,
@@ -422,12 +426,13 @@ export class ChatContentPage extends Component<
       )
         return;
       this.setState((prevState) => {
-        const opening = !prevState.showMatterDetailPanel;
+        const opening = data.forceOpen ? true : !prevState.showMatterDetailPanel;
         if (!opening) {
-          return { showMatterDetailPanel: false };
+          return { showMatterDetailPanel: false, activeMatterId: null };
         }
         return {
           showMatterDetailPanel: true,
+          activeMatterId: data.matterId ?? prevState.activeMatterId,
           showMatterPanel: false,
           showThreadPanel: false,
           activeThread: null,
@@ -599,6 +604,8 @@ export class ChatContentPage extends Component<
   private _onToggleMatterDetailPanel?: (data: {
     channelId: string;
     channelType: number;
+    matterId?: string;
+    forceOpen?: boolean;
   }) => void;
   private _onToggleSummaryPanel?: (data: {
     channelId: string;
@@ -725,6 +732,7 @@ export class ChatContentPage extends Component<
       previewFile,
       showMatterPanel,
       showMatterDetailPanel,
+      activeMatterId,
       showSummaryPanel,
       summaryPanelView,
     } = this.state;
@@ -1120,8 +1128,10 @@ export class ChatContentPage extends Component<
                 : undefined
             }
           >
-            {WKApp.endpoints.chatMatterDetailPanel(channel, () =>
-              this.setState({ showMatterDetailPanel: false }),
+            {WKApp.endpoints.chatMatterDetailPanel(
+              channel,
+              () => this.setState({ showMatterDetailPanel: false, activeMatterId: null }),
+              activeMatterId ?? undefined,
             )}
           </div>
         )}

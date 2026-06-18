@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from "react";
 import ReactDOM from "react-dom/client";
 import type { IModule } from "@octo/base";
-import { i18n, I18nProvider, WKApp } from "@octo/base";
+import { i18n, I18nProvider, WKApp, t, registerBusinessCardActionHandler } from "@octo/base";
+import { Toast } from "@douyinfe/semi-ui";
 import SummaryListPage from "./pages/SummaryListPage";
 import SummaryCreatePage from "./pages/SummaryCreatePage";
 import SummaryDetailPage from "./pages/SummaryDetailPage";
 import SummaryConfirmPage from "./pages/SummaryConfirmPage";
 import ScheduleListPage from "./pages/ScheduleListPage";
-import { getChatCandidates } from "./api/summaryApi";
+import { getChatCandidates, respondToTask } from "./api/summaryApi";
 import { notifyChatSummaryCreated } from "./utils/chatSummaryActions";
 import { isSupportedChannelType } from "./utils/channelType";
 import ChatSummaryStarButton from "./components/ChatSummaryStarButton";
@@ -18,6 +19,7 @@ import zhCN from "./i18n/zh-CN.json";
 import "./index.css";
 
 let _spaceChangedHandler: (() => void) | null = null;
+let _businessCardActionDisposer: (() => void) | null = null;
 
 export class SummaryModule implements IModule {
     id(): string {
@@ -68,6 +70,7 @@ export class SummaryModule implements IModule {
         };
 
         mountGlobalSummaryModal();
+        this.registerBusinessCardActions();
 
         // ═══ Chat window integration ═══
 
@@ -91,6 +94,39 @@ export class SummaryModule implements IModule {
             ),
         );
     }
+
+    private registerBusinessCardActions(): void {
+        _businessCardActionDisposer?.();
+
+        _businessCardActionDisposer = registerBusinessCardActionHandler(async (data) => {
+            const card = data?.card;
+            const action = data?.action;
+            if (!card || !action || card.cardType !== "summary_feedback") return false;
+
+            const taskId = Number(card.entityId);
+            if (!Number.isFinite(taskId) || taskId <= 0) {
+                Toast.error(t("summary.common.operationFailed"));
+                return true;
+            }
+
+            if (action.type === "open_summary") {
+                WKApp.openSummaryDetail?.(taskId);
+                return true;
+            }
+
+            if (action.type === "summary_accept" || action.type === "summary_reject") {
+                const responseAction = action.type === "summary_accept" ? "accept" : "reject";
+                try {
+                    await respondToTask(taskId, responseAction);
+                    Toast.success(responseAction === "accept" ? t("summary.action.accepted") : t("summary.action.rejected"));
+                } catch (err: any) {
+                    Toast.error(err?.message || t("summary.common.operationFailed"));
+                }
+                return true;
+            }
+            return false;
+        });
+    }
 }
 
 if (import.meta.hot) {
@@ -99,6 +135,8 @@ if (import.meta.hot) {
             WKApp.mittBus.off('space-changed', _spaceChangedHandler);
             _spaceChangedHandler = null;
         }
+        _businessCardActionDisposer?.();
+        _businessCardActionDisposer = null;
         _globalSummaryModalRoot?.unmount();
         _globalSummaryModalRoot = null;
         const el = document.getElementById("summary-global-modal-root");

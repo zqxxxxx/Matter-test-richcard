@@ -44,7 +44,7 @@ import { OutputsPanel } from "../../ui/OutputsPanel";
 import WKAvatar from "@octo/base/src/Components/WKAvatar";
 import WKSDK, { Channel, ChannelTypeGroup, ChannelTypePerson } from "wukongimjssdk";
 import type { ChannelInfoListener } from "wukongimjssdk";
-import { WKApp, i18n, useI18n, t as translate } from "@octo/base";
+import { WKApp, i18n, useI18n, t as translate, BusinessCardContent } from "@octo/base";
 import { downloadFile } from "@octo/base/src/Utils/download";
 import {
   getFileIcon,
@@ -60,6 +60,7 @@ import {
   ChannelRef,
 } from "../../hooks/useMembersFromChannels";
 import { useUserName, useUserNames } from "../../hooks/useUserName";
+import { buildMatterStatusCard } from "../../utils/businessCard";
 import "./index.css";
 
 export interface MatterDetailPanelProps {
@@ -501,6 +502,20 @@ export default function MatterDetailPanel({
       try {
         const updated = await transitionMatter(matter.id, newStatus);
         applyMatterUpdate(updated);
+        if (channelId && _channelType) {
+          try {
+            await WKSDK.shared().chatManager.send(
+              new BusinessCardContent(buildMatterStatusCard(updated, {
+                sourceChannelId: channelId,
+                sourceChannelType: _channelType,
+                time: new Date().toLocaleString(),
+              })),
+              new Channel(channelId, _channelType),
+            );
+          } catch {
+            Toast.error(t("todo.toast.operationFailed"));
+          }
+        }
       } catch (err: any) {
         setMatter((prev) => (prev ? { ...prev, status: oldStatus } : prev));
         const msg = err?.message || t("todo.toast.statusChangeFailed");
@@ -511,7 +526,7 @@ export default function MatterDetailPanel({
         }
       }
     },
-    [matter, applyMatterUpdate, t],
+    [matter, applyMatterUpdate, channelId, _channelType, t],
   );
 
   const handleDeleteMatter = useCallback(async () => {

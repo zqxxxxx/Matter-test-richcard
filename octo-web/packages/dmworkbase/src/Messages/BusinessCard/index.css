@@ -1,0 +1,239 @@
+.wk-business-card {
+  width: min(560px, 100%);
+  border: 1px solid var(--wk-border-color, #e6e8ef);
+  border-radius: 8px;
+  background: var(--wk-bg-elevated, #fff);
+  color: var(--wk-text-primary, #1f2329);
+  overflow: hidden;
+  box-shadow: 0 6px 18px rgba(31, 35, 41, 0.06);
+}
+
+.wk-business-card-header {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: start;
+  padding: 16px 14px 12px;
+}
+
+.wk-business-card-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: #eef4ff;
+  color: #1f63d8;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.wk-business-card--summary_feedback .wk-business-card-icon {
+  background: #eef8f3;
+  color: #18794e;
+}
+
+.wk-business-card--external_link .wk-business-card-icon {
+  background: #fff6e5;
+  color: #a15c00;
+}
+
+.wk-business-card-headcopy {
+  min-width: 0;
+}
+
+.wk-business-card-eyebrow {
+  margin-bottom: 3px;
+  color: var(--wk-text-tertiary, #8f959e);
+  font-size: 12px;
+  line-height: 18px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wk-business-card h3 {
+  margin: 0;
+  color: var(--wk-text-primary, #1f2329);
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 22px;
+}
+
+.wk-business-card-headcopy p {
+  margin: 3px 0 0;
+  color: var(--wk-text-secondary, #646a73);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.wk-business-card-badges {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  justify-content: flex-end;
+  white-space: nowrap;
+}
+
+.wk-business-card-badge {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 7px;
+  border-radius: 10px;
+  background: #f2f4f7;
+  color: #475467;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.wk-business-card-badge--priority {
+  background: #fff1f0;
+  color: #c92a2a;
+}
+
+.wk-business-card-badge--done {
+  background: #eaf7ef;
+  color: #18794e;
+}
+
+.wk-business-card-badge--in_progress {
+  background: #eef4ff;
+  color: #1f63d8;
+}
+
+.wk-business-card-badge--blocked {
+  background: #fff6e5;
+  color: #a15c00;
+}
+
+.wk-business-card-body {
+  margin: 0;
+  padding: 0 14px 13px;
+  color: var(--wk-text-secondary, #4e5969);
+  font-size: 13px;
+  line-height: 21px;
+}
+
+.wk-business-card-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 0 14px 14px;
+  border: 1px solid var(--wk-border-color, #e6e8ef);
+  border-radius: 6px;
+  background: var(--wk-bg-secondary, #f7f8fa);
+  overflow: hidden;
+}
+
+.wk-business-card-metrics > div {
+  min-width: 0;
+  padding: 10px 12px;
+  border-right: 1px solid var(--wk-border-color, #e6e8ef);
+}
+
+.wk-business-card-metrics > div:last-child {
+  border-right: 0;
+}
+
+.wk-business-card-metrics dt {
+  margin: 0 0 4px;
+  color: var(--wk-text-tertiary, #8f959e);
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.wk-business-card-metrics dd {
+  margin: 0;
+  color: var(--wk-text-primary, #1f2329);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 20px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wk-business-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 48px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--wk-border-color, #e6e8ef);
+}
+
+.wk-business-card-actor {
+  color: var(--wk-text-tertiary, #8f959e);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.wk-business-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.wk-business-card-action {
+  height: 30px;
+  padding: 0 12px;
+  border: 1px solid var(--wk-border-color, #d8dce5);
+  border-radius: 6px;
+  background: var(--wk-bg-elevated, #fff);
+  color: var(--wk-text-primary, #1f2329);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.wk-business-card-action:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.wk-business-card-action--primary {
+  border-color: #1f63d8;
+  background: #1f63d8;
+  color: #fff;
+}
+
+.wk-business-card-action--danger {
+  border-color: #d92d20;
+  color: #d92d20;
+}
+
+@media (max-width: 560px) {
+  .wk-business-card-header {
+    grid-template-columns: 32px minmax(0, 1fr);
+  }
+
+  .wk-business-card-badges {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+  }
+
+  .wk-business-card-metrics {
+    grid-template-columns: 1fr;
+  }
+
+  .wk-business-card-metrics > div {
+    border-right: 0;
+    border-bottom: 1px solid var(--wk-border-color, #e6e8ef);
+  }
+
+  .wk-business-card-metrics > div:last-child {
+    border-bottom: 0;
+  }
+
+  .wk-business-card-footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .wk-business-card-actions {
+    justify-content: flex-start;
+  }
+}

@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from "react";
 import ReactDOM from "react-dom/client";
-import { WKApp, Menus, ChannelTypeCommunityTopic, i18n, t as translate, useI18n } from "@octo/base";
+import { WKApp, Menus, ChannelTypeCommunityTopic, i18n, t as translate, useI18n, BusinessCardContent, registerBusinessCardActionHandler } from "@octo/base";
 import type { IModule, ConversationContext } from "@octo/base";
-import { ChannelTypeGroup } from "wukongimjssdk";
-import WKSDK from "wukongimjssdk";
+import WKSDK, { Channel, ChannelTypeGroup } from "wukongimjssdk";
 // matter-v2: route content swapped to the embedded workspace served by
 // octo-matter; the legacy TodoPage panel is retired (chat integrations stay).
 import MatterPage from "./pages/MatterWorkspace";
@@ -19,11 +18,13 @@ import {
   removeAssignee,
   getMatter,
   deleteMatter,
+  transitionMatter,
   listProjects,
   addProjectSource,
 } from "./api/todoApi";
 import { Toast } from "./utils/toast";
 import { parseMentions } from "./utils/mention";
+import { buildMatterStatusCard } from "./utils/businessCard";
 
 import enUS from "./i18n/en-US.json";
 import zhCN from "./i18n/zh-CN.json";
@@ -46,11 +47,14 @@ function parseMentionText(raw: string): { title: string; uids: string[] } {
 
 /** Guard against double-init (HMR in dev or future module lifecycle changes). */
 let _initialized = false;
+let _businessCardActionDisposer: (() => void) | null = null;
 
 // Reset on HMR: tear down old listeners, reset init guard.
 if (import.meta.hot) {
   import.meta.hot.dispose(() => {
     _initialized = false;
+    _businessCardActionDisposer?.();
+    _businessCardActionDisposer = null;
     // Properly unmount React root before removing DOM node
     _globalTodoModalRoot?.unmount();
     _globalTodoModalRoot = null;
@@ -176,7 +180,63 @@ export default class MatterModule implements IModule {
     // this.registerChatContextMenu(); // 已禁用：移除单条消息右键菜单中的"创建事项"选项
     this.registerChatToolbar();
     this.registerChatMatterPanel();
+    this.registerChatMatterDetailPanel();
     this.registerChatHeaderIcon();
+    this.registerBusinessCardActions();
+  }
+
+  private registerBusinessCardActions(): void {
+    _businessCardActionDisposer?.();
+    _businessCardActionDisposer = registerBusinessCardActionHandler(async (data) => {
+      const card = data?.card;
+      const action = data?.action;
+      if (!card || !action || card.cardType !== "matter_status") return false;
+
+      const matterId = card.entityId;
+      if (!matterId) {
+        Toast.error(translate("todo.toast.operationFailed"));
+        return true;
+      }
+
+      const channelId = card.sourceChannelId || data?.message?.channelId;
+      const channelType = card.sourceChannelType || data?.message?.channelType;
+
+      if (action.type === "open_matter") {
+        if (!channelId || channelType == null) {
+          Toast.error(translate("todo.toast.loadFailed"));
+          return true;
+        }
+        WKApp.mittBus.emit("wk:toggle-matter-detail-panel", {
+          channelId,
+          channelType,
+          matterId,
+          forceOpen: true,
+        });
+        return true;
+      }
+
+      if (action.type === "complete_matter") {
+        try {
+          const updated = await transitionMatter(matterId, "done");
+          WKApp.mittBus.emit("wk:matter-updated", { matterId });
+          if (channelId && channelType != null) {
+            await WKSDK.shared().chatManager.send(
+              new BusinessCardContent(buildMatterStatusCard(updated, {
+                sourceChannelId: channelId,
+                sourceChannelType: channelType,
+                time: new Date().toLocaleString(),
+              })),
+              new Channel(channelId, channelType),
+            );
+          }
+          Toast.success(translate("todo.toast.saved"));
+        } catch {
+          Toast.error(translate("todo.toast.statusUpdateFailed"));
+        }
+        return true;
+      }
+      return false;
+    });
   }
 
   /**
@@ -264,6 +324,29 @@ export default class MatterModule implements IModule {
             channelId={channel.channelID}
             channelType={channel.channelType}
             onClose={onClose}
+          />
+        );
+      },
+    );
+  }
+
+  private registerChatMatterDetailPanel(): void {
+    WKApp.endpoints.registerChatMatterDetailPanel(
+      "chatmatterdetailpanel",
+      ({ channel, onClose, matterId }) => {
+        if (
+          channel.channelType !== ChannelTypeGroup &&
+          channel.channelType !== ChannelTypeCommunityTopic
+        ) {
+          return undefined;
+        }
+        return (
+          <MatterDetailPanel
+            channelId={channel.channelID}
+            channelType={channel.channelType}
+            matterId={matterId}
+            onClose={onClose}
+            showClose
           />
         );
       },
