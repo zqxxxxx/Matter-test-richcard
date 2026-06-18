@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -17,6 +18,8 @@ type SpeechClient struct {
 	apiKey  string
 	client  *http.Client
 }
+
+var ErrSpeechServiceNotConfigured = errors.New("speech service is not configured")
 
 func NewSpeechClient(baseURL, apiKey string, timeout time.Duration) *SpeechClient {
 	return &SpeechClient{
@@ -54,6 +57,9 @@ func (c *SpeechClient) ForwardTranscribe(r *http.Request) (*http.Response, error
 }
 
 func (c *SpeechClient) ForwardTranscribeBody(ctx context.Context, body io.Reader, contentType string) (*http.Response, error) {
+	if c.baseURL == "" {
+		return nil, ErrSpeechServiceNotConfigured
+	}
 	target := c.baseURL + "/v1/speech/transcribe"
 
 	proxyReq, err := http.NewRequestWithContext(ctx, http.MethodPost, target, body)
@@ -67,6 +73,9 @@ func (c *SpeechClient) ForwardTranscribeBody(ctx context.Context, body io.Reader
 }
 
 func (c *SpeechClient) GetVocabulary(ctx context.Context, subjectID, scopeType, scopeID string) (*VocabularyResponse, error) {
+	if c.baseURL == "" {
+		return nil, ErrSpeechServiceNotConfigured
+	}
 	params := url.Values{}
 	params.Set("subject_id", subjectID)
 	params.Set("scope_type", scopeType)
@@ -98,6 +107,9 @@ func (c *SpeechClient) GetVocabulary(ctx context.Context, subjectID, scopeType, 
 }
 
 func (c *SpeechClient) PutVocabulary(ctx context.Context, req PutVocabularyRequest) error {
+	if c.baseURL == "" {
+		return ErrSpeechServiceNotConfigured
+	}
 	body, err := json.Marshal(req)
 	if err != nil {
 		return fmt.Errorf("marshal request: %w", err)
@@ -124,6 +136,9 @@ func (c *SpeechClient) PutVocabulary(ctx context.Context, req PutVocabularyReque
 }
 
 func (c *SpeechClient) DeleteVocabulary(ctx context.Context, subjectID, scopeType, scopeID string) error {
+	if c.baseURL == "" {
+		return ErrSpeechServiceNotConfigured
+	}
 	params := url.Values{}
 	params.Set("subject_id", subjectID)
 	params.Set("scope_type", scopeType)
@@ -150,6 +165,9 @@ func (c *SpeechClient) DeleteVocabulary(ctx context.Context, subjectID, scopeTyp
 }
 
 func (c *SpeechClient) GetConfig(ctx context.Context, subjectID, scopeType, scopeID string) (map[string]interface{}, error) {
+	if c.baseURL == "" {
+		return nil, ErrSpeechServiceNotConfigured
+	}
 	params := url.Values{}
 	if subjectID != "" {
 		params.Set("subject_id", subjectID)
@@ -191,6 +209,9 @@ func (c *SpeechClient) GetConfig(ctx context.Context, subjectID, scopeType, scop
 }
 
 func (c *SpeechClient) PutLocalConfig(ctx context.Context, subjectID, scopeType, scopeID string, enabled bool, timeoutMs *int, probeURL, transcribeURL *string) error {
+	if c.baseURL == "" {
+		return ErrSpeechServiceNotConfigured
+	}
 	payload := map[string]interface{}{
 		"subject_id": subjectID,
 		"scope_type": scopeType,
@@ -233,6 +254,9 @@ func (c *SpeechClient) PutLocalConfig(ctx context.Context, subjectID, scopeType,
 }
 
 func (c *SpeechClient) GetLocalConfig(ctx context.Context, subjectID, scopeType, scopeID string) (map[string]interface{}, error) {
+	if c.baseURL == "" {
+		return nil, ErrSpeechServiceNotConfigured
+	}
 	params := url.Values{}
 	params.Set("subject_id", subjectID)
 	params.Set("scope_type", scopeType)

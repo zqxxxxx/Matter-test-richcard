@@ -11,4 +11,4 @@ create table `app`
 );
 CREATE UNIQUE INDEX app_id on `app` (app_id);
 
-insert into `app`(app_id,app_key,status) VALUES('wukongchat',substring(MD5(RAND()),1,20),1);
+insert into `app`(app_id,app_key,status) VALUES('wukongchat','wukongchat-default-key',1);

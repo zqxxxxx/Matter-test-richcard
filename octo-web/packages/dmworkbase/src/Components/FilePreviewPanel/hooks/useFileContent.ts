@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { t } from "../../../i18n";
+import { t } from "../../../i18n/instance";
 
 export type ResponseType = "text" | "arraybuffer";
 
@@ -35,33 +35,24 @@ export function useFileContent<T extends ResponseType = "text">(
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // 用于取消正在进行的请求，避免竞态条件
-  const abortControllerRef = useRef<AbortController | null>(null);
+  // 用请求序号丢弃过期响应，避免主动 abort fetch 造成浏览器 Network 面板噪声。
+  const requestSeqRef = useRef(0);
 
   const loadContent = useCallback(async () => {
     if (!url || !enabled) {
       return;
     }
 
-    // 取消之前的请求（如果有）
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-    }
-
-    // 创建新的 AbortController
-    const abortController = new AbortController();
-    abortControllerRef.current = abortController;
+    const requestSeq = ++requestSeqRef.current;
+    const isCurrentRequest = () => requestSeq === requestSeqRef.current;
 
     setLoading(true);
     setError(null);
 
     try {
-      const response = await fetch(url, {
-        signal: abortController.signal,
-      });
+      const response = await fetch(url);
 
-      // 检查请求是否被取消
-      if (abortController.signal.aborted) {
+      if (!isCurrentRequest()) {
         return;
       }
 
@@ -71,31 +62,27 @@ export function useFileContent<T extends ResponseType = "text">(
 
       if (responseType === "arraybuffer") {
         const buffer = await response.arrayBuffer();
-        // 再次检查是否被取消
-        if (abortController.signal.aborted) {
+        if (!isCurrentRequest()) {
           return;
         }
         setContent(buffer as ContentType<T>);
       } else {
         const buffer = await response.arrayBuffer();
-        // 再次检查是否被取消
-        if (abortController.signal.aborted) {
+        if (!isCurrentRequest()) {
           return;
         }
         const text = new TextDecoder("utf-8").decode(buffer);
         setContent(text as ContentType<T>);
       }
     } catch (err) {
-      // 忽略取消错误
-      if (err instanceof Error && err.name === "AbortError") {
+      if (!isCurrentRequest()) {
         return;
       }
       const message = err instanceof Error ? err.message : t("base.filePreview.loadFailed");
       setError(message);
       setContent(null);
     } finally {
-      // 只有当这个请求没有被取消时才更新 loading 状态
-      if (!abortController.signal.aborted) {
+      if (isCurrentRequest()) {
         setLoading(false);
       }
     }
@@ -104,12 +91,9 @@ export function useFileContent<T extends ResponseType = "text">(
   useEffect(() => {
     loadContent();
 
-    // 清理函数：组件卸载或依赖变化时取消请求
+    // 清理函数：组件卸载或依赖变化时让当前请求结果失效，不主动 abort。
     return () => {
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-        abortControllerRef.current = null;
-      }
+      requestSeqRef.current += 1;
     };
   }, [loadContent]);
 

@@ -96,6 +96,12 @@ func (a *VoiceAdapter) getConfig(c *wkhttp.Context) {
 
 	resp, err := a.client.GetConfig(c.Request.Context(), loginUID, scopeType, scopeID)
 	if err != nil {
+		if errors.Is(err, ErrSpeechServiceNotConfigured) {
+			c.JSON(http.StatusOK, gin.H{
+				"enabled": false,
+			})
+			return
+		}
 		var svcErr *SpeechServiceError
 		if errors.As(err, &svcErr) && (svcErr.StatusCode == 401 || svcErr.StatusCode == 403) {
 			a.Error("speech service auth failure", zap.Int("status", svcErr.StatusCode), zap.Error(err))

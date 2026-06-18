@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Sync the SQL demo groups into WuKongIM and send one real message so the
+# Octo web "最近" tab has a reproducible conversation to verify.
+#
+# Run after scripts/seed-document-demo.sql and after octo-server/WuKongIM start:
+#   OCTO_TOKEN=<login-token> bash octo-server/scripts/seed-document-demo-im.sh
+
+WK_API_URL="${WK_API_URL:-http://127.0.0.1:5001}"
+OCTO_API_URL="${OCTO_API_URL:-http://127.0.0.1:8090/v1}"
+OCTO_TOKEN="${OCTO_TOKEN:-mock-token}"
+
+post_json() {
+  local url="$1"
+  local body="$2"
+  curl -fsS "$url" \
+    -H 'content-type: application/json' \
+    -d "$body" >/dev/null
+}
+
+sync_group() {
+  local group_no="$1"
+  local subscribers_json="$2"
+  post_json "$WK_API_URL/channel/subscriber_add" \
+    "{\"channel_id\":\"$group_no\",\"channel_type\":2,\"reset\":1,\"subscribers\":$subscribers_json}"
+}
+
+send_group_text() {
+  local group_no="$1"
+  local content="$2"
+  curl -fsS "$OCTO_API_URL/message/send" \
+    -H 'content-type: application/json' \
+    -H "token: $OCTO_TOKEN" \
+    -d "{\"token\":\"$OCTO_TOKEN\",\"receive_channel_id\":\"$group_no\",\"receive_channel_type\":2,\"payload\":{\"type\":1,\"content\":\"$content\"}}" >/dev/null
+}
+
+sync_group "grp_product_docs" '["pm_chen","delivery_liu","admin_zhou"]'
+sync_group "grp_delivery_docs" '["pm_chen","delivery_liu"]'
+sync_group "grp_policy_docs" '["pm_chen","hr_zhao","admin_zhou"]'
+
+send_group_text "grp_product_docs" "文档中心验收消息：上传、预览、下载已完成。"
+
+echo "Seeded WuKongIM subscribers and demo conversation."

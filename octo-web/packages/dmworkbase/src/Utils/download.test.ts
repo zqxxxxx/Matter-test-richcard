@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 const mockApiGet = vi.fn()
 
@@ -14,7 +14,44 @@ vi.mock('./security', () => ({
   isSafeUrl: (url: string) => url.startsWith('http://') || url.startsWith('https://') || url.startsWith('/'),
 }))
 
-import { getPresignedDownloadUrl, getPresignedPreviewUrl } from './download'
+import { downloadFile, getPresignedDownloadUrl, getPresignedPreviewUrl } from './download'
+
+let clickedAnchors: HTMLAnchorElement[] = []
+let originalCreateElement: typeof document.createElement
+
+beforeEach(() => {
+  clickedAnchors = []
+  originalCreateElement = document.createElement.bind(document)
+  vi.spyOn(document, 'createElement').mockImplementation((tag: string, options?: any) => {
+    const el = originalCreateElement(tag, options)
+    if (tag === 'a') {
+      vi.spyOn(el as HTMLAnchorElement, 'click').mockImplementation(() => {})
+      clickedAnchors.push(el as HTMLAnchorElement)
+    }
+    return el
+  })
+})
+
+afterEach(() => {
+  vi.restoreAllMocks()
+})
+
+describe('downloadFile', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('does not presign an already signed local file-service URL', async () => {
+    const signedUrl = 'http://127.0.0.1:8090/v1/file/local?path=common%2Fdemo.xlsx&sig=abc'
+
+    await downloadFile(signedUrl, 'demo.xlsx')
+
+    expect(mockApiGet).not.toHaveBeenCalled()
+    expect(clickedAnchors).toHaveLength(1)
+    expect(clickedAnchors[0].href).toBe(signedUrl)
+    expect(clickedAnchors[0].download).toBe('demo.xlsx')
+  })
+})
 
 describe('getPresignedDownloadUrl', () => {
   beforeEach(() => {

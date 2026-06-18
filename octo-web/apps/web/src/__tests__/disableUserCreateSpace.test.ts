@@ -34,6 +34,16 @@ describe("disable_user_create_space web integration", () => {
     expect(source).toContain('window.addEventListener("focus"');
   });
 
+  it("reads summary_enabled from appconfig and hides the summary nav by default", () => {
+    const baseSource = readRepoFile("packages/dmworkbase/src/App.tsx");
+    const appSource = readRepoFile("apps/web/src/App/index.tsx");
+
+    expect(baseSource).toContain("summaryEnabled: boolean = false");
+    expect(baseSource).toContain('result["summary_enabled"]');
+    expect(appSource).toContain("WKApp.remoteConfig.summaryEnabled");
+    expect(appSource).toContain('WKApp.menus.register("summary"');
+  });
+
   it("hides the SpaceList create-space action behind remote config", () => {
     const source = readRepoFile(
       "packages/dmworkbase/src/Components/SpaceList/index.tsx"

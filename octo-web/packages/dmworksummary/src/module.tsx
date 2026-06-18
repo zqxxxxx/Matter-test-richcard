@@ -39,23 +39,23 @@ export class SummaryModule implements IModule {
         };
 
         WKApp.route.register("/summary", () => {
-            return <SummaryListPage />;
+            return <SummaryFeatureGate><SummaryListPage /></SummaryFeatureGate>;
         });
 
         WKApp.route.register("/summary/create", () => {
-            return <SummaryCreatePage />;
+            return <SummaryFeatureGate><SummaryCreatePage /></SummaryFeatureGate>;
         });
 
         WKApp.route.register("/summary/detail", (param: any) => {
-            return <SummaryDetailPage taskId={param?.taskId} />;
+            return <SummaryFeatureGate><SummaryDetailPage taskId={param?.taskId} /></SummaryFeatureGate>;
         });
 
         WKApp.route.register("/summary/confirm", (param: any) => {
-            return <SummaryConfirmPage taskId={param?.taskId} />;
+            return <SummaryFeatureGate><SummaryConfirmPage taskId={param?.taskId} /></SummaryFeatureGate>;
         });
 
         WKApp.route.register("/summary/schedules", () => {
-            return <ScheduleListPage />;
+            return <SummaryFeatureGate><ScheduleListPage /></SummaryFeatureGate>;
         });
 
         _spaceChangedHandler = () => {
@@ -64,6 +64,7 @@ export class SummaryModule implements IModule {
         WKApp.mittBus.on('space-changed', _spaceChangedHandler);
 
         WKApp.searchChatCandidates = async (params) => {
+            if (!WKApp.remoteConfig.summaryEnabled) return [];
             return getChatCandidates(params);
         };
 
@@ -74,6 +75,7 @@ export class SummaryModule implements IModule {
         WKApp.endpoints.registerChannelHeaderRightItem(
             "channelheader.summary",
             ({ channel }) => {
+                if (!WKApp.remoteConfig.summaryEnabled) return undefined;
                 if (!isSupportedChannelType(channel)) return undefined;
                 return <ChatSummaryStarButton channel={channel} />;
             },
@@ -83,14 +85,41 @@ export class SummaryModule implements IModule {
         WKApp.endpoints.registerChatSummaryPanel(
             "chatsummarypanel",
             ({ channel, onClose }) => (
-                <ChatSummaryPanel
-                    visible={true}
-                    channel={channel}
-                    onClose={onClose}
-                />
+                WKApp.remoteConfig.summaryEnabled ? (
+                    <ChatSummaryPanel
+                        visible={true}
+                        channel={channel}
+                        onClose={onClose}
+                    />
+                ) : undefined
             ),
         );
     }
+}
+
+function SummaryFeatureGate({ children }: { children: React.ReactNode }) {
+    const [, setVersion] = useState(0);
+
+    useEffect(() => {
+        return WKApp.remoteConfig.addConfigChangeListener(() => {
+            setVersion((v) => v + 1);
+        });
+    }, []);
+
+    if (!WKApp.remoteConfig.summaryEnabled) {
+        return (
+            <div className="summary-list-page">
+                <div className="summary-list-empty">
+                    <div className="summary-list-empty-title">智能总结未启用</div>
+                    <div className="summary-list-empty-desc">
+                        当前部署未配置智能总结服务。
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    return <>{children}</>;
 }
 
 if (import.meta.hot) {
@@ -136,6 +165,7 @@ function GlobalSummaryModal() {
 
     useEffect(() => {
         const handler = (data: { channelId: string; channelType: number }) => {
+            if (!WKApp.remoteConfig.summaryEnabled) return;
             setChannel({ channelID: data.channelId, channelType: data.channelType });
             setOpen(true);
         };

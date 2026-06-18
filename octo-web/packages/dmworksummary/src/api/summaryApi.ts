@@ -51,11 +51,24 @@ summaryAxios.interceptors.response.use(
 
 const BASE = '/summary/api/v1';
 
+function isNotFound(err: unknown): boolean {
+    const typedErr = err as { response?: { status?: number }; status?: number };
+    return typedErr?.response?.status === 404 || typedErr?.status === 404;
+}
+
 function extractErrorMessage(err: unknown): string {
     const axiosErr = err as { response?: { data?: { message?: string } } };
     const msg = axiosErr?.response?.data?.message;
     const raw = msg || (err instanceof Error ? err.message : 'Request failed');
     return raw.length > 200 ? raw.slice(0, 200) + '…' : raw;
+}
+
+function createApiError(err: unknown): Error & { status?: number } {
+    const axiosErr = err as { response?: { status?: number } };
+    const error = new Error(extractErrorMessage(err)) as Error & { status?: number };
+    const status = axiosErr?.response?.status;
+    if (status) error.status = status;
+    return error;
 }
 
 // Backend wraps responses in {code, message, data} envelope — unwrap .data
@@ -66,7 +79,7 @@ async function get<T>(path: string, params?: Record<string, unknown>, config?: A
     } catch (err) {
         // Preserve cancellation identity so callers can use axios.isCancel(err)
         if (axios.isCancel(err)) throw err;
-        throw new Error(extractErrorMessage(err));
+        throw createApiError(err);
     }
 }
 
@@ -76,7 +89,7 @@ async function post<T>(path: string, data?: unknown): Promise<T> {
         return resp.data?.data ?? resp.data;
     } catch (err) {
         if (axios.isCancel(err)) throw err;
-        throw new Error(extractErrorMessage(err));
+        throw createApiError(err);
     }
 }
 
@@ -86,7 +99,7 @@ async function put<T>(path: string, data?: unknown): Promise<T> {
         return resp.data?.data ?? resp.data;
     } catch (err) {
         if (axios.isCancel(err)) throw err;
-        throw new Error(extractErrorMessage(err));
+        throw createApiError(err);
     }
 }
 
@@ -96,7 +109,7 @@ async function del<T>(path: string): Promise<T> {
         return resp.data?.data ?? resp.data;
     } catch (err) {
         if (axios.isCancel(err)) throw err;
-        throw new Error(extractErrorMessage(err));
+        throw createApiError(err);
     }
 }
 
@@ -110,7 +123,20 @@ export async function listSummaries(
     params: ListSummariesParams,
     config?: { signal?: AbortSignal },
 ): Promise<ListSummariesResponse> {
-    return get('/summaries', params as Record<string, unknown>, config);
+    try {
+        return await get('/summaries', params as Record<string, unknown>, config);
+    } catch (err) {
+        if (axios.isCancel(err)) throw err;
+        if (isNotFound(err)) {
+            return {
+                items: [],
+                total: 0,
+                page: params.page ?? 1,
+                page_size: params.page_size ?? 20,
+            };
+        }
+        throw err;
+    }
 }
 
 export async function getSummaryDetail(taskId: number): Promise<SummaryDetail> {
@@ -206,7 +232,13 @@ export async function getParticipants(taskId: number): Promise<Participant[]> {
 }
 
 export async function getTemplates(): Promise<SummaryTemplate[]> {
-    const data = await get<{ templates: TopicTemplate[] }>('/summary-templates');
+    let data: { templates: TopicTemplate[] } | undefined;
+    try {
+        data = await get<{ templates: TopicTemplate[] }>('/summary-templates');
+    } catch (err) {
+        if (isNotFound(err)) return [];
+        throw err;
+    }
     return (data?.templates || []).map(t => ({
         template_id: t.id,
         name: t.label,
@@ -217,7 +249,13 @@ export async function getTemplates(): Promise<SummaryTemplate[]> {
 }
 
 export async function getTopicTemplates(): Promise<TopicTemplate[]> {
-    const data = await get<{ templates: TopicTemplate[] }>('/summary-templates');
+    let data: { templates: TopicTemplate[] } | undefined;
+    try {
+        data = await get<{ templates: TopicTemplate[] }>('/summary-templates');
+    } catch (err) {
+        if (isNotFound(err)) return [];
+        throw err;
+    }
     return data?.templates || [];
 }
 

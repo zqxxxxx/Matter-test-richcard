@@ -258,6 +258,14 @@ func TestGetConfigError(t *testing.T) {
 	}
 }
 
+func TestGetConfigMissingBaseURL(t *testing.T) {
+	client := NewSpeechClient("", "test-key", 5*time.Second)
+	_, err := client.GetConfig(context.Background(), "", "", "")
+	if !errors.Is(err, ErrSpeechServiceNotConfigured) {
+		t.Fatalf("expected ErrSpeechServiceNotConfigured, got %v", err)
+	}
+}
+
 func TestGetConfig_ConnectionRefused(t *testing.T) {
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {

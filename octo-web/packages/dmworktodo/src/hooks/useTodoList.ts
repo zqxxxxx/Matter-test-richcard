@@ -3,6 +3,7 @@ import * as api from '../api/todoApi';
 import type { Matter, MatterListParams, MatterStatus } from '../bridge/types';
 import { Toast } from '../utils/toast';
 import { t } from '@octo/base';
+import { canQuickToggleStatus, nextQuickToggleStatus } from '../utils/matterStatus';
 
 export interface UseMatterListOptions {
   initialFilters?: MatterListParams;
@@ -104,8 +105,8 @@ export function useMatterList({
   }, [load]);
 
   const toggleStatus = useCallback(async (matterId: string, currentStatus: MatterStatus) => {
-    if (currentStatus === 'archived') return; // archived cannot be toggled directly
-    const newStatus: MatterStatus = currentStatus === 'open' ? 'done' : 'open';
+    if (!canQuickToggleStatus(currentStatus)) return;
+    const newStatus = nextQuickToggleStatus(currentStatus);
     try {
       await api.transitionMatter(matterId, newStatus);
       setMatters((prev) =>

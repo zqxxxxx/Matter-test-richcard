@@ -192,6 +192,7 @@ export class WKRemoteConfig {
   revokeSecond: number = 2 * 60; // 撤回时间
   threadOn: boolean = false; // 子区功能开关，默认关闭
   disableUserCreateSpace: boolean = false; // 是否关闭普通用户创建 Space 入口
+  summaryEnabled: boolean = false; // 智能总结依赖独立服务，默认不展示入口
   /**
    * 是否关闭 Web 登录页的前端临时迁移提示。
    *
@@ -298,6 +299,7 @@ export class WKRemoteConfig {
       const previousDisableUserCreateSpace = this.disableUserCreateSpace;
       const previousSuppressLoginMigrationNotice =
         this.suppressLoginMigrationNotice;
+      const previousSummaryEnabled = this.summaryEnabled;
       this.requestSuccess = true;
       this.revokeSecond = result["revoke_second"];
       this.threadOn = !!result["thread_on"];
@@ -307,13 +309,15 @@ export class WKRemoteConfig {
       this.suppressLoginMigrationNotice = parseRemoteBool(
         result["suppress_login_migration_notice"]
       );
+      this.summaryEnabled = parseRemoteBool(result["summary_enabled"]);
       this.oidcProviders = parseOidcProviders(result["oidc_providers"]);
       // 仅首次成功通知, 后续重新拉取(重连/手动刷新)不重复打扰订阅方。
       if (!wasSuccessful) this.notifyListeners();
       if (
         previousDisableUserCreateSpace !== this.disableUserCreateSpace ||
         previousSuppressLoginMigrationNotice !==
-          this.suppressLoginMigrationNotice
+          this.suppressLoginMigrationNotice ||
+        previousSummaryEnabled !== this.summaryEnabled
       ) {
         this.notifyConfigChangeListeners();
       }
@@ -857,9 +861,18 @@ export default class WKApp extends ProviderListener {
   }
 
   startMain() {
+    const isLocalMockLogin =
+      import.meta.env.DEV &&
+      WKApp.loginInfo.token === "mock-token" &&
+      ["localhost", "127.0.0.1"].includes(window.location.hostname);
+
     this.connectIM();
     WKApp.dataSource.contactsSync(); // 同步通讯录
     ProhibitwordsService.shared.sync(); // 同步敏感词
+
+    if (isLocalMockLogin) {
+      return;
+    }
 
     WKApp.apiClient
       .get(`/user/devices/${WKApp.shared.deviceId}`)
@@ -867,6 +880,12 @@ export default class WKApp extends ProviderListener {
         if (res.id) {
           WKSDK.shared().config.clientMsgDeviceId = res.id;
         }
+      })
+      .catch((error) => {
+        console.warn(
+          "Failed to fetch current device, continue without clientMsgDeviceId",
+          error
+        );
       });
   }
 

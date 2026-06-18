@@ -21,6 +21,18 @@ paths:
       responses:
         "200":
           description: Updated document state
+  /v1/documents/spaces/{space_id}/bind-conversation:
+    post:
+      summary: Bind a source conversation to a document space
+      parameters:
+        - name: space_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Updated document state
   /v1/documents/{asset_id}/preview:
     post:
       summary: Mark a document asset as previewed

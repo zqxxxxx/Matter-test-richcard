@@ -4,6 +4,7 @@ import { Channel, ChannelTypePerson } from 'wukongimjssdk';
 import type { Matter } from '../../bridge/types';
 import WKAvatar from '@octo/base/src/Components/WKAvatar';
 import { replaceMentions } from '../../utils/mention';
+import { getMatterStatusMeta } from '../../utils/matterStatus';
 import './index.css';
 
 export interface MatterCardProps {
@@ -24,16 +25,11 @@ interface StatusTagInfo {
 }
 
 function getStatusTag(matter: Matter): StatusTagInfo {
-  switch (matter.status) {
-    case 'open':
-      return { labelKey: 'todo.status.open', colorClass: 'wk-matter-card__tag--blue' };
-    case 'done':
-      return { labelKey: 'todo.status.done', colorClass: 'wk-matter-card__tag--green' };
-    case 'archived':
-      return { labelKey: 'todo.status.archived', colorClass: 'wk-matter-card__tag--gray' };
-    default:
-      return { labelKey: 'todo.status.open', colorClass: 'wk-matter-card__tag--blue' };
-  }
+  const meta = getMatterStatusMeta(matter.status);
+  return {
+    labelKey: meta.labelKey,
+    colorClass: `wk-matter-card__tag--${meta.tone}`,
+  };
 }
 
 // ─── 格式化 deadline 为 M/D ─────────────────────────────────
@@ -109,7 +105,7 @@ export default function MatterCard({
       </div>
 
       {/* 第二行：事项标题 */}
-      <div className={`wk-matter-card__title${matter.status === 'done' ? ' wk-matter-card__title--done' : matter.status === 'archived' ? ' wk-matter-card__title--archived' : ''}`}>
+      <div className={`wk-matter-card__title${matter.status === 'done' ? ' wk-matter-card__title--done' : matter.status === 'archived' || matter.status === 'cancelled' ? ' wk-matter-card__title--archived' : ''}`}>
         {replaceMentions(matter.title)}
       </div>
 

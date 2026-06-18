@@ -6,19 +6,22 @@ import commonjs from "vite-plugin-commonjs";
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "VITE_");
   const apiUrl = env.VITE_API_URL;
+  const isDevelopment = mode === "development";
 
   // 提取 origin
   let apiOrigin: string;
   if (!apiUrl) {
-    // 未配置时打印警告，fallback 到本地（proxy 将指向本地，请求会失败，但 dev server 可以正常启动）
-    console.warn(
-      "[vite] ⚠️  VITE_API_URL is not set. API requests will fail. Please add it to apps/web/.env.local, e.g.: VITE_API_URL=https://api.example.com"
-    );
-    apiOrigin = "http://localhost:8080";
+    // Web 生产包运行时使用同源 /api/v1/，这里的 fallback 只影响 Vite dev proxy。
+    apiOrigin = "http://localhost:8090";
+    if (isDevelopment) {
+      console.warn(
+        "[vite] VITE_API_URL is not set. Dev proxy defaults to octo-server at http://localhost:8090. Set VITE_API_URL if your API gateway uses another origin."
+      );
+    }
   } else {
     try {
       apiOrigin = new URL(apiUrl).origin;
-      if (mode === "development") {
+      if (isDevelopment) {
         console.log(`[vite] ✅ API proxy configured: /api/* -> ${apiOrigin}/*`);
       }
     } catch {
@@ -120,14 +123,18 @@ export default defineConfig(({ mode }) => {
           secure: false,
           rewrite: (path: string) => path.replace(/^\/summary/, ""),
         },
-        // Matters service API — must be before the general /api/ rule
-        // When target is the main gateway (nginx), no rewrite needed — nginx routes /matter/* to todos service.
-        // When target is todos service directly (e.g. localhost:3000), set VITE_MATTER_API_URL and add rewrite.
+        // Matters service API — must be before the general /api/ rule.
+        // When target is the main gateway (VITE_API_URL is set), keep /matter/*;
+        // when using the local dev fallback or a direct Matter URL, strip /matter.
         "/matter/api/v1": {
-          target: env.VITE_MATTER_API_URL || env.VITE_TODO_API_URL || apiOrigin,
+          target:
+            env.VITE_MATTER_API_URL ||
+            env.VITE_TODO_API_URL ||
+            (apiUrl ? apiOrigin : "http://localhost:8080"),
           changeOrigin: true,
           secure: false,
-          rewrite: env.VITE_MATTER_API_URL
+          rewrite:
+            env.VITE_MATTER_API_URL || env.VITE_TODO_API_URL || !apiUrl
             ? (path: string) => path.replace(/^\/matter/, "")
             : undefined,
         },
@@ -135,6 +142,7 @@ export default defineConfig(({ mode }) => {
           target: apiOrigin,
           changeOrigin: true,
           secure: false,
+          rewrite: (path: string) => path.replace(/^\/api/, ""),
         },
         // OIDC SSO endpoints (backend mounts these at /v1/ directly, no /api prefix)
         "/v1/": {

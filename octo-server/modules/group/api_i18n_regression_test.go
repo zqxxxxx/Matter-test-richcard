@@ -299,3 +299,12 @@ func TestGroupAvatarUpload_PostCommitNotifyFailureRespondsOK(t *testing.T) {
 	assert.Contains(t, w.Body.String(), `"status":200`)
 	assert.NotEmpty(t, mockFS.uploadedPath)
 }
+
+func TestGroupAvatarGet_DefaultGroupAvatarIsInlinePNG(t *testing.T) {
+	body, contentType, err := renderDefaultGroupAvatar("产品方案讨论群", "g-default-avatar")
+
+	assert.NoError(t, err)
+	assert.Equal(t, "image/png", contentType)
+	assert.Greater(t, len(body), 8)
+	assert.Equal(t, []byte{0x89, 0x50, 0x4e, 0x47}, body[:4], "body should be a PNG")
+}

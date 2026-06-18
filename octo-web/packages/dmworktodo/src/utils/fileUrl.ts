@@ -1,5 +1,39 @@
 import { WKApp, isSafeUrl } from "@octo/base";
 
+const STORAGE_OBJECT_PREFIXES = new Set([
+  "chat",
+  "common",
+  "group",
+  "organization",
+  "sticker",
+  "user",
+  "voice",
+]);
+
+export function isStorageObjectPath(rawUrl: string | undefined): rawUrl is string {
+  if (!rawUrl) return false;
+  const trimmed = rawUrl.trim();
+  if (!trimmed || trimmed.startsWith("/") || /^[a-z][a-z0-9+.-]*:/i.test(trimmed)) {
+    return false;
+  }
+  const [prefix, rest] = trimmed.split("/", 2);
+  return Boolean(rest && STORAGE_OBJECT_PREFIXES.has(prefix));
+}
+
+export function resolveSafeHttpUrl(rawUrl: string | undefined): string | null {
+  if (!rawUrl) return null;
+  if (isStorageObjectPath(rawUrl)) return null;
+  let url: URL;
+  try {
+    url = new URL(rawUrl, window.location.href);
+  } catch {
+    return null;
+  }
+  const href = url.href;
+  if (!href.startsWith("http")) return null;
+  return isSafeUrl(href) ? href : null;
+}
+
 /**
  * Resolve a raw file_url and validate its protocol.
  *

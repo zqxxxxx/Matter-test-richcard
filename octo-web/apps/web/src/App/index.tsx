@@ -14,6 +14,13 @@ import { Toast } from '@douyinfe/semi-ui';
 
 let _summaryBadgeCount = 0;
 let _badgeListenerSetup = false;
+let _menusRegistered = false;
+let _remoteConfigListenerSetup = false;
+
+function normalizeInitialRoutePath(pathname: string) {
+  if (pathname === "/documents/workspace") return "/documents";
+  return pathname || "/";
+}
 
 /**
  * 全局 ?verified=1 处理：CAS 实名认证完成后 verify-service 会 302 回
@@ -54,6 +61,8 @@ function App() {
 }
 
 async function registerMenus() {
+  if (_menusRegistered) return;
+  _menusRegistered = true;
 
   WKSDK.shared().conversationManager.addConversationListener(() => {
     WKApp.menus.refresh()
@@ -70,6 +79,13 @@ async function registerMenus() {
     _badgeListenerSetup = true;
     WKApp.mittBus.on("summary-badge-update" as any, (payload: { count: number }) => {
       _summaryBadgeCount = payload?.count ?? 0;
+      WKApp.menus.refresh();
+    });
+  }
+
+  if (!_remoteConfigListenerSetup) {
+    _remoteConfigListenerSetup = true;
+    WKApp.remoteConfig.addConfigChangeListener(() => {
       WKApp.menus.refresh();
     });
   }
@@ -138,6 +154,7 @@ async function registerMenus() {
   }, 4500)
 
   WKApp.menus.register("summary", (_context) => {
+    if (!WKApp.remoteConfig.summaryEnabled) return undefined as unknown as Menus;
     const m = new Menus("summary", "/summary", t("app.nav.summary"), <SummaryIcon />, <SummaryIcon />)
     if (_summaryBadgeCount > 0) {
       m.badge = _summaryBadgeCount;
@@ -167,6 +184,8 @@ async function registerMenus() {
   WKApp.route.register("/documents/workspace", () => {
     return <DocumentsWorkspace></DocumentsWorkspace>
   })
+
+  WKApp.route.currentPath = normalizeInitialRoutePath(window.location.pathname);
 
 }
 

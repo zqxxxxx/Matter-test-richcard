@@ -39,6 +39,18 @@ type DocumentSpaceModel struct {
 	dbbase.BaseModel
 }
 
+type DocumentSpaceBindingModel struct {
+	BindingID         string
+	DocumentSpaceID   string
+	SourceChannelID   string
+	SourceChannelType uint8
+	SourceName        string
+	CreatedBy         string
+	TenantSpaceID     string
+	Status            int
+	dbbase.BaseModel
+}
+
 type DocumentAssetModel struct {
 	AssetID           string
 	Name              string
@@ -82,6 +94,7 @@ type DocumentAssetResp struct {
 	Kind              string   `json:"kind"`
 	Extension         string   `json:"extension"`
 	Size              int64    `json:"size"`
+	StoragePath       string   `json:"storagePath"`
 	Owner             string   `json:"owner"`
 	Uploader          string   `json:"uploader"`
 	SourceName        string   `json:"sourceName"`
@@ -147,6 +160,13 @@ type ArchiveReq struct {
 	SourceName        string `json:"source_name"`
 	UploaderUID       string `json:"uploader_uid"`
 	UploaderName      string `json:"uploader_name"`
+}
+
+type BindConversationReq struct {
+	DocumentSpaceID   string `json:"document_space_id"`
+	SourceChannelID   string `json:"source_channel_id"`
+	SourceChannelType uint8  `json:"source_channel_type"`
+	SourceName        string `json:"source_name"`
 }
 
 func documentKind(extension string) string {

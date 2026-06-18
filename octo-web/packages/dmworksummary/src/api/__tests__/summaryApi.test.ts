@@ -75,6 +75,14 @@ describe('summaryApi', () => {
 
             expect(result).toEqual([]);
         });
+
+        it('returns empty array when summary service is not deployed', async () => {
+            mockGet.mockRejectedValue({ response: { status: 404 } });
+
+            const result = await getTopicTemplates();
+
+            expect(result).toEqual([]);
+        });
     });
 
     describe('getTemplates', () => {
@@ -99,6 +107,24 @@ describe('summaryApi', () => {
             const result = await getTemplates();
 
             expect(result).toEqual([]);
+        });
+
+        it('returns empty array when summary service is not deployed', async () => {
+            mockGet.mockRejectedValue({ response: { status: 404 } });
+
+            const result = await getTemplates();
+
+            expect(result).toEqual([]);
+        });
+    });
+
+    describe('listSummaries fallback', () => {
+        it('returns an empty page when summary service is not deployed', async () => {
+            mockGet.mockRejectedValue({ response: { status: 404 } });
+
+            const result = await listSummaries({ page: 1, page_size: 20 });
+
+            expect(result).toEqual({ items: [], total: 0, page: 1, page_size: 20 });
         });
     });
 

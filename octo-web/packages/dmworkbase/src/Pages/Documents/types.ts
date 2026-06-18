@@ -8,6 +8,7 @@ export interface DocumentAsset {
   kind: DocumentKind;
   extension: string;
   size: number;
+  storagePath: string;
   owner: string;
   uploader: string;
   sourceName: string;

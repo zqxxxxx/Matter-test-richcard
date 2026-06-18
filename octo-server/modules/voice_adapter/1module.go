@@ -17,7 +17,7 @@ func init() {
 		cfg := NewAdapterConfigFromEnv()
 
 		if cfg.SpeechServiceURL == "" {
-			log.Warn("SPEECH_SERVICE_URL is not set; voice adapter requests will fail")
+			log.Warn("SPEECH_SERVICE_URL is not set; voice adapter config API will report disabled")
 		}
 
 		adapter := NewVoiceAdapter(x, cfg)

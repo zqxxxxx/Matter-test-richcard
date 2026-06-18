@@ -200,8 +200,12 @@ export async function updateMatter(
 export async function transitionMatter(
   matterId: string,
   status: MatterStatus,
+  reason?: string,
 ): Promise<MatterDetail> {
-  return put<MatterDetail>(`/matters/${matterId}/status`, { status });
+  return put<MatterDetail>(
+    `/matters/${matterId}/status`,
+    reason ? { status, reason } : { status },
+  );
 }
 
 export async function deleteMatter(matterId: string): Promise<void> {

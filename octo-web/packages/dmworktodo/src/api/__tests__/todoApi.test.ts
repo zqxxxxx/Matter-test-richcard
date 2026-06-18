@@ -24,7 +24,13 @@ vi.mock('axios', () => {
 
 vi.mock('@octo/base', () => {
   const messages: Record<string, string> = {
+    'todo.status.backlog': '待规划',
+    'todo.status.blocked': '受阻',
+    'todo.status.cancelled': '已取消',
     'todo.status.pending': '待处理',
+    'todo.status.open': '进行中',
+    'todo.status.inProgress': '进行中',
+    'todo.status.review': '待审核',
     'todo.status.done': '已完成',
     'todo.status.archived': '已归档',
   };
@@ -124,6 +130,18 @@ describe('matterApi', () => {
         { status: 'done' },
       );
       expect(result).toEqual(mockResponse.data);
+    });
+
+    it('includes a blocking reason when provided', async () => {
+      const mockResponse = { data: { id: 't1', status: 'blocked' } };
+      mockAxios.put.mockResolvedValueOnce(mockResponse);
+
+      await matterApi.transitionMatter('t1', 'blocked', '等待客户确认');
+
+      expect(mockAxios.put).toHaveBeenCalledWith(
+        '/matter/api/v1/matters/t1/status',
+        { status: 'blocked', reason: '等待客户确认' },
+      );
     });
   });
 
@@ -304,15 +322,19 @@ describe('matterApi', () => {
 
       const openEl = MatterStatusBadge({ status: 'open' });
       expect(openEl.props.children).toBe('待处理');
-      expect(openEl.props.className).toContain('wk-matter-status-badge--open');
+      expect(openEl.props.className).toContain('wk-matter-status-badge--blue');
+
+      const reviewEl = MatterStatusBadge({ status: 'review' });
+      expect(reviewEl.props.children).toBe('待审核');
+      expect(reviewEl.props.className).toContain('wk-matter-status-badge--purple');
 
       const doneEl = MatterStatusBadge({ status: 'done' });
       expect(doneEl.props.children).toBe('已完成');
-      expect(doneEl.props.className).toContain('wk-matter-status-badge--done');
+      expect(doneEl.props.className).toContain('wk-matter-status-badge--green');
 
       const archivedEl = MatterStatusBadge({ status: 'archived' });
       expect(archivedEl.props.children).toBe('已归档');
-      expect(archivedEl.props.className).toContain('wk-matter-status-badge--archived');
+      expect(archivedEl.props.className).toContain('wk-matter-status-badge--gray');
     });
   });
 });

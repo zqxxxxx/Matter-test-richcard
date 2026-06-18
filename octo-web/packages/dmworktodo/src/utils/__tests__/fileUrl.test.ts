@@ -1,5 +1,9 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { resolveAndGuardUrl } from "../fileUrl";
+import {
+  isStorageObjectPath,
+  resolveAndGuardUrl,
+  resolveSafeHttpUrl,
+} from "../fileUrl";
 import { WKApp } from "@octo/base";
 
 // 保存原始 getFileURL 以便每个 case 还原
@@ -96,5 +100,36 @@ describe("resolveAndGuardUrl", () => {
     const result = resolveAndGuardUrl("ftp://example.com/a");
     expect(result?.startsWith("https://example.com/")).toBe(true);
     expect(result?.startsWith("ftp:")).toBe(false);
+  });
+});
+
+describe("isStorageObjectPath", () => {
+  it("recognizes octo object-storage keys that must be presigned", () => {
+    expect(isStorageObjectPath("common/documents/demo/report.pdf")).toBe(true);
+    expect(isStorageObjectPath("chat/2026/06/report.pdf")).toBe(true);
+    expect(isStorageObjectPath("group/26/avatar.png")).toBe(true);
+  });
+
+  it("does not treat ordinary URLs or frontend-relative paths as storage keys", () => {
+    expect(isStorageObjectPath("https://cdn.example.com/report.pdf")).toBe(false);
+    expect(isStorageObjectPath("http://cdn.example.com/report.pdf")).toBe(false);
+    expect(isStorageObjectPath("/oss/storage/foo.pdf")).toBe(false);
+    expect(isStorageObjectPath("files/bar.png")).toBe(false);
+    expect(isStorageObjectPath("javascript:alert(1)")).toBe(false);
+  });
+});
+
+describe("resolveSafeHttpUrl", () => {
+  it("accepts absolute http(s) urls returned by the file signing API", () => {
+    expect(resolveSafeHttpUrl("http://127.0.0.1:8090/v1/file/local?sign=abc")).toBe(
+      "http://127.0.0.1:8090/v1/file/local?sign=abc",
+    );
+    expect(resolveSafeHttpUrl("https://cdn.example.com/file.pdf?sign=abc")).toBe(
+      "https://cdn.example.com/file.pdf?sign=abc",
+    );
+  });
+
+  it("rejects raw storage keys when signing fails", () => {
+    expect(resolveSafeHttpUrl("common/documents/demo/report.pdf")).toBeNull();
   });
 });

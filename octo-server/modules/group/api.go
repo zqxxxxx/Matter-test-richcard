@@ -399,6 +399,22 @@ func (g *Group) avatarGet(c *wkhttp.Context) {
 	if groupInfo != nil {
 		avatarVersion = groupInfo.AvatarVersion
 	}
+	if groupInfo == nil {
+		c.Writer.WriteHeader(http.StatusNotFound)
+		return
+	}
+	if groupInfo.IsUploadAvatar == 0 && avatarVersion <= 0 {
+		imageData, contentType, genErr := renderDefaultGroupAvatar(groupInfo.Name, groupNo)
+		if genErr != nil {
+			g.Error("生成默认群头像失败", zap.String("group_no", groupNo), zap.Error(genErr))
+			c.Writer.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		c.Header("Content-Disposition", "inline; filename=avatar.png")
+		c.Header("Cache-Control", "public, max-age=300, must-revalidate")
+		c.Data(http.StatusOK, contentType, imageData)
+		return
+	}
 	path := g.ctx.GetConfig().GetGroupAvatarFilePath(groupNo, avatarVersion)
 	downloadUrl, err := g.fileService.DownloadURL(path, "")
 	if err != nil {

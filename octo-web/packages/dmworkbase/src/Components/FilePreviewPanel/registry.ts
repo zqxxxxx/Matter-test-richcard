@@ -123,17 +123,15 @@ class FileRendererRegistry {
       needsFetch: true,
     });
 
-    // CSV 表格（仅支持 CSV，不支持 xlsx/xls 等 Office 格式）
-    // 需求 5.1 明确：.docx / .xlsx / .pptx 不支持
+    // 表格文件。xlsx/xls 由 xlsx 库在浏览器内解析，CSV 按同一表格渲染器展示。
     this.register({
       type: "excel",
-      extensions: ["csv"],
+      extensions: ["xlsx", "xls", "xlsb", "xlsm", "csv"],
       renderer: ExcelRenderer,
       needsFetch: true,
     });
 
     // 注意：以下类型明确不支持，走 FallbackRenderer：
-    // - .xlsx, .xls, .xlsb, .xlsm (Excel)
     // - .pptx, .ppt (PowerPoint)
     // - .docx, .doc (Word)
   }

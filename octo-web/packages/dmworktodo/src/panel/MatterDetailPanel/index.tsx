@@ -1,5 +1,5 @@
 ﻿import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
-import { DatePicker } from "@douyinfe/semi-ui";
+import { DatePicker, Modal, TextArea } from "@douyinfe/semi-ui";
 import VoiceInputButton from "@octo/base/src/Components/VoiceInputButton";
 import type {
   MatterDetail,
@@ -31,7 +31,17 @@ import { Toast } from "../../utils/toast";
 import { toParentGroupNo, CHANNEL_TYPE_COMMUNITY_TOPIC } from "../../utils/channelId";
 import { buildLinkableChannels } from "../../utils/buildLinkableChannels";
 import type { GroupSaveListRow } from "../../utils/buildLinkableChannels";
-import { resolveAndGuardUrl } from "../../utils/fileUrl";
+import {
+  isStorageObjectPath,
+  resolveAndGuardUrl,
+  resolveSafeHttpUrl,
+} from "../../utils/fileUrl";
+import {
+  getMatterStatusDropdownOptions,
+  getMatterStatusMeta,
+} from "../../utils/matterStatus";
+import { getSystemActorLabel, isSystemActor } from "../../utils/activityActor";
+import { canPreviewMatterOutput } from "../../utils/outputPreview";
 import UserName from "../../ui/UserName";
 import LinkChannelsModal from "../../ui/LinkChannelsModal";
 import type {
@@ -45,12 +55,22 @@ import WKAvatar from "@octo/base/src/Components/WKAvatar";
 import WKSDK, { Channel, ChannelTypeGroup, ChannelTypePerson } from "wukongimjssdk";
 import type { ChannelInfoListener } from "wukongimjssdk";
 import { WKApp, i18n, useI18n, t as translate } from "@octo/base";
-import { downloadFile } from "@octo/base/src/Utils/download";
+import {
+  downloadFile,
+  getPresignedDownloadUrl,
+  getPresignedPreviewUrl,
+} from "@octo/base/src/Utils/download";
 import {
   getFileIcon,
   formatFileSize,
 } from "@octo/base/src/Components/MessageInput/AttachmentNode";
-import { getExtension } from "@octo/base/src/Components/FilePreviewPanel/types";
+import FilePreviewPanel, {
+  canPreviewInPanel,
+} from "@octo/base/src/Components/FilePreviewPanel";
+import {
+  getExtension,
+  type FilePreviewInfo,
+} from "@octo/base/src/Components/FilePreviewPanel/types";
 import { Eye, Download as DownloadIcon } from "lucide-react";
 import { ShowConversationOptions } from "@octo/base/src/EndpointCommon";
 import { useChannelName } from "../../hooks/useChannelName";
@@ -71,6 +91,36 @@ export interface MatterDetailPanelProps {
   showClose?: boolean;
 }
 
+async function resolveMatterFileUrl(
+  rawUrl: string | undefined,
+  filename: string,
+  disposition: "inline" | "attachment",
+) {
+  if (!rawUrl) return null;
+  if (isStorageObjectPath(rawUrl)) {
+    const signedUrl =
+      disposition === "inline"
+        ? await getPresignedPreviewUrl(rawUrl, filename)
+        : await getPresignedDownloadUrl(rawUrl, filename);
+    return resolveSafeHttpUrl(signedUrl);
+  }
+  return resolveAndGuardUrl(rawUrl);
+}
+
+function MatterFilePreviewRoute({
+  file,
+  onClose,
+}: {
+  file: FilePreviewInfo;
+  onClose: () => void;
+}) {
+  return (
+    <div className="wk-mp-file-preview-route">
+      <FilePreviewPanel file={file} onClose={onClose} />
+    </div>
+  );
+}
+
 export default function MatterDetailPanel({
   channelId,
   channelType: _channelType,
@@ -85,6 +135,9 @@ export default function MatterDetailPanel({
   const [activeTab, setActiveTab] = useState<
     "channels" | "outputs" | "changelog"
   >("channels");
+  const [blockedReasonVisible, setBlockedReasonVisible] = useState(false);
+  const [blockedReason, setBlockedReason] = useState("");
+  const [blockedReasonSubmitting, setBlockedReasonSubmitting] = useState(false);
 
   // Timeline
   const [timeline, setTimeline] = useState<TimelineEntry[]>([]);
@@ -348,50 +401,82 @@ export default function MatterDetailPanel({
     loadOutputs(undefined, outputsQuery);
   }, [loadOutputs, outputsQuery]);
 
-  // 文件预览: 只在事项详情嵌入会话侧边栏时启用 (showClose === true)。
-  // 触发同一个 mittBus 事件 "wk:file-preview", Chat 页面的 _onFilePreview
-  // 处理器接管, 关闭其它互斥面板并打开文件预览壳子。
+  // 文件预览:
+  // - 嵌入会话侧边栏时保留原来的 wk:file-preview 事件, 由 Chat 页接管互斥面板。
+  // - 独立事项页没有 Chat 监听者, 直接把共享 FilePreviewPanel push 到右侧路由栈,
+  //   关闭后 pop 回当前事项详情, 保留用户所在 tab / 滚动位置。
   //
   // 安全: 跟 Messages/File 的 handlePreview 一致, 通过 resolveAndGuardUrl
   // 一步走完 (getFileURL 解析相对路径 → isSafeUrl 拒绝危险协议)。后端
   // outputs 接口返回的 file_url 不可信, 必须验证。
   //
+  const openMatterFilePreview = useCallback(
+    (file: FilePreviewInfo & {
+      sourceChannelId?: string;
+      sourceChannelType?: number;
+    }) => {
+      if (showClose) {
+        WKApp.mittBus.emit("wk:file-preview", {
+          ...file,
+          // 让 Chat 页面在关闭/返回预览时回到本事项详情, 而不是退化到子区列表。
+          originMatterId: matter?.id,
+        });
+        return;
+      }
+
+      WKApp.routeRight.push(
+        <MatterFilePreviewRoute
+          file={file}
+          onClose={() => WKApp.routeRight.pop()}
+        />,
+      );
+    },
+    [matter?.id, showClose],
+  );
+
   // sourceChannelId: 后端返回的 MatterOutput.source_channel_id 已经是 IM
   // channel_id 本身 (跟 timeline_entries 同源), 直接透传即可。还需要从
   // matter.channels 里反查同 channel 的 channel_type 凑成对, 传给 mittBus
   // 让下游 thread-handoff 路径判断正确。找不到对应行 (channel 已解关联 /
   // 数据漂移) 时省略 sourceChannelType, 让 _onFilePreview 走默认分支。
   const handleOutputPreview = useCallback(
-    (item: MatterOutput) => {
-      const url = resolveAndGuardUrl(item.file_url);
+    async (item: MatterOutput) => {
+      const name = item.file_name || t("base.conversation.file.unknown");
+      const url = await resolveMatterFileUrl(item.file_url, name, "inline");
       if (!url) return;
-      const ext = getExtension("", item.file_name);
+      const ext = getExtension("", name);
       const matchedCh = (matter?.channels || []).find(
         (ch) => ch.channel_id === item.source_channel_id,
       );
-      WKApp.mittBus.emit("wk:file-preview", {
+      openMatterFilePreview({
         url,
-        name: item.file_name || t("base.conversation.file.unknown"),
+        name,
         extension: ext,
         size: item.file_size,
         sourceChannelId: item.source_channel_id,
         sourceChannelType: matchedCh?.channel_type,
-        // 让 Chat 页面在关闭/返回预览时回到本事项详情, 而不是退化到子区列表。
-        originMatterId: matter?.id,
       });
     },
-    [matter?.id, matter?.channels, t],
+    [matter?.channels, openMatterFilePreview, t],
   );
 
   // 文件下载: 跟 Messages/File 的 handleDownload 一致的两步,
   // 复用同一个 resolveAndGuardUrl helper。注入给 OutputsPanel 后,
   // 组件本身不再依赖 WKApp / dmworkbase 的 download utils, 保持
   // ui/ 层纯展示 (review #97 Jerry-Xin nit, yujiawei P2 #3)。
-  const handleOutputDownload = useCallback((item: MatterOutput) => {
-    const url = resolveAndGuardUrl(item.file_url);
-    if (!url) return;
-    void downloadFile(url, item.file_name || "file");
-  }, []);
+  const handleOutputDownload = useCallback(
+    async (item: MatterOutput) => {
+      const name = item.file_name || "file";
+      const url = await resolveMatterFileUrl(item.file_url, name, "attachment");
+      if (!url) return;
+      try {
+        await downloadFile(url, name);
+      } catch {
+        Toast.error(t("todo.toast.downloadFailed"));
+      }
+    },
+    [t],
+  );
 
   // Outputs 来源群成员关系映射定义在 useMyGroups() 调用之后 (依赖 myGroupNos),
   // 实际见下方 [[outputsChannelMembership]]。
@@ -496,6 +581,12 @@ export default function MatterDetailPanel({
   const handleStatusChange = useCallback(
     async (newStatus: MatterStatus) => {
       if (!matter) return;
+      if (newStatus === matter.status) return;
+      if (newStatus === "blocked") {
+        setBlockedReason("");
+        setBlockedReasonVisible(true);
+        return;
+      }
       const oldStatus = matter.status;
       setMatter((prev) => (prev ? { ...prev, status: newStatus } : prev));
       try {
@@ -513,6 +604,29 @@ export default function MatterDetailPanel({
     },
     [matter, applyMatterUpdate, t],
   );
+
+  const submitBlockedReason = useCallback(async () => {
+    if (!matter) return;
+    const reason = blockedReason.trim();
+    if (!reason) {
+      Toast.warning(t("todo.status.blockReasonRequired"));
+      return;
+    }
+    const oldStatus = matter.status;
+    setBlockedReasonSubmitting(true);
+    setMatter((prev) => (prev ? { ...prev, status: "blocked" } : prev));
+    try {
+      const updated = await transitionMatter(matter.id, "blocked", reason);
+      applyMatterUpdate(updated);
+      setBlockedReasonVisible(false);
+      setBlockedReason("");
+    } catch (err: any) {
+      setMatter((prev) => (prev ? { ...prev, status: oldStatus } : prev));
+      Toast.error(err?.message || t("todo.toast.statusChangeFailed"));
+    } finally {
+      setBlockedReasonSubmitting(false);
+    }
+  }, [matter, blockedReason, applyMatterUpdate, t]);
 
   const handleDeleteMatter = useCallback(async () => {
     if (!matter) return;
@@ -600,9 +714,8 @@ export default function MatterDetailPanel({
   //   - 单测可直接对 helper 加 case
   //   - 跟 OutputsPanel 这类未来用同样安全模式的调用方共享一个真源
 
-  // 预览附件: 仅在嵌入聊天侧边栏 (showClose=true) 时启用,
-  // 因为只有 Pages/Chat 监听 wk:file-preview 事件并弹 FilePreviewPanel。
-  // 独立 matter 页面不接听这个事件, 避免按钮看似可点但无反应。
+  // 预览附件: 与产出文件共用 openMatterFilePreview。
+  // 独立事项页 push 到右侧路由栈; 嵌入会话侧边栏时交给 Chat 的互斥面板处理。
   //
   // payload 与 wk:file-preview 既有形状对齐 (dmworkbase/App.tsx 定义):
   //   - sourceChannelId 用 entry.source_channel_id, 这是真实 IM channel_id
@@ -613,10 +726,10 @@ export default function MatterDetailPanel({
   //     Pages/Chat._onFilePreview 走默认分支 (不当作 thread)。这样可以避免
   //     "id 有 / type 没有" 半截信息导致下游分支判断错误。
   const handlePreviewAttachment = useCallback(
-    (att: TimelineAttachment, entry: TimelineEntry) => {
-      const url = resolveAndGuardUrl(att.file_url);
-      if (!url) return;
+    async (att: TimelineAttachment, entry: TimelineEntry) => {
       const name = att.file_name || t("base.conversation.file.unknown");
+      const url = await resolveMatterFileUrl(att.file_url, name, "inline");
+      if (!url) return;
       const ext = getExtension("", name);
 
       const sourceChannelId = entry.source_channel_id;
@@ -628,33 +741,32 @@ export default function MatterDetailPanel({
         sourceChannelType = matched?.channel_type;
       }
 
-      WKApp.mittBus.emit("wk:file-preview", {
+      openMatterFilePreview({
         url,
         name,
         extension: ext,
         size: att.file_size,
         sourceChannelId,
         sourceChannelType,
-        // 让 Chat 页面在关闭/返回预览时回到本事项详情, 而不是退化到子区列表。
-        originMatterId: matter?.id,
       });
     },
-    [matter, t],
+    [matter, openMatterFilePreview, t],
   );
 
   // 下载附件: 嵌入和独立模式都启用, 沿用 dmworkbase/Utils/download.downloadFile,
   // 内部已带 isSafeUrl 二次保险 + presigned cross-origin 处理。
   const handleDownloadAttachment = useCallback(
     async (att: TimelineAttachment) => {
-      const url = resolveAndGuardUrl(att.file_url);
+      const name = att.file_name || "file";
+      const url = await resolveMatterFileUrl(att.file_url, name, "attachment");
       if (!url) return;
       try {
-        await downloadFile(url, att.file_name || "file");
+        await downloadFile(url, name);
       } catch {
         Toast.error(t("todo.toast.downloadFailed"));
       }
     },
-    [],
+    [t],
   );
 
   // ── 负责人 toggle：添加或移除 assignee，成功后拉取最新 matter ──
@@ -1265,7 +1377,7 @@ export default function MatterDetailPanel({
                         });
                       }}
                       onPreviewAttachment={
-                        showClose ? handlePreviewAttachment : undefined
+                        handlePreviewAttachment
                       }
                       onDownloadAttachment={handleDownloadAttachment}
                     />
@@ -1278,10 +1390,6 @@ export default function MatterDetailPanel({
         )}
 
         {/* ── Tab: 产出文件 (outputs) ── */}
-        {/* 注: onPreview 用 showClose 作为 "嵌入会话侧边栏" 信号, 因为
-            wk:file-preview 事件目前只有 Pages/Chat 的 _onFilePreview 在监听。
-            如果以后别的宿主也想接管文件预览, 这条 gate 可能要改成显式
-            "embeddedInChatSidebar" 或类似的语义化 prop。 */}
         {activeTab === "outputs" && (
           <OutputsPanel
             outputs={outputs}
@@ -1293,7 +1401,8 @@ export default function MatterDetailPanel({
             onSearch={handleOutputsSearch}
             onRetry={handleOutputsRetry}
             renderAvatar={renderAvatar}
-            onPreview={showClose ? handleOutputPreview : undefined}
+            onPreview={handleOutputPreview}
+            canPreview={(item) => canPreviewMatterOutput(item, canPreviewInPanel)}
             onDownload={handleOutputDownload}
             getChannelMembership={getOutputChannelMembership}
             resolveChannelName={resolveOutputChannelName}
@@ -1321,6 +1430,29 @@ export default function MatterDetailPanel({
         loadChannels={loadChannelsForModal}
         onLinkChannel={handleLinkChannelSubmit}
       />
+
+      <Modal
+        visible={blockedReasonVisible}
+        title={t("todo.status.blockReasonTitle")}
+        okText={t("todo.status.blockReasonConfirm")}
+        cancelText={t("todo.action.cancel")}
+        confirmLoading={blockedReasonSubmitting}
+        onOk={submitBlockedReason}
+        onCancel={() => {
+          if (blockedReasonSubmitting) return;
+          setBlockedReasonVisible(false);
+          setBlockedReason("");
+        }}
+      >
+        <TextArea
+          value={blockedReason}
+          autosize
+          maxCount={500}
+          rows={4}
+          placeholder={t("todo.status.blockReasonPlaceholder")}
+          onChange={setBlockedReason}
+        />
+      </Modal>
 
       {/* 原消息上下文弹框 */}
       {anchor && (
@@ -1354,10 +1486,20 @@ export { MatterDetailPanel };
 // ─── StatusPicker ─────────────────────────────────────────
 
 const STATUS_OPTIONS: { value: MatterStatus; labelKey: string; cls: string }[] = [
-  { value: "open", labelKey: "todo.status.open", cls: "wk-mp-pill--active" },
+  { value: "backlog", labelKey: "todo.status.backlog", cls: "wk-mp-pill--gray" },
+  { value: "open", labelKey: "todo.status.pending", cls: "wk-mp-pill--active" },
+  { value: "in_progress", labelKey: "todo.status.inProgress", cls: "wk-mp-pill--orange" },
+  { value: "review", labelKey: "todo.status.review", cls: "wk-mp-pill--purple" },
   { value: "done", labelKey: "todo.status.done", cls: "wk-mp-pill--done" },
+  { value: "blocked", labelKey: "todo.status.blocked", cls: "wk-mp-pill--red" },
+  { value: "cancelled", labelKey: "todo.status.cancelled", cls: "wk-mp-pill--gray" },
   { value: "archived", labelKey: "todo.status.archived", cls: "wk-mp-pill--archived" },
 ];
+
+function statusToneClass(value: MatterStatus) {
+  return STATUS_OPTIONS.find((option) => option.value === value)?.cls
+    || `wk-mp-pill--${getMatterStatusMeta(value).tone}`;
+}
 
 function StatusPicker({
   status,
@@ -1384,11 +1526,20 @@ function StatusPicker({
     document.addEventListener("mousedown", c);
     return () => document.removeEventListener("mousedown", c);
   }, [open]);
-  const visibleOptions = isCreator
-    ? STATUS_OPTIONS
-    : STATUS_OPTIONS.filter((o) => o.value !== "archived");
+  const visibleOptions = getMatterStatusDropdownOptions(
+    status,
+    isCreator,
+  ).map((option) => ({
+    value: option.value,
+    labelKey: option.labelKey,
+    cls: statusToneClass(option.value),
+  }));
   const current =
-    STATUS_OPTIONS.find((o) => o.value === status) || STATUS_OPTIONS[0];
+    STATUS_OPTIONS.find((o) => o.value === status) || {
+      value: status,
+      labelKey: getMatterStatusMeta(status).labelKey,
+      cls: `wk-mp-pill--${getMatterStatusMeta(status).tone}`,
+    };
   const isArchived = status === "archived";
   const isDisabled = isArchived || !canEditStatus;
 
@@ -2355,11 +2506,20 @@ function ActivityPanel({
                   </td>
                   <td className="wk-mp-activity__td wk-mp-activity__col-actor">
                     <span className="wk-mp-activity__actor">
-                      <WKAvatar
-                        channel={new Channel(a.actor_id, ChannelTypePerson)}
-                        style={{ width: 20, height: 20 }}
-                      />
-                      <UserName uid={a.actor_id} />
+                      {isSystemActor(a.actor_id) ? (
+                        <>
+                          <span className="wk-mp-activity__system-avatar">系</span>
+                          <span>{getSystemActorLabel()}</span>
+                        </>
+                      ) : (
+                        <>
+                          <WKAvatar
+                            channel={new Channel(a.actor_id, ChannelTypePerson)}
+                            style={{ width: 20, height: 20 }}
+                          />
+                          <UserName uid={a.actor_id} />
+                        </>
+                      )}
                     </span>
                   </td>
                   <td className="wk-mp-activity__td wk-mp-activity__col-source">

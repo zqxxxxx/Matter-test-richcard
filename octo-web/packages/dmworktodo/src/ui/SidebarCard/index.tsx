@@ -1,13 +1,8 @@
 import React from "react";
 import { useI18n } from "@octo/base";
 import type { Matter } from "../../bridge/types";
+import { getMatterStatusMeta } from "../../utils/matterStatus";
 import "./index.css";
-
-const STATUS_MAP: Record<string, { labelKey: string; colorClass: string }> = {
-  open: { labelKey: "todo.status.open", colorClass: "wk-mp-sidebar-card__tag--blue" },
-  done: { labelKey: "todo.status.done", colorClass: "wk-mp-sidebar-card__tag--green" },
-  archived: { labelKey: "todo.status.archived", colorClass: "wk-mp-sidebar-card__tag--gray" },
-};
 
 function formatDdl(deadline?: string): string {
   if (!deadline) return "";
@@ -36,7 +31,11 @@ export default function SidebarCard({
   sourceChannelName,
 }: SidebarCardProps) {
   const { t } = useI18n();
-  const status = STATUS_MAP[matter.status] || STATUS_MAP.open;
+  const statusMeta = getMatterStatusMeta(matter.status);
+  const status = {
+    labelKey: statusMeta.labelKey,
+    colorClass: `wk-mp-sidebar-card__tag--${statusMeta.tone}`,
+  };
   const ddl = formatDdl(matter.deadline);
 
   return (

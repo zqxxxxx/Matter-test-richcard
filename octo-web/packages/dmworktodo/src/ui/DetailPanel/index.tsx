@@ -6,6 +6,11 @@ import type { MatterDetail, MatterComment } from '../../bridge/types';
 import UserName from '../UserName';
 import { Toast } from '../../utils/toast';
 import { replaceMentions } from '../../utils/mention';
+import {
+  canQuickToggleStatus,
+  getMatterStatusMeta,
+  nextQuickToggleStatus,
+} from '../../utils/matterStatus';
 import './index.css';
 
 // ─── Props 接口 ───────────────────────────────────────────
@@ -18,12 +23,6 @@ export interface DetailPanelProps {
 }
 
 // ─── 状态标签颜色 ─────────────────────────────────────────
-const STATUS_TAG: Record<string, { labelKey: string; cls: string }> = {
-  open: { labelKey: 'todo.status.open', cls: 'wk-matter-side-panel__header-tag--blue' },
-  done: { labelKey: 'todo.status.done', cls: 'wk-matter-side-panel__header-tag--green' },
-  archived: { labelKey: 'todo.status.archived', cls: 'wk-matter-side-panel__header-tag--gray' },
-};
-
 function formatDeadlineDisplay(deadline: string, t: (key: string, options?: any) => string): string {
   const d = new Date(deadline);
   const weekdays = [
@@ -96,9 +95,9 @@ export default function DetailPanel({ matterId, onClose, onStatusChanged, channe
   }, [isEditingTitle]);
 
   const handleToggleStatus = useCallback(async () => {
-    if (!matter || matter.status === 'archived') return;
+    if (!matter || !canQuickToggleStatus(matter.status)) return;
     const oldStatus = matter.status;
-    const newStatus = oldStatus === 'open' ? 'done' : 'open';
+    const newStatus = nextQuickToggleStatus(oldStatus);
     setMatter((prev) => prev ? { ...prev, status: newStatus } : prev);
     try {
       await api.transitionMatter(matter.id, newStatus);
@@ -140,7 +139,11 @@ export default function DetailPanel({ matterId, onClose, onStatusChanged, channe
     finally { setSubmitting(false); }
   }, [matterId, newComment, submitting, loadComments, t]);
 
-  const statusTag = matter ? (STATUS_TAG[matter.status] || STATUS_TAG.open) : STATUS_TAG.open;
+  const statusMeta = matter ? getMatterStatusMeta(matter.status) : getMatterStatusMeta('open');
+  const statusTag = {
+    labelKey: statusMeta.labelKey,
+    cls: `wk-matter-side-panel__header-tag--${statusMeta.tone}`,
+  };
 
   return (
     <div className="wk-matter-side-panel">
@@ -165,9 +168,9 @@ export default function DetailPanel({ matterId, onClose, onStatusChanged, channe
           )}
         </div>
         <div className="wk-matter-side-panel__header-actions">
-          {matter && matter.status !== 'archived' && (
-            <button type="button" className="wk-matter-side-panel__header-btn" onClick={handleToggleStatus} title={matter.status === 'open' ? t("todo.action.markDone") : t("todo.action.reopen")}>
-              {matter.status === 'open' ? (
+          {matter && canQuickToggleStatus(matter.status) && (
+            <button type="button" className="wk-matter-side-panel__header-btn" onClick={handleToggleStatus} title={matter.status === 'done' ? t("todo.action.reopen") : t("todo.action.markDone")}>
+              {matter.status !== 'done' ? (
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8l3.5 3.5L13 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
               ) : (
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2.67 8A5.33 5.33 0 018 2.67M13.33 8A5.33 5.33 0 018 13.33M8 2.67l1.33 2M8 13.33l-1.33-2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/></svg>

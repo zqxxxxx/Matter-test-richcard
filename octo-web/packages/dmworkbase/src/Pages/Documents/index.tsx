@@ -16,8 +16,18 @@ import {
 import { Button, Input, Modal, Select, Toast } from "@douyinfe/semi-ui";
 import { Channel, WKSDK } from "wukongimjssdk";
 import WKApp from "../../App";
-import { wkConfirm } from "../../Components/WKModal";
+import {
+  canPreviewInPanel,
+  fileRendererRegistry,
+  type FilePreviewInfo,
+} from "../../Components/FilePreviewPanel";
 import { formatFileSize, getFileIconInfo } from "../../Messages/File";
+import {
+  downloadFile,
+  getPresignedDownloadUrl,
+  getPresignedPreviewUrl,
+} from "../../Utils/download";
+import { canPreviewDocumentAsset } from "./preview";
 import { documentRepository } from "./service";
 import type { DocumentAsset, DocumentKind, DocumentState } from "./types";
 import "./index.css";
@@ -97,21 +107,40 @@ const sortOptions: Array<{ value: DocumentSort; label: string }> = [
 
 function useDocumentState() {
   const [state, setState] = useState<DocumentState | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const reload = async () => {
-    const next = await documentRepository.load();
-    setState(next);
-    return next;
+    setLoading(true);
+    setError(null);
+    try {
+      const next = await documentRepository.load();
+      setState(next);
+      return next;
+    } catch (err) {
+      const message = getErrorMessage(err);
+      setError(message);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
-    reload();
+    reload().catch(() => undefined);
     return documentRepository.subscribe((next) => {
       setState(next);
+      setError(null);
     });
   }, []);
 
-  return { state, setState, reload };
+  return { state, setState, reload, loading, error };
+}
+
+function getErrorMessage(error: unknown) {
+  if (error instanceof Error && error.message) return error.message;
+  if (typeof error === "string") return error;
+  return "文档接口暂不可用";
 }
 
 function getStatusText(file: DocumentAsset) {
@@ -243,7 +272,7 @@ function StatusPill({ file }: { file: DocumentAsset }) {
 }
 
 export default function DocumentsPage() {
-  const { state } = useDocumentState();
+  const { state, loading, error, reload } = useDocumentState();
   const currentUser = getCurrentUserName();
 
   return (
@@ -261,6 +290,9 @@ export default function DocumentsPage() {
           <FolderOpen size={18} />
         </button>
       </div>
+
+      {error && <DocumentError message={error} onRetry={reload} />}
+      {loading && !state && <div className="wk-docs-empty">正在加载文档</div>}
 
       <section className="wk-docs-entry-section">
         <div className="wk-docs-nav-list">
@@ -309,7 +341,7 @@ export default function DocumentsPage() {
 }
 
 export function DocumentsWorkspace() {
-  const { state, setState } = useDocumentState();
+  const { state, setState, loading, error, reload } = useDocumentState();
   const [view, setView] = useState<DocumentView>("recent");
   const [spaceName, setSpaceName] = useState("");
   const [keyword, setKeyword] = useState("");
@@ -319,10 +351,12 @@ export function DocumentsWorkspace() {
   const [sort, setSort] = useState<DocumentSort>("recent");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [archiveSpaceName, setArchiveSpaceName] = useState("");
-  const [previewFile, setPreviewFile] = useState<DocumentAsset | null>(null);
+  const [previewFile, setPreviewFile] = useState<FilePreviewInfo | null>(null);
   const [uploadVisible, setUploadVisible] = useState(false);
   const [uploadSpaceName, setUploadSpaceName] = useState("");
   const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<DocumentAsset | null>(null);
+  const [deletePending, setDeletePending] = useState(false);
   const currentUser = getCurrentUserName();
 
   const uploaderOptions = useMemo(() => {
@@ -429,18 +463,38 @@ export function DocumentsWorkspace() {
   }
 
   async function showPreview(file: DocumentAsset) {
-    if (!file.previewable) {
+    if (!canPreviewDocumentAsset(file, canPreviewInPanel)) {
       Toast.warning("该类型暂不支持在线预览，可下载后查看");
+      return;
+    }
+    if (!file.storagePath) {
+      Toast.warning("文件对象路径缺失，无法预览");
       return;
     }
     const next = await documentRepository.previewFile(file.id, currentUser);
     setState(next);
-    setPreviewFile(file);
+    const freshFile = next.files.find((item) => item.id === file.id) || file;
+    const url = await getPresignedPreviewUrl(freshFile.storagePath, freshFile.name);
+    setPreviewFile({
+      url,
+      name: freshFile.name,
+      extension: freshFile.extension,
+      size: freshFile.size,
+      sourceChannelId: freshFile.sourceChannelId,
+      sourceChannelType: freshFile.sourceChannelType,
+    });
   }
 
   async function download(file: DocumentAsset) {
+    if (!file.storagePath) {
+      Toast.warning("文件对象路径缺失，无法下载");
+      return;
+    }
     const next = await documentRepository.downloadFile(file.id, currentUser);
     setState(next);
+    const freshFile = next.files.find((item) => item.id === file.id) || file;
+    const url = await getPresignedDownloadUrl(freshFile.storagePath, freshFile.name);
+    await downloadFile(url, freshFile.name, { presignCrossOrigin: false });
     Toast.success(`已开始下载：${file.name}`);
   }
 
@@ -512,14 +566,21 @@ export function DocumentsWorkspace() {
   }
 
   function confirmDelete(file: DocumentAsset) {
-    wkConfirm({
-      title: `移到回收站「${file.name}」？`,
-      content: "文件会进入回收站，之后仍可恢复。",
-      okText: "移到回收站",
-      cancelText: "取消",
-      onOk: () =>
-        apply(documentRepository.deleteFile(file.id), "已移动到回收站"),
-    });
+    setDeleteTarget(file);
+  }
+
+  async function submitDelete() {
+    if (!deleteTarget || deletePending) return;
+    setDeletePending(true);
+    try {
+      await apply(
+        documentRepository.deleteFile(deleteTarget.id),
+        "已移动到回收站"
+      );
+      setDeleteTarget(null);
+    } finally {
+      setDeletePending(false);
+    }
   }
 
   async function restoreSelectedFile(file: DocumentAsset) {
@@ -551,6 +612,9 @@ export function DocumentsWorkspace() {
           </Button>
         </div>
       </header>
+
+      {error && <DocumentError message={error} onRetry={reload} />}
+      {loading && !state && <div className="wk-docs-empty">正在加载文档</div>}
 
       <div className="wk-docs-main">
         <section className="wk-docs-list-panel">
@@ -674,12 +738,18 @@ export function DocumentsWorkspace() {
 
               {selectedFile.status !== "deleted" && (
                 <div className="wk-docs-actions">
-                  <Button
-                    icon={<Eye size={15} />}
-                    onClick={() => showPreview(selectedFile)}
-                  >
-                    预览
-                  </Button>
+                  {canPreviewDocumentAsset(selectedFile, canPreviewInPanel) ? (
+                    <Button
+                      icon={<Eye size={15} />}
+                      onClick={() => showPreview(selectedFile)}
+                    >
+                      预览
+                    </Button>
+                  ) : (
+                    <Button icon={<Eye size={15} />} disabled>
+                      暂不支持预览
+                    </Button>
+                  )}
                   <Button
                     icon={<Download size={15} />}
                     onClick={() => download(selectedFile)}
@@ -786,20 +856,13 @@ export function DocumentsWorkspace() {
         title="文件预览"
         visible={Boolean(previewFile)}
         footer={null}
-        onCancel={() => setPreviewFile(null)}
+        onCancel={() => {
+          setPreviewFile(null);
+        }}
+        width="78vw"
+        className="wk-docs-preview-modal"
       >
-        {previewFile && (
-          <div className="wk-docs-preview">
-            <FileBadge file={previewFile} />
-            <div>
-              <h3>{previewFile.name}</h3>
-              <p>
-                {previewFile.sourceName} · {formatFileSize(previewFile.size)}
-              </p>
-              <span>预览内容暂不可用，可下载后查看完整文件。</span>
-            </div>
-          </div>
-        )}
+        {previewFile && <DocumentPreviewContent file={previewFile} />}
       </Modal>
       <Modal
         title="上传到空间"
@@ -843,6 +906,49 @@ export function DocumentsWorkspace() {
           )}
         </div>
       </Modal>
+      <Modal
+        title={deleteTarget ? `移到回收站「${deleteTarget.name}」？` : "移到回收站"}
+        visible={Boolean(deleteTarget)}
+        okText="移到回收站"
+        cancelText="取消"
+        confirmLoading={deletePending}
+        onOk={submitDelete}
+        onCancel={() => {
+          if (!deletePending) setDeleteTarget(null);
+        }}
+      >
+        <p className="wk-docs-confirm-text">文件会进入回收站，之后仍可恢复。</p>
+      </Modal>
+    </div>
+  );
+}
+
+function DocumentPreviewContent({ file }: { file: FilePreviewInfo }) {
+  const { renderer: Renderer } = fileRendererRegistry.getRenderer(
+    file.extension,
+    file.name
+  );
+  return (
+    <div className="wk-docs-preview">
+      <Renderer file={file} />
+    </div>
+  );
+}
+
+function DocumentError({
+  message,
+  onRetry,
+}: {
+  message: string;
+  onRetry: () => Promise<DocumentState>;
+}) {
+  return (
+    <div className="wk-docs-error" role="alert">
+      <div>
+        <strong>文档数据加载失败</strong>
+        <span>{message}</span>
+      </div>
+      <Button onClick={() => onRetry().catch(() => undefined)}>重试</Button>
     </div>
   );
 }

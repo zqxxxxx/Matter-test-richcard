@@ -13,12 +13,15 @@ type documentRepository interface {
 	ListSpaces(uid, tenantSpaceID string) ([]*DocumentSpaceModel, error)
 	EnsureDefaultSpace(uid, tenantSpaceID string) (*DocumentSpaceModel, error)
 	GetSpace(spaceID, uid, tenantSpaceID string) (*DocumentSpaceModel, error)
+	ListSpaceBindings(uid, tenantSpaceID string) ([]*DocumentSpaceBindingModel, error)
+	SaveSpaceBinding(binding *DocumentSpaceBindingModel) error
 	ListAssets(uid, tenantSpaceID string) ([]*DocumentAssetModel, error)
 	GetAsset(assetID, uid, tenantSpaceID string) (*DocumentAssetModel, error)
 	SaveAsset(asset *DocumentAssetModel) error
 	UpdateAsset(asset *DocumentAssetModel) error
 	AddEvent(event *DocumentEventModel) error
 	ListEvents(uid, tenantSpaceID string, limit int) ([]*DocumentEventModel, error)
+	CanAccessSource(uid, tenantSpaceID, sourceChannelID string, sourceChannelType uint8) (bool, error)
 }
 
 type DocumentService struct {
@@ -145,6 +148,40 @@ func (s *DocumentService) Archive(uid, tenantSpaceID string, req ArchiveReq) (*D
 	return s.buildState(uid, tenantSpaceID)
 }
 
+func (s *DocumentService) BindConversation(uid, tenantSpaceID string, req BindConversationReq) (*DocumentStateResp, error) {
+	space, err := s.resolveSpace(uid, tenantSpaceID, req.DocumentSpaceID)
+	if err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(req.SourceChannelID) == "" {
+		return nil, errors.New("来源会话不能为空")
+	}
+	if req.SourceChannelType == 0 {
+		return nil, errors.New("来源会话类型不能为空")
+	}
+	sourceName := fallbackString(req.SourceName, req.SourceChannelID)
+	now := nowDBTime()
+	binding := &DocumentSpaceBindingModel{
+		BindingID:         "BIND-" + util.GenerUUID(),
+		DocumentSpaceID:   space.SpaceID,
+		SourceChannelID:   req.SourceChannelID,
+		SourceChannelType: req.SourceChannelType,
+		SourceName:        sourceName,
+		CreatedBy:         uid,
+		TenantSpaceID:     tenantSpaceID,
+		Status:            1,
+	}
+	binding.CreatedAt = now
+	binding.UpdatedAt = now
+	if err := s.repo.SaveSpaceBinding(binding); err != nil {
+		return nil, err
+	}
+	if err := s.addEvent(uid, tenantSpaceID, space.SpaceID, "绑定群聊", fmt.Sprintf("%s 设为%s默认归档空间", sourceName, space.Name)); err != nil {
+		return nil, err
+	}
+	return s.buildState(uid, tenantSpaceID)
+}
+
 func (s *DocumentService) Preview(uid, tenantSpaceID, assetID string) (*DocumentStateResp, error) {
 	asset, err := s.requireAsset(uid, tenantSpaceID, assetID)
 	if err != nil {
@@ -228,7 +265,10 @@ func (s *DocumentService) CheckSource(uid, tenantSpaceID, assetID string) (bool,
 	if err != nil {
 		return false, err
 	}
-	return asset.SourceChannelID != "", nil
+	if strings.TrimSpace(asset.SourceChannelID) == "" {
+		return false, nil
+	}
+	return s.repo.CanAccessSource(uid, tenantSpaceID, asset.SourceChannelID, asset.SourceChannelType)
 }
 
 func (s *DocumentService) requireAsset(uid, tenantSpaceID, assetID string) (*DocumentAssetModel, error) {
@@ -280,6 +320,10 @@ func (s *DocumentService) buildState(uid, tenantSpaceID string) (*DocumentStateR
 	if err != nil {
 		return nil, err
 	}
+	bindings, err := s.repo.ListSpaceBindings(uid, tenantSpaceID)
+	if err != nil {
+		return nil, err
+	}
 	events, err := s.repo.ListEvents(uid, tenantSpaceID, 50)
 	if err != nil {
 		return nil, err
@@ -287,8 +331,14 @@ func (s *DocumentService) buildState(uid, tenantSpaceID string) (*DocumentStateR
 
 	spaceByID := make(map[string]*DocumentSpaceModel, len(spaces))
 	fileCountBySpace := make(map[string]int)
+	bindingsBySpace := make(map[string][]string)
 	for _, space := range spaces {
 		spaceByID[space.SpaceID] = space
+	}
+	for _, binding := range bindings {
+		if binding.Status == 1 && binding.DocumentSpaceID != "" {
+			bindingsBySpace[binding.DocumentSpaceID] = append(bindingsBySpace[binding.DocumentSpaceID], binding.SourceName)
+		}
 	}
 	for _, asset := range assets {
 		if asset.Status == StatusArchived && asset.DocumentSpaceID != "" {
@@ -312,7 +362,7 @@ func (s *DocumentService) buildState(uid, tenantSpaceID string) (*DocumentStateR
 			FileCount:          fileCountBySpace[space.SpaceID],
 			MemberCount:        0,
 			Members:            []string{},
-			BoundConversations: []string{},
+			BoundConversations: bindingsBySpace[space.SpaceID],
 			PinnedFileIDs:      []string{},
 			Description:        space.Description,
 		})
@@ -361,6 +411,7 @@ func assetToResp(asset *DocumentAssetModel, space *DocumentSpaceModel) *Document
 		Kind:              asset.Kind,
 		Extension:         strings.TrimPrefix(asset.Extension, "."),
 		Size:              asset.Size,
+		StoragePath:       asset.StoragePath,
 		Owner:             owner,
 		Uploader:          uploader,
 		SourceName:        asset.SourceName,
@@ -386,9 +437,11 @@ func fallbackString(value, fallback string) string {
 }
 
 type memoryRepository struct {
-	spaces []*DocumentSpaceModel
-	assets []*DocumentAssetModel
-	events []*DocumentEventModel
+	spaces            []*DocumentSpaceModel
+	bindings          []*DocumentSpaceBindingModel
+	assets            []*DocumentAssetModel
+	events            []*DocumentEventModel
+	accessibleSources map[string]map[string]bool
 }
 
 func newMemoryRepository() *memoryRepository {
@@ -434,6 +487,31 @@ func (r *memoryRepository) GetSpace(spaceID, uid, tenantSpaceID string) (*Docume
 		}
 	}
 	return nil, nil
+}
+
+func (r *memoryRepository) ListSpaceBindings(uid, tenantSpaceID string) ([]*DocumentSpaceBindingModel, error) {
+	items := make([]*DocumentSpaceBindingModel, 0, len(r.bindings))
+	for _, binding := range r.bindings {
+		if binding.TenantSpaceID == tenantSpaceID && binding.Status == 1 {
+			items = append(items, cloneBinding(binding))
+		}
+	}
+	sort.Slice(items, func(i, j int) bool { return items[i].CreatedAt.String() > items[j].CreatedAt.String() })
+	return items, nil
+}
+
+func (r *memoryRepository) SaveSpaceBinding(binding *DocumentSpaceBindingModel) error {
+	for i, item := range r.bindings {
+		if item.TenantSpaceID == binding.TenantSpaceID &&
+			item.DocumentSpaceID == binding.DocumentSpaceID &&
+			item.SourceChannelID == binding.SourceChannelID &&
+			item.SourceChannelType == binding.SourceChannelType {
+			r.bindings[i] = cloneBinding(binding)
+			return nil
+		}
+	}
+	r.bindings = append(r.bindings, cloneBinding(binding))
+	return nil
 }
 
 func (r *memoryRepository) ListAssets(uid, tenantSpaceID string) ([]*DocumentAssetModel, error) {
@@ -499,6 +577,17 @@ func (r *memoryRepository) ListEvents(uid, tenantSpaceID string, limit int) ([]*
 	return items, nil
 }
 
+func (r *memoryRepository) CanAccessSource(uid, tenantSpaceID, sourceChannelID string, sourceChannelType uint8) (bool, error) {
+	if r.accessibleSources == nil {
+		return sourceChannelID != "", nil
+	}
+	members := r.accessibleSources[fmt.Sprintf("%s:%d", sourceChannelID, sourceChannelType)]
+	if members == nil {
+		return false, nil
+	}
+	return members[uid], nil
+}
+
 func cloneSpace(space *DocumentSpaceModel) *DocumentSpaceModel {
 	if space == nil {
 		return nil
@@ -516,6 +605,14 @@ func cloneAsset(asset *DocumentAssetModel) *DocumentAssetModel {
 		v := *asset.LastAccessAt
 		cp.LastAccessAt = &v
 	}
+	return &cp
+}
+
+func cloneBinding(binding *DocumentSpaceBindingModel) *DocumentSpaceBindingModel {
+	if binding == nil {
+		return nil
+	}
+	cp := *binding
 	return &cp
 }
 

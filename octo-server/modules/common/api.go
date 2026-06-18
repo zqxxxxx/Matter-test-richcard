@@ -376,6 +376,14 @@ func boolToFlag(v bool) int {
 	return 0
 }
 
+func summaryEnabled() bool {
+	if raw := strings.TrimSpace(os.Getenv("DM_SUMMARY_ENABLED")); raw != "" {
+		enabled, err := strconv.ParseBool(raw)
+		return err == nil && enabled
+	}
+	return strings.TrimSpace(os.Getenv("SUMMARY_API_URL")) != ""
+}
+
 func (cn *Common) appConfig(c *wkhttp.Context) {
 	versionStr := c.Query("version")
 	appConfigM, err := cn.appConfigDB.query()
@@ -399,6 +407,7 @@ func (cn *Common) appConfig(c *wkhttp.Context) {
 			SystemBotUIDs:          spacepkg.SystemBotList(),
 			LocalLoginOff:          boolToFlag(cn.systemSettings.LocalLoginOff()),
 			DisableUserCreateSpace: boolToFlag(cn.systemSettings.SpaceDisableUserCreate()),
+			SummaryEnabled:         boolToFlag(summaryEnabled()),
 		})
 		return
 	}
@@ -437,6 +446,7 @@ func (cn *Common) appConfig(c *wkhttp.Context) {
 		SystemBotUIDs:          spacepkg.SystemBotList(),
 		LocalLoginOff:          boolToFlag(cn.systemSettings.LocalLoginOff()),
 		DisableUserCreateSpace: boolToFlag(cn.systemSettings.SpaceDisableUserCreate()),
+		SummaryEnabled:         boolToFlag(summaryEnabled()),
 	})
 }
 
@@ -747,6 +757,11 @@ type appConfigResp struct {
 	// 实时性。后端 POST /v1/space/create 也走同一个 getter 校验,客户端隐藏
 	// 与服务端拒绝由单一真源驱动,不存在前后端漂移。
 	DisableUserCreateSpace int `json:"disable_user_create_space"`
+
+	// SummaryEnabled 控制是否展示智能总结入口。该能力依赖独立 summary 服务，
+	// 默认关闭，避免未配置 SUMMARY_API_URL 的生产环境暴露不可用入口并产生
+	// /summary/api/v1/* 网络失败。
+	SummaryEnabled int `json:"summary_enabled"`
 }
 
 type oidcProviderResp struct {

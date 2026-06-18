@@ -58,11 +58,15 @@ function seedLocalDevLogin() {
   if (!sid) return;
   if (!localStorage.getItem(`token${sid}`)) {
     localStorage.setItem(`token${sid}`, "mock-token");
-    localStorage.setItem(`uid${sid}`, "mock-user");
     localStorage.setItem(`app_id${sid}`, "octo-web");
   }
-  localStorage.setItem(`name${sid}`, "陈一");
-  localStorage.setItem("currentSpaceId", "mock-space");
+  if (localStorage.getItem(`token${sid}`) === "mock-token") {
+    localStorage.setItem(`uid${sid}`, "pm_chen");
+    localStorage.setItem(`name${sid}`, "陈一");
+  }
+  if (!localStorage.getItem("currentSpaceId") || localStorage.getItem("currentSpaceId") === "mock-space") {
+    localStorage.setItem("currentSpaceId", "space-demo-octo");
+  }
 }
 
 seedLocalDevLogin()

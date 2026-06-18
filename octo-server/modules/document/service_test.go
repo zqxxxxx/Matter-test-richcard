@@ -144,3 +144,73 @@ func TestServiceTrashAndRestoreKeepBusinessClosedLoop(t *testing.T) {
 		t.Fatalf("expected space count 1 after restore, got %d", restored.Spaces[0].FileCount)
 	}
 }
+
+func TestServiceBindConversationShowsOnDocumentSpace(t *testing.T) {
+	repo := newMemoryRepository()
+	repo.spaces = []*DocumentSpaceModel{{
+		SpaceID:       "doc-space-1",
+		Name:          "产品部公共空间",
+		OwnerUID:      "u1",
+		TenantSpaceID: "tenant-1",
+		Status:        1,
+	}}
+	service := NewDocumentService(repo)
+
+	state, err := service.BindConversation("u1", "tenant-1", BindConversationReq{
+		DocumentSpaceID:   "doc-space-1",
+		SourceChannelID:   "grp_product_docs",
+		SourceChannelType: 2,
+		SourceName:        "产品方案讨论群",
+	})
+
+	if err != nil {
+		t.Fatalf("BindConversation returned error: %v", err)
+	}
+	if len(state.Spaces) != 1 {
+		t.Fatalf("expected one space, got %d", len(state.Spaces))
+	}
+	if got := state.Spaces[0].BoundConversations; len(got) != 1 || got[0] != "产品方案讨论群" {
+		t.Fatalf("expected bound conversation, got %#v", got)
+	}
+}
+
+func TestServiceCheckSourceRequiresAccessibleConversation(t *testing.T) {
+	repo := newMemoryRepository()
+	repo.assets = []*DocumentAssetModel{{
+		AssetID:           "asset-1",
+		Name:              "产品方案.pdf",
+		Kind:              KindPDF,
+		Extension:         ".pdf",
+		SourceType:        SourceTypeGroup,
+		SourceChannelID:   "grp_product_docs",
+		SourceChannelType: 2,
+		SourceName:        "产品方案讨论群",
+		TenantSpaceID:     "tenant-1",
+		Status:            StatusConversation,
+		Visibility:        VisibilityConversation,
+		Previewable:       1,
+	}}
+	repo.accessibleSources = map[string]map[string]bool{
+		"grp_product_docs:2": {
+			"u1": true,
+			"u2": false,
+		},
+	}
+	service := NewDocumentService(repo)
+
+	allowed, err := service.CheckSource("u1", "tenant-1", "asset-1")
+	if err != nil {
+		t.Fatalf("CheckSource returned error for allowed user: %v", err)
+	}
+	if !allowed {
+		t.Fatalf("expected allowed user to access source")
+	}
+
+	denied, err := service.CheckSource("u2", "tenant-1", "asset-1")
+	if err != nil {
+		t.Fatalf("CheckSource returned error for denied user: %v", err)
+	}
+	if denied {
+		t.Fatalf("expected denied user to be blocked from source")
+	}
+}

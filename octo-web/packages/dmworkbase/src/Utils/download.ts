@@ -33,11 +33,26 @@ export async function getPresignedPreviewUrl(remotePath: string, filename: strin
     return remotePath
 }
 
+export interface DownloadFileOptions {
+    presignCrossOrigin?: boolean;
+}
+
+function isAlreadyPresignedUrl(url: URL): boolean {
+    const params = url.searchParams;
+    return (
+        params.has("X-Amz-Signature") ||
+        params.has("x-oss-signature") ||
+        params.has("Signature") ||
+        params.has("sign") ||
+        params.has("sig")
+    );
+}
+
 /**
  * Download a file via anchor-click.
- * For cross-origin URLs, fetches a presigned download URL from the backend.
+ * For cross-origin object paths, fetches a presigned download URL from the backend.
  */
-export async function downloadFile(url: string, filename: string): Promise<void> {
+export async function downloadFile(url: string, filename: string, options: DownloadFileOptions = {}): Promise<void> {
     if (!url) return;
 
     let parsedUrl: URL;
@@ -53,7 +68,13 @@ export async function downloadFile(url: string, filename: string): Promise<void>
     let downloadUrl = resolvedUrl;
     const isCrossOrigin = parsedUrl.origin !== window.location.origin;
 
-    if (isCrossOrigin && filename) {
+    const shouldPresign =
+        options.presignCrossOrigin !== false &&
+        isCrossOrigin &&
+        filename &&
+        !isAlreadyPresignedUrl(parsedUrl);
+
+    if (shouldPresign) {
         downloadUrl = await getPresignedDownloadUrl(resolvedUrl, filename);
     }
 

@@ -26,6 +26,27 @@
   font-size: 13px;
 }
 
+.wk-mp-file-preview-route {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  overflow: hidden;
+  background: var(--wk-bg-surface, #fff);
+}
+
+.wk-mp-file-preview-route .wk-file-preview-panel {
+  position: relative;
+  top: auto;
+  right: auto;
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+  margin-right: 0;
+  border-left: 0;
+  box-shadow: none;
+}
+
 /* ─── Header（按 Figma 设计稿） ────────────────────────── */
 .wk-mp-header {
   display: flex;
@@ -283,6 +304,30 @@ input.wk-mp-header__title--editing {
 .wk-mp-pill--archived {
   background: var(--wk-brand-tint-04);
   color: var(--wk-text-tertiary);
+  border-color: transparent;
+}
+
+.wk-mp-pill--gray {
+  background: var(--wk-brand-tint-04);
+  color: var(--wk-text-tertiary);
+  border-color: transparent;
+}
+
+.wk-mp-pill--orange {
+  background: rgba(245, 158, 11, 0.12);
+  color: #b45309;
+  border-color: transparent;
+}
+
+.wk-mp-pill--purple {
+  background: rgba(124, 58, 237, 0.1);
+  color: #7c3aed;
+  border-color: transparent;
+}
+
+.wk-mp-pill--red {
+  background: rgba(220, 38, 38, 0.1);
+  color: #dc2626;
   border-color: transparent;
 }
 
@@ -1476,6 +1521,20 @@ textarea.wk-mp-goal__text--editing {
   height: 20px;
   border-radius: 50%;
   flex-shrink: 0;
+}
+
+.wk-mp-activity__system-avatar {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 600;
+  color: #fff;
+  background: #64748b;
 }
 
 /* ─── Activity filter dropdown ─────────────────────────── */

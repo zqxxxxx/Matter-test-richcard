@@ -42,6 +42,8 @@ interface MainPageState {
 }
 
 export class MainPage extends Component<{}, MainPageState> {
+    private initialDeepLinkHandled = false;
+
     constructor(props: {}) {
         super(props);
         this.state = {
@@ -87,6 +89,18 @@ export class MainPage extends Component<{}, MainPageState> {
             this.showPostJoinToastIfPending();
         }).catch((e) => { console.error('[NavRail] Failed to load spaces:', e); });
     }
+
+    private openInitialDeepLinkIfNeeded = () => {
+        if (this.initialDeepLinkHandled) return;
+        if (window.location.pathname !== "/documents/workspace") return;
+        this.initialDeepLinkHandled = true;
+        requestAnimationFrame(() => {
+            const page = WKApp.route.get("/documents/workspace");
+            if (page && React.isValidElement(page)) {
+                WKApp.routeRight.replaceToRoot(page);
+            }
+        });
+    };
 
     componentWillUnmount() {
         // 清理菜单刷新回调，避免组件卸载后触发 forceUpdate
@@ -244,6 +258,7 @@ export class MainPage extends Component<{}, MainPageState> {
                                 WKApp.routeRight.setReplaceToRoot = (view) => { context.replaceToRoot(view); };
                                 WKApp.routeRight.setPop = () => { context.pop(); };
                                 WKApp.routeRight.setPopToRoot = () => { context.popToRoot(); };
+                                this.openInitialDeepLinkIfNeeded();
                             }}
                             onLeftContext={(context) => {
                                 WKApp.routeLeft.setPush = (view) => { context.push(view); };

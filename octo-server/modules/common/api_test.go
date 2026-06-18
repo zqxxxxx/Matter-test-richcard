@@ -140,6 +140,40 @@ func TestGetAppConfig_DisableUserCreateSpace_DefaultsZero(t *testing.T) {
 	assert.Contains(t, w.Body.String(), `"disable_user_create_space":0`)
 }
 
+// 智能总结依赖独立 summary 服务。默认未配置时 appconfig 必须下发 0，
+// 前端据此隐藏入口，避免生产环境默认出现 /summary/api/v1/* 网络失败。
+func TestGetAppConfig_SummaryEnabled_DefaultsZero(t *testing.T) {
+	t.Setenv("DM_SUMMARY_ENABLED", "")
+	t.Setenv("SUMMARY_API_URL", "")
+	s, ctx := testutil.NewTestServer()
+	f := New(ctx)
+	cleanAllTablesAndReloadSettings(t, ctx)
+	err := f.appConfigDB.insert(&appConfigModel{})
+	assert.NoError(t, err)
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/v1/common/appconfig", nil)
+	req.Header.Set("token", testutil.Token)
+	s.GetRoute().ServeHTTP(w, req)
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Contains(t, w.Body.String(), `"summary_enabled":0`)
+}
+
+func TestGetAppConfig_SummaryEnabled_WhenConfigured(t *testing.T) {
+	t.Setenv("DM_SUMMARY_ENABLED", "true")
+	t.Setenv("SUMMARY_API_URL", "")
+	s, ctx := testutil.NewTestServer()
+	f := New(ctx)
+	cleanAllTablesAndReloadSettings(t, ctx)
+	err := f.appConfigDB.insert(&appConfigModel{})
+	assert.NoError(t, err)
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/v1/common/appconfig", nil)
+	req.Header.Set("token", testutil.Token)
+	s.GetRoute().ServeHTTP(w, req)
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Contains(t, w.Body.String(), `"summary_enabled":1`)
+}
+
 // DB 写入 disable_user_create=1 时 appconfig 必须下发 1，admin 在管理台切换
 // 后客户端下次拉配置即可看到入口隐藏 —— 系统级 KV + Reload 路径的实时性保证。
 func TestGetAppConfig_DisableUserCreateSpace_DBOverride(t *testing.T) {

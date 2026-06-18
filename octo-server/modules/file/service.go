@@ -74,6 +74,8 @@ func NewService(ctx *config.Context) IService {
 		// upstream PR will add the typed constant and both sites will
 		// switch over together.
 		uploadService = NewServiceS3(ctx)
+	} else if service == config.FileService(fileServiceLocal) {
+		uploadService = NewLocalFileService(ctx)
 	} else {
 		uploadService = NewSeaweedFS(ctx)
 	}

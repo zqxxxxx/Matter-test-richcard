@@ -216,6 +216,10 @@ func validateSidebarRequest(req *sidebarSyncReq) error {
 	return nil
 }
 
+func shouldFailOpenSidebarIMFetch(mode config.Mode) bool {
+	return mode == config.DebugMode
+}
+
 // ---------------------------------------------------------------------------
 // HTTP handler
 // ---------------------------------------------------------------------------
@@ -260,9 +264,14 @@ func (sb *Sidebar) Sync(c *wkhttp.Context) {
 	//    conversations 死循环（PR #21 Round-4 review B1 by Jerry-Xin / lml2468 / yujiawei）。
 	rawConversations, err := sb.ctx.IMSyncUserConversation(loginUID, req.Version, req.MsgCount, req.LastMsgSeqs, nil)
 	if err != nil {
-		sb.Error("sidebar sync: IM fetch failed", zap.Error(err))
-		httperr.ResponseErrorL(c, errcode.ErrMessageQueryFailed, nil, nil)
-		return
+		if shouldFailOpenSidebarIMFetch(sb.ctx.GetConfig().Mode) {
+			sb.Warn("sidebar sync: IM fetch failed in debug mode, falling back to empty conversations", zap.Error(err))
+			rawConversations = []*config.SyncUserConversationResp{}
+		} else {
+			sb.Error("sidebar sync: IM fetch failed", zap.Error(err))
+			httperr.ResponseErrorL(c, errcode.ErrMessageQueryFailed, nil, nil)
+			return
+		}
 	}
 
 	// 1b. Space 过滤（PR #21 review by Jerry-Xin Critical）：

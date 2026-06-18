@@ -30,12 +30,26 @@ func (d *Document) Route(r *wkhttp.WKHttp) {
 		auth.GET("/state", d.state)
 		auth.POST("/upload", d.upload)
 		auth.POST("/archive", d.archive)
+		auth.POST("/spaces/:space_id/bind-conversation", d.bindConversation)
 		auth.POST("/:asset_id/preview", d.preview)
 		auth.POST("/:asset_id/download", d.download)
 		auth.POST("/:asset_id/trash", d.trash)
 		auth.POST("/:asset_id/restore", d.restore)
 		auth.GET("/source/check", d.checkSource)
 	}
+}
+
+func (d *Document) bindConversation(c *wkhttp.Context) {
+	var req BindConversationReq
+	if err := c.BindJSON(&req); err != nil {
+		c.ResponseError(err)
+		return
+	}
+	if req.DocumentSpaceID == "" {
+		req.DocumentSpaceID = c.Param("space_id")
+	}
+	state, err := d.service.BindConversation(c.GetLoginUID(), tenantSpaceID(c), req)
+	d.respondState(c, state, err)
 }
 
 func (d *Document) state(c *wkhttp.Context) {

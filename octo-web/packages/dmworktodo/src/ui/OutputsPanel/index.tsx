@@ -99,6 +99,11 @@ export interface OutputsPanelProps {
    */
   onPreview?: (item: MatterOutput) => void;
   /**
+   * 控制单行是否展示预览入口。不传时沿用旧行为: 只要传了 onPreview 就展示。
+   * 事项详情页会注入共享文件预览面板的能力判断, 避免 DOCX/ZIP 等类型出现假预览。
+   */
+  canPreview?: (item: MatterOutput) => boolean;
+  /**
    * 文件下载回调。由调用方注入 (panel 用 resolveAndGuardUrl + downloadFile)
    * 保持 OutputsPanel 纯展示, 不依赖 WKApp / dmworkbase 的 download utils。
    * 不传时下载按钮被隐藏。
@@ -139,6 +144,7 @@ const OutputsPanel: React.FC<OutputsPanelProps> = ({
   onRetry,
   renderAvatar,
   onPreview,
+  canPreview,
   onDownload,
   getChannelMembership,
   resolveChannelName,
@@ -301,6 +307,7 @@ const OutputsPanel: React.FC<OutputsPanelProps> = ({
           </div>
         ) : (
           outputs.map((item) => {
+            const showPreview = Boolean(onPreview && (canPreview?.(item) ?? true));
             return (
               <div key={item.id} className="wk-outputs__row" role="row">
                 {/* 标题: 缩略图 + 文件名 + 大小 */}
@@ -427,7 +434,7 @@ const OutputsPanel: React.FC<OutputsPanelProps> = ({
 
                 {/* 操作: (可选)预览 + (可选)下载 */}
                 <div className="wk-outputs__td wk-outputs__col-actions" role="cell">
-                  {onPreview && (
+                  {showPreview && (
                     <button
                       type="button"
                       className="wk-outputs__action-btn"

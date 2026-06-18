@@ -135,6 +135,12 @@ func TestValidateSidebarRequest_LastMsgSeqsTooLong(t *testing.T) {
 	assert.Contains(t, err.Error(), "last_msg_seqs")
 }
 
+func TestShouldFailOpenSidebarIMFetch_DebugOnly(t *testing.T) {
+	assert.True(t, shouldFailOpenSidebarIMFetch(config.DebugMode))
+	assert.False(t, shouldFailOpenSidebarIMFetch(config.ReleaseMode))
+	assert.False(t, shouldFailOpenSidebarIMFetch(config.BenchMode))
+}
+
 // ---------------------------------------------------------------------------
 // buildFollowItems — follow tab filtering
 // ---------------------------------------------------------------------------

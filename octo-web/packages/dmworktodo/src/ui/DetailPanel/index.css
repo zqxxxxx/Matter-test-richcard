@@ -53,6 +53,21 @@
   color: var(--wk-text-tertiary);
 }
 
+.wk-matter-side-panel__header-tag--orange {
+  background: rgba(245, 158, 11, 0.12);
+  color: #b45309;
+}
+
+.wk-matter-side-panel__header-tag--purple {
+  background: rgba(124, 58, 237, 0.1);
+  color: #7c3aed;
+}
+
+.wk-matter-side-panel__header-tag--red {
+  background: rgba(220, 38, 38, 0.1);
+  color: #dc2626;
+}
+
 .wk-matter-side-panel__header-tag-label {
   font-weight: var(--wk-font-semibold);
 }

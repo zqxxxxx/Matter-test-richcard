@@ -102,6 +102,8 @@ services:
   # passwords. The two values left without a fail-fast were the
   # cross-service auth tokens:
   #
+  #   - OCTO_USER_API_KEY_SECRET — encryption key shared by usersecret
+  #     and botfather for user API key aliases.
   #   - OCTO_NOTIFY_INTERNAL_TOKEN — HMAC secret octo-server / matter /
   #     summary-api use on /internal/* callbacks. Without rotation, a
   #     stack widening any of the app-service binds (or a peer on the
@@ -123,6 +125,7 @@ services:
     image: ${OCTO_PREFLIGHT_IMAGE:-busybox:1.36}
     restart: "no"
     environment:
+      OCTO_USER_API_KEY_SECRET: ${OCTO_USER_API_KEY_SECRET:-}
       OCTO_NOTIFY_INTERNAL_TOKEN: ${OCTO_NOTIFY_INTERNAL_TOKEN:-}
       OCTO_WUKONGIM_MANAGER_TOKEN: ${OCTO_WUKONGIM_MANAGER_TOKEN:-}
     entrypoint: ["/bin/sh", "-c"]
@@ -148,6 +151,7 @@ services:
               ;;
           esac
         }
+        check OCTO_USER_API_KEY_SECRET
         check OCTO_NOTIFY_INTERNAL_TOKEN
         check OCTO_WUKONGIM_MANAGER_TOKEN
         echo "[preflight] tokens look rotated"
@@ -557,28 +561,21 @@ services:
       # only changes how long the first health probe waits before failures
       # count toward `retries`.
       #
-      # NOTE: octo-server's `depends_on` on wukongim is `service_started`
-      # (see the octo-server block below at the `depends_on:` key), NOT
-      # `service_healthy`, so this start_period bump does NOT gate
-      # octo-server boot. It just gives WuKongIM itself a longer first-
-      # probe window before its OWN container is flagged unhealthy and
-      # restarted. The reason `service_started` was chosen on the
-      # octo-server side is documented next to that depends_on entry.
+      # octo-server waits for this `service_healthy` state before booting.
+      # That keeps first-boot system-user token sync from racing WuKongIM's
+      # manager API while still giving WuKongIM enough room to initialise its
+      # own data directory before health failures count.
       start_period: 40s
     networks:
       - octo-net
 
   octo-server:
     image: ${OCTO_SERVER_IMAGE:-mininglamposs/octo-server:latest}
-    # `on-failure:5` instead of `unless-stopped` so the first-boot
-    # dependency race (octo-server's `depends_on: wukongim service_healthy`
-    # firing inside wukongim's start_period window) self-heals with up to
-    # five quick restart attempts instead of leaving the stack with one
-    # service in `(unhealthy)`. Five attempts span ~30-60s of additional
-    # wall-clock — comfortably more than the wukongim start_period bump
-    # above — and the failure budget caps runaway restart loops for real
-    # configuration errors (a missing TS_DB_MYSQLADDR will still surface
-    # within seconds rather than hammering forever).
+    # `on-failure:5` instead of `unless-stopped` caps runaway restart loops
+    # for real configuration errors (a missing TS_DB_MYSQLADDR will still
+    # surface within seconds rather than hammering forever). WuKongIM itself
+    # is now a `service_healthy` dependency, so first-boot IM token sync runs
+    # only after the manager API can answer authenticated health probes.
     restart: on-failure:5
     command: ["api"]
     # -------------------------------------------------------------------
@@ -603,6 +600,7 @@ services:
       TZ: ${TZ:-UTC}
       OCTO_MASTER_KEY: ${OCTO_MASTER_KEY}
       DMWORK_MASTER_KEY: ${OCTO_MASTER_KEY}
+      OCTO_USER_API_KEY_SECRET: ${OCTO_USER_API_KEY_SECRET}
       # --- DB / cache: TS_* are read by the binary, DM_* mirror the
       # --- kustomize/base/octo-server-secret naming for tooling parity.
       TS_DB_MYSQLADDR:  "root:${MYSQL_ROOT_PASSWORD}@tcp(mysql:3306)/${MYSQL_DATABASE:-octo}?charset=utf8mb4&parseTime=true&loc=Local"
@@ -702,15 +700,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-      # `service_started` (not `service_healthy`) is intentional: the
-      # octo-server -> wukongim contract is webhook-style (gRPC at
-      # octo-server:6979, WuKongIM dials *us*), so wukongim only needs
-      # to be running, not yet healthy. Using `service_healthy` here
-      # would create a deadlock — wukongim's healthcheck has flapped
-      # in past releases and a stuck WK kept octo-server from booting
-      # even though the missing piece was wukongim itself.
       wukongim:
-        condition: service_started
+        condition: service_healthy
       minio:
         condition: service_healthy
       minio-init:

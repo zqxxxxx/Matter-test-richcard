@@ -41,6 +41,8 @@ func New(ctx *config.Context) *File {
 
 // Route 路由
 func (f *File) Route(r *wkhttp.WKHttp) {
+	r.Any("/v1/file/local", f.handleLocalSignedFile)
+
 	auth := r.Group("/v1/file", f.ctx.AuthMiddleware(r))
 	{
 		// 获取文件（需认证，防止未授权访问用户文件）
@@ -55,6 +57,155 @@ func (f *File) Route(r *wkhttp.WKHttp) {
 		// 预签名下载 URL
 		auth.GET("/download/url", f.getDownloadURL)
 	}
+}
+
+func (f *File) handleLocalSignedFile(c *wkhttp.Context) {
+	writeLocalFileCORSHeaders(c)
+	if c.Request.Method == http.MethodOptions {
+		c.Status(http.StatusNoContent)
+		return
+	}
+	switch c.Request.Method {
+	case http.MethodGet:
+		f.serveLocalSignedFile(c, true)
+	case http.MethodHead:
+		f.serveLocalSignedFile(c, false)
+	case http.MethodPut:
+		f.putLocalSignedFile(c)
+	default:
+		c.ResponseErrorWithStatus(errors.New("method not allowed"), http.StatusMethodNotAllowed)
+	}
+}
+
+func writeLocalFileCORSHeaders(c *wkhttp.Context) {
+	origin := c.GetHeader("Origin")
+	if origin == "" {
+		origin = "*"
+	}
+	c.Header("Access-Control-Allow-Origin", origin)
+	c.Header("Access-Control-Allow-Methods", "GET, HEAD, PUT, OPTIONS")
+	c.Header("Access-Control-Allow-Headers", "Content-Type, Content-Length, Range")
+	c.Header("Access-Control-Expose-Headers", "Content-Length, Content-Type, Content-Disposition, Accept-Ranges")
+	c.Header("Vary", "Origin")
+}
+
+func (f *File) serveLocalSignedFile(c *wkhttp.Context, includeBody bool) {
+	req, err := localSignedRequestFromQuery(c, http.MethodGet)
+	if err != nil {
+		c.ResponseErrorWithStatus(err, http.StatusForbidden)
+		return
+	}
+	if err := verifyLocalFileRequest(req, c.Query("sig"), time.Now()); err != nil {
+		c.ResponseErrorWithStatus(err, http.StatusForbidden)
+		return
+	}
+
+	reader, contentType, err := f.service.GetFile(req.Path)
+	if err != nil {
+		f.Warn("读取本地签名文件失败", zap.String("path", req.Path), zap.Error(err))
+		c.ResponseErrorWithStatus(errors.New("文件不存在或不可访问"), http.StatusNotFound)
+		return
+	}
+	defer reader.Close()
+
+	filename := req.Filename
+	if filename == "" {
+		filename = filepath.Base(req.Path)
+	}
+	filename = sanitizeFilename(filename)
+	disposition := req.Disposition
+	if disposition != "inline" {
+		disposition = "attachment"
+	}
+
+	c.Header("Content-Type", contentType)
+	escapedFilename := url.PathEscape(filename)
+	c.Header("Content-Disposition", fmt.Sprintf("%s; filename*=UTF-8''%s", disposition, escapedFilename))
+	c.Status(http.StatusOK)
+	if includeBody {
+		_, _ = io.Copy(c.Writer, reader)
+	}
+}
+
+func (f *File) putLocalSignedFile(c *wkhttp.Context) {
+	req, err := localSignedRequestFromQuery(c, http.MethodPut)
+	if err != nil {
+		c.ResponseErrorWithStatus(err, http.StatusForbidden)
+		return
+	}
+	if err := verifyLocalFileRequest(req, c.Query("sig"), time.Now()); err != nil {
+		c.ResponseErrorWithStatus(err, http.StatusForbidden)
+		return
+	}
+	if req.FileSize <= 0 || req.FileSize > MaxFileSize {
+		c.ResponseError(fmt.Errorf("文件大小不能超过%dMB", MaxFileSize/1024/1024))
+		return
+	}
+	if c.Request.ContentLength >= 0 && c.Request.ContentLength != req.FileSize {
+		c.ResponseError(errors.New("上传内容长度与签名不一致"))
+		return
+	}
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, MaxFileSize+1024*1024)
+
+	contentType := req.ContentType
+	if contentType == "" {
+		contentType = "application/octet-stream"
+	}
+	_, err = f.service.UploadFile(req.Path, contentType, req.ContentDisposition, func(w io.Writer) error {
+		_, copyErr := io.Copy(w, c.Request.Body)
+		return copyErr
+	})
+	if err != nil {
+		f.Error("本地签名上传失败", zap.String("path", req.Path), zap.Error(err))
+		c.ResponseError(errors.New("上传文件失败！"))
+		return
+	}
+	c.Response(map[string]string{
+		"path": req.Path,
+	})
+}
+
+func localSignedRequestFromQuery(c *wkhttp.Context, method string) (localFileSignedRequest, error) {
+	if c.Query("method") != method {
+		return localFileSignedRequest{}, errors.New("文件链接方法无效")
+	}
+	path := c.Query("path")
+	if strings.TrimSpace(path) == "" {
+		return localFileSignedRequest{}, errors.New("path参数不能为空")
+	}
+	sanitized, err := sanitizePath(path)
+	if err != nil {
+		return localFileSignedRequest{}, errors.New("无效的文件路径")
+	}
+	sanitized = strings.TrimPrefix(filepath.ToSlash(sanitized), "/")
+	if sanitized == "" || sanitized == "." {
+		return localFileSignedRequest{}, errors.New("path参数不能为空")
+	}
+	expiresAt, err := strconv.ParseInt(c.Query("expires"), 10, 64)
+	if err != nil || expiresAt <= 0 {
+		return localFileSignedRequest{}, errors.New("文件链接过期时间无效")
+	}
+	fileSize := int64(0)
+	if raw := strings.TrimSpace(c.Query("fileSize")); raw != "" {
+		fileSize, err = strconv.ParseInt(raw, 10, 64)
+		if err != nil || fileSize <= 0 {
+			return localFileSignedRequest{}, errors.New("文件大小参数无效")
+		}
+	}
+	disposition := c.Query("disposition")
+	if disposition != "" && disposition != "inline" && disposition != "attachment" {
+		return localFileSignedRequest{}, errors.New("文件展示方式无效")
+	}
+	return localFileSignedRequest{
+		Method:             method,
+		Path:               sanitized,
+		Filename:           sanitizeFilename(c.Query("filename")),
+		Disposition:        disposition,
+		ContentType:        c.Query("contentType"),
+		ContentDisposition: c.Query("contentDisposition"),
+		FileSize:           fileSize,
+		ExpiresAt:          expiresAt,
+	}, nil
 }
 
 func (f *File) makeImageCompose(c *wkhttp.Context) {
