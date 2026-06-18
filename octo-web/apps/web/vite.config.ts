@@ -55,10 +55,12 @@ export default defineConfig(({ mode }) => {
       tsconfigPaths({ root: "../../" }),
       {
         name: "exclude-test-files",
+        enforce: "pre",
         resolveId(id, importer) {
+          const cleanId = id.split("?")[0].replace(/\\/g, "/");
           // 测试文件正则：匹配 .test.* / .spec.* 或 __tests__/ 目录
           const TEST_FILE_RE =
-            /[/\\](?:__tests__[/\\]|.*\.(?:test|spec)\.[jt]sx?$)/;
+            /(?:^|\/)(?:__tests__\/|.*\.(?:test|spec)\.[cm]?[jt]sx?$)/;
           // 测试相关包：精确前缀匹配
           const TEST_PACKAGES = [
             "vitest",
@@ -68,12 +70,12 @@ export default defineConfig(({ mode }) => {
             "@storybook/test",
           ];
 
-          const isTestFile = TEST_FILE_RE.test(id);
+          const isTestFile = TEST_FILE_RE.test(cleanId);
           const isTestPackage = TEST_PACKAGES.some(
             (pkg) =>
-              id === pkg ||
-              id.startsWith(pkg) ||
-              id.includes(`/node_modules/${pkg}`)
+              cleanId === pkg ||
+              cleanId.startsWith(pkg) ||
+              cleanId.includes(`/node_modules/${pkg}`)
           );
 
           if (isTestFile || isTestPackage) {
@@ -82,7 +84,19 @@ export default defineConfig(({ mode }) => {
         },
         load(id) {
           if (id === "\0vitest-stub") {
-            return "export default {}";
+            return [
+              "const noop = () => undefined;",
+              "const chain = new Proxy(noop, { get: () => chain, apply: () => chain });",
+              "export const vi = chain;",
+              "export const vitest = chain;",
+              "export const describe = chain;",
+              "export const it = chain;",
+              "export const test = chain;",
+              "export const beforeEach = chain;",
+              "export const afterEach = chain;",
+              "export const expect = chain;",
+              "export default {};",
+            ].join("\n");
           }
         },
         configureServer(server) {
@@ -177,14 +191,7 @@ export default defineConfig(({ mode }) => {
         "@storybook/addon-vitest",
         "@storybook/test",
       ],
-      entries: [
-        "src/**/*.{ts,tsx}",
-        // Negation patterns: Vite passes these to fast-glob, which supports "!" prefix
-        // Verified working in Vite 6.x (run `npx vite optimize --force` to check)
-        "!src/**/*.{test,spec}.{ts,tsx}",
-        "!src/__tests__/**",
-        "!vitest*.config.ts",
-      ],
+      entries: ["src/index.tsx"],
     },
     define: {
       "process.env.NODE_ENV": JSON.stringify(mode),
