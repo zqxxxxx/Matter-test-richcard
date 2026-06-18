@@ -862,7 +862,6 @@ export default class WKApp extends ProviderListener {
 
   startMain() {
     const isLocalMockLogin =
-      import.meta.env.DEV &&
       WKApp.loginInfo.token === "mock-token" &&
       ["localhost", "127.0.0.1"].includes(window.location.hostname);
 

@@ -18,5 +18,6 @@ describe("local preview IM startup", () => {
     expect(startMain).toMatch(
       /if \(isLocalMockLogin\) \{\s+return;\s+\}/
     );
+    expect(startMain).not.toContain("import.meta.env.DEV");
   });
 });
