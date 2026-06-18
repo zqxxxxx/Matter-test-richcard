@@ -14,4 +14,11 @@ describe("MatterDetailPanel preview contract", () => {
     expect(source).toMatch(/onPreviewAttachment=\{\s*handlePreviewAttachment\s*\}/);
     expect(source).toMatch(/onPreview=\{\s*handleOutputPreview\s*\}/);
   });
+
+  it("shows output file names in the default matter detail view", () => {
+    expect(source).toContain("wk-mp-output-summary");
+    expect(source).toContain("outputs.slice(0, 3).map");
+    expect(source).toContain("item.file_name");
+    expect(source).toContain("handleOutputDownload(item)");
+  });
 });

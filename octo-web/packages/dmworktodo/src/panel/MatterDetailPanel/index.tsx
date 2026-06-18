@@ -1244,6 +1244,108 @@ export default function MatterDetailPanel({
           </div>
         </div>
 
+        {outputs.length > 0 && (
+          <section
+            className="wk-mp-output-summary"
+            aria-label={t("todo.outputs.tabLabel")}
+          >
+            <div className="wk-mp-output-summary__head">
+              <div className="wk-mp-output-summary__title">
+                <span>{t("todo.outputs.tabLabel")}</span>
+                <span className="wk-mp-output-summary__count">
+                  {outputs.length}
+                </span>
+              </div>
+              <button
+                type="button"
+                className="wk-mp-output-summary__all"
+                onClick={() => setActiveTab("outputs")}
+              >
+                {t("todo.outputs.tabLabel")}
+              </button>
+            </div>
+            <div className="wk-mp-output-summary__list" role="list">
+              {outputs.slice(0, 3).map((item) => {
+                const name =
+                  item.file_name || t("todo.outputs.unnamedFile");
+                const sizeText =
+                  item.file_size != null
+                    ? formatFileSize(item.file_size)
+                    : null;
+                const icon = getFileIcon(name, item.mime_type || "");
+                const channelMembership = getOutputChannelMembership(
+                  item.source_channel_id,
+                );
+                const channelName =
+                  resolveOutputChannelName(item.source_channel_id) ||
+                  item.source_channel_name ||
+                  "—";
+                const canPreviewOutput = canPreviewMatterOutput(
+                  item,
+                  canPreviewInPanel,
+                );
+                return (
+                  <div
+                    key={item.id}
+                    className="wk-mp-output-summary__row"
+                    role="listitem"
+                  >
+                    <img
+                      src={icon}
+                      alt=""
+                      className="wk-mp-output-summary__icon"
+                      aria-hidden="true"
+                    />
+                    <div className="wk-mp-output-summary__meta">
+                      <div
+                        className="wk-mp-output-summary__name"
+                        title={name}
+                      >
+                        {name}
+                      </div>
+                      <div className="wk-mp-output-summary__sub">
+                        {sizeText && <span>{sizeText}</span>}
+                        <span>
+                          {t("todo.outputs.column.sourceGroup")} ·{" "}
+                          {channelMembership.loading
+                            ? t("todo.outputs.loadingMembership")
+                            : channelMembership.isMember
+                              ? channelName
+                              : t("todo.outputs.groupNameHidden")}
+                        </span>
+                        <span>
+                          <UserName uid={item.sender_uid} /> ·{" "}
+                          {formatSourceTime(item.sent_at)}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="wk-mp-output-summary__actions">
+                      {canPreviewOutput && (
+                        <button
+                          type="button"
+                          className="wk-mp-output-summary__action"
+                          aria-label={`${t("todo.action.preview")} ${name}`}
+                          onClick={() => handleOutputPreview(item)}
+                        >
+                          <Eye size={15} />
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        className="wk-mp-output-summary__action"
+                        aria-label={`${t("todo.action.download")} ${name}`}
+                        onClick={() => handleOutputDownload(item)}
+                      >
+                        <DownloadIcon size={15} />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        )}
+
         {/* ── Tabs ── */}
         <div className="wk-mp-tabs">
           {tabs.map((t) => (

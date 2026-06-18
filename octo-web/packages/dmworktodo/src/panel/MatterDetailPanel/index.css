@@ -553,6 +553,138 @@ textarea.wk-mp-goal__text--editing {
   line-height: 20px;
 }
 
+/* ─── Output summary ─────────────────────────────────── */
+.wk-mp-output-summary {
+  margin: var(--wk-sp-4) var(--wk-sp-4) 0;
+  padding: var(--wk-sp-3);
+  border: 1px solid var(--wk-brand-tint-08);
+  border-radius: var(--wk-r-md);
+  background: var(--wk-bg-surface);
+}
+
+.wk-mp-output-summary__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--wk-sp-3);
+  margin-bottom: var(--wk-sp-2);
+}
+
+.wk-mp-output-summary__title {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--wk-sp-2);
+  min-width: 0;
+  font-size: var(--wk-text-size-md);
+  font-weight: var(--wk-font-semibold);
+  line-height: 20px;
+  color: var(--wk-text-primary);
+}
+
+.wk-mp-output-summary__count {
+  color: var(--wk-text-tertiary);
+  font-weight: var(--wk-font-regular);
+}
+
+.wk-mp-output-summary__all {
+  border: none;
+  background: transparent;
+  padding: 0;
+  color: var(--wk-color-accent);
+  font-size: var(--wk-text-size-sm);
+  font-weight: var(--wk-font-semibold);
+  line-height: 20px;
+  cursor: pointer;
+}
+
+.wk-mp-output-summary__all:hover {
+  opacity: 0.8;
+}
+
+.wk-mp-output-summary__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--wk-sp-2);
+}
+
+.wk-mp-output-summary__row {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--wk-sp-2);
+  min-height: 44px;
+  padding: var(--wk-sp-2);
+  border-radius: var(--wk-r-sm);
+  background: var(--wk-bg-item-hover);
+}
+
+.wk-mp-output-summary__icon {
+  width: 28px;
+  height: 28px;
+  display: block;
+  flex-shrink: 0;
+}
+
+.wk-mp-output-summary__meta {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.wk-mp-output-summary__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--wk-text-primary);
+  font-size: var(--wk-text-size-md);
+  font-weight: var(--wk-font-medium);
+  line-height: 20px;
+}
+
+.wk-mp-output-summary__sub {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--wk-sp-2);
+  color: var(--wk-text-tertiary);
+  font-size: var(--wk-text-size-sm);
+  line-height: 18px;
+  overflow: hidden;
+}
+
+.wk-mp-output-summary__sub > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wk-mp-output-summary__actions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--wk-sp-1);
+}
+
+.wk-mp-output-summary__action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: var(--wk-r-sm);
+  background: transparent;
+  color: var(--wk-text-tertiary);
+  cursor: pointer;
+}
+
+.wk-mp-output-summary__action:hover {
+  color: var(--wk-text-primary);
+  background: var(--wk-bg-surface);
+}
+
 /* ─── Tabs（按 Figma 设计稿） ─────────────────────────── */
 .wk-mp-tabs {
   display: flex;
