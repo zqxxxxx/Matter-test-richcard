@@ -317,12 +317,23 @@ const OutputsPanel: React.FC<OutputsPanelProps> = ({
                     mimeType={item.mime_type}
                   />
                   <div className="wk-outputs__title-meta">
-                    <div
-                      className="wk-outputs__file-name"
-                      title={item.file_name || ""}
-                    >
-                      {item.file_name || t("todo.outputs.unnamedFile")}
-                    </div>
+                    {showPreview ? (
+                      <button
+                        type="button"
+                        className="wk-outputs__file-name wk-outputs__file-name--button"
+                        title={item.file_name || ""}
+                        onClick={(e) => handlePreview(e, item)}
+                      >
+                        {item.file_name || t("todo.outputs.unnamedFile")}
+                      </button>
+                    ) : (
+                      <div
+                        className="wk-outputs__file-name"
+                        title={item.file_name || ""}
+                      >
+                        {item.file_name || t("todo.outputs.unnamedFile")}
+                      </div>
+                    )}
                     <div className="wk-outputs__file-size">
                       {/*
                         占位符仅用于 null/undefined (后端没给), 0 字节是

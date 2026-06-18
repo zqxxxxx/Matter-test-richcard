@@ -361,9 +361,9 @@ export function DocumentsWorkspace() {
 
   const uploaderOptions = useMemo(() => {
     if (!state) return [];
-    return Array.from(new Set(state.files.map((file) => file.uploader))).sort(
-      (a, b) => a.localeCompare(b, "zh-CN")
-    );
+    return Array.from(
+      new Set<string>(state.files.map((file) => file.uploader))
+    ).sort((a, b) => a.localeCompare(b, "zh-CN"));
   }, [state]);
   const activeTitle = spaceName || getViewLabel(view);
   const hasActiveFilters =
@@ -856,6 +856,7 @@ export function DocumentsWorkspace() {
         title="文件预览"
         visible={Boolean(previewFile)}
         footer={null}
+        closeOnEsc
         onCancel={() => {
           setPreviewFile(null);
         }}
@@ -869,6 +870,8 @@ export function DocumentsWorkspace() {
         visible={uploadVisible}
         okText="上传"
         cancelText="取消"
+        okButtonProps={{ "aria-label": "上传" }}
+        cancelButtonProps={{ "aria-label": "取消" }}
         onOk={submitUpload}
         onCancel={() => {
           setUploadVisible(false);
@@ -911,6 +914,8 @@ export function DocumentsWorkspace() {
         visible={Boolean(deleteTarget)}
         okText="移到回收站"
         cancelText="取消"
+        okButtonProps={{ "aria-label": "移到回收站" }}
+        cancelButtonProps={{ "aria-label": "取消" }}
         confirmLoading={deletePending}
         onOk={submitDelete}
         onCancel={() => {

@@ -1,0 +1,102 @@
+.wk-file-preview-word-renderer {
+  height: 100%;
+  overflow: auto;
+  background: #f5f6f8;
+  padding: 24px;
+}
+
+.wk-file-preview-word-renderer__paper {
+  box-sizing: border-box;
+  width: min(100%, 860px);
+  min-height: 100%;
+  margin: 0 auto;
+  padding: 48px 56px;
+  background: #ffffff;
+  border: 1px solid rgba(28, 31, 35, 0.08);
+  border-radius: 4px;
+  color: #1f2329;
+  font-size: 14px;
+  line-height: 1.75;
+}
+
+.wk-file-preview-word-renderer__paper h1,
+.wk-file-preview-word-renderer__paper h2,
+.wk-file-preview-word-renderer__paper h3,
+.wk-file-preview-word-renderer__paper h4 {
+  margin: 1.2em 0 0.55em;
+  color: #14161a;
+  line-height: 1.35;
+}
+
+.wk-file-preview-word-renderer__paper h1 {
+  font-size: 24px;
+}
+
+.wk-file-preview-word-renderer__paper h2 {
+  font-size: 20px;
+}
+
+.wk-file-preview-word-renderer__paper h3 {
+  font-size: 17px;
+}
+
+.wk-file-preview-word-renderer__paper p {
+  margin: 0 0 0.9em;
+}
+
+.wk-file-preview-word-renderer__paper table {
+  width: 100%;
+  margin: 16px 0;
+  border-spacing: 0;
+  border-collapse: collapse;
+}
+
+.wk-file-preview-word-renderer__paper th,
+.wk-file-preview-word-renderer__paper td {
+  padding: 8px 10px;
+  border: 1px solid #dee0e3;
+  vertical-align: top;
+}
+
+.wk-file-preview-word-renderer__paper img {
+  max-width: 100%;
+  height: auto;
+}
+
+.wk-file-preview-word-renderer__paper ul,
+.wk-file-preview-word-renderer__paper ol {
+  margin: 0 0 0.9em 1.5em;
+  padding: 0;
+}
+
+body[theme-mode="dark"] .wk-file-preview-word-renderer {
+  background: #17181a;
+}
+
+body[theme-mode="dark"] .wk-file-preview-word-renderer__paper {
+  background: #242529;
+  border-color: rgba(255, 255, 255, 0.08);
+  color: #e6e8eb;
+}
+
+body[theme-mode="dark"] .wk-file-preview-word-renderer__paper h1,
+body[theme-mode="dark"] .wk-file-preview-word-renderer__paper h2,
+body[theme-mode="dark"] .wk-file-preview-word-renderer__paper h3,
+body[theme-mode="dark"] .wk-file-preview-word-renderer__paper h4 {
+  color: #f2f3f5;
+}
+
+body[theme-mode="dark"] .wk-file-preview-word-renderer__paper th,
+body[theme-mode="dark"] .wk-file-preview-word-renderer__paper td {
+  border-color: rgba(255, 255, 255, 0.14);
+}
+
+@media (max-width: 768px) {
+  .wk-file-preview-word-renderer {
+    padding: 12px;
+  }
+
+  .wk-file-preview-word-renderer__paper {
+    padding: 24px 20px;
+  }
+}

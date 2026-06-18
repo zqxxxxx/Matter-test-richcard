@@ -144,6 +144,7 @@ type UploadReq struct {
 	Size            int64  `json:"size"`
 	StoragePath     string `json:"storage_path"`
 	DocumentSpaceID string `json:"document_space_id"`
+	UploaderName    string `json:"uploader_name"`
 }
 
 type ArchiveReq struct {

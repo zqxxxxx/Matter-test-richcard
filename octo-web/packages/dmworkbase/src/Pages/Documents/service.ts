@@ -118,7 +118,7 @@ export class ApiDocumentRepository implements DocumentRepository {
     return space.id;
   }
 
-  async archiveFile(fileId: string, spaceName: string) {
+  async archiveFile(fileId: string, spaceName: string, _actor?: string) {
     const spaceId = await this.resolveSpaceId(spaceName);
     return this.applyState(
       this.apiClient.post("documents/archive", {
@@ -128,7 +128,11 @@ export class ApiDocumentRepository implements DocumentRepository {
     );
   }
 
-  async archiveMessageFile(input: ArchiveMessageFileInput, spaceName: string) {
+  async archiveMessageFile(
+    input: ArchiveMessageFileInput,
+    spaceName: string,
+    _actor?: string
+  ) {
     const spaceId = await this.resolveSpaceId(spaceName);
     return this.applyState(
       this.apiClient.post("documents/archive", {
@@ -146,7 +150,11 @@ export class ApiDocumentRepository implements DocumentRepository {
     );
   }
 
-  async uploadFile(input: UploadDocumentInput, spaceName: string) {
+  async uploadFile(
+    input: UploadDocumentInput,
+    spaceName: string,
+    _actor?: string
+  ) {
     const spaceId = await this.resolveSpaceId(spaceName);
     const storagePath =
       input.storagePath ||
@@ -156,13 +164,18 @@ export class ApiDocumentRepository implements DocumentRepository {
         name: input.name,
         extension: input.extension,
         size: input.size,
+        uploader_name: input.uploader,
         storage_path: storagePath,
         document_space_id: spaceId,
       })
     );
   }
 
-  async bindConversationToSpace(spaceId: string, conversationName: string) {
+  async bindConversationToSpace(
+    spaceId: string,
+    conversationName: string,
+    _actor?: string
+  ) {
     const trimmedName = conversationName.trim();
     if (!trimmedName) {
       throw new Error("Conversation name is required");
@@ -180,25 +193,25 @@ export class ApiDocumentRepository implements DocumentRepository {
     );
   }
 
-  async previewFile(fileId: string) {
+  async previewFile(fileId: string, _actor?: string) {
     return this.applyState(
       this.apiClient.post(`documents/${encodeURIComponent(fileId)}/preview`)
     );
   }
 
-  async downloadFile(fileId: string) {
+  async downloadFile(fileId: string, _actor?: string) {
     return this.applyState(
       this.apiClient.post(`documents/${encodeURIComponent(fileId)}/download`)
     );
   }
 
-  async deleteFile(fileId: string) {
+  async deleteFile(fileId: string, _actor?: string) {
     return this.applyState(
       this.apiClient.post(`documents/${encodeURIComponent(fileId)}/trash`)
     );
   }
 
-  async restoreFile(fileId: string) {
+  async restoreFile(fileId: string, _actor?: string) {
     return this.applyState(
       this.apiClient.post(`documents/${encodeURIComponent(fileId)}/restore`)
     );

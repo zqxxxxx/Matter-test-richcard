@@ -78,4 +78,27 @@ describe("OutputsPanel", () => {
       cleanup();
     }
   });
+
+  it("opens preview when clicking a previewable output file name", () => {
+    const onPreview = vi.fn();
+    const { container, cleanup } = renderPanel({
+      onPreview,
+      canPreview: () => true,
+    });
+
+    try {
+      const fileName = container.querySelector<HTMLButtonElement>(
+        ".wk-outputs__file-name",
+      );
+      expect(fileName).not.toBeNull();
+
+      act(() => {
+        fileName?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      });
+
+      expect(onPreview).toHaveBeenCalledWith(output);
+    } finally {
+      cleanup();
+    }
+  });
 });

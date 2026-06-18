@@ -31,7 +31,7 @@ interface IframeSize {
 }
 
 /** PPT 单页渲染器属性 */
-export interface PptPageRendererProps extends PptPageContent {
+export type PptPageRendererProps = PptPageContent & {
   /** 页面索引 (从1开始) */
   index: number;
   /** 总页数 */
@@ -44,7 +44,7 @@ export interface PptPageRendererProps extends PptPageContent {
   className?: string;
   /** 自定义样式 */
   style?: React.CSSProperties;
-}
+};
 
 /**
  * PPT 单页渲染器

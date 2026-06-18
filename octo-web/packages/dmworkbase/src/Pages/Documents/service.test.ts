@@ -171,6 +171,7 @@ describe("ApiDocumentRepository", () => {
       name: "客户会议纪要.docx",
       extension: "docx",
       size: uploadFile.size,
+      uploader_name: "陈一",
       storage_path: expect.stringMatching(/^common\/documents\/\d+-客户会议纪要\.docx$/),
       document_space_id: "space-product",
     });

@@ -52,6 +52,7 @@ func (s *DocumentService) Upload(uid, tenantSpaceID string, req UploadReq) (*Doc
 	}
 	extension := normalizeExtension(req.Name, req.Extension)
 	now := nowDBTime()
+	displayName := fallbackString(req.UploaderName, uid)
 	asset := &DocumentAssetModel{
 		AssetID:         "DOC-" + util.GenerUUID(),
 		Name:            req.Name,
@@ -62,9 +63,9 @@ func (s *DocumentService) Upload(uid, tenantSpaceID string, req UploadReq) (*Doc
 		SourceType:      SourceTypeApp,
 		SourceName:      SourceNameDirectUpload,
 		UploaderUID:     uid,
-		UploaderName:    uid,
+		UploaderName:    displayName,
 		OwnerUID:        uid,
-		OwnerName:       uid,
+		OwnerName:       displayName,
 		TenantSpaceID:   tenantSpaceID,
 		DocumentSpaceID: space.SpaceID,
 		OriginalSpaceID: space.SpaceID,

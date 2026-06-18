@@ -183,6 +183,27 @@
   white-space: nowrap;
 }
 
+.wk-outputs__file-name--button {
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.wk-outputs__file-name--button:hover {
+  color: var(--wk-color-primary, #3370ff);
+}
+
+.wk-outputs__file-name--button:focus-visible {
+  outline: 2px solid var(--wk-color-primary, #3370ff);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
 .wk-outputs__file-size {
   display: block;
   font-size: var(--wk-text-size-sm);

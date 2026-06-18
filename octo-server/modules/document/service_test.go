@@ -21,6 +21,7 @@ func TestServiceUploadCreatesSpaceAsset(t *testing.T) {
 		Size:            2048,
 		StoragePath:     "/documents/需求清单.xlsx",
 		DocumentSpaceID: "doc-space-1",
+		UploaderName:    "陈一",
 	})
 
 	if err != nil {
@@ -38,6 +39,12 @@ func TestServiceUploadCreatesSpaceAsset(t *testing.T) {
 	}
 	if file.SourceName != SourceNameDirectUpload {
 		t.Fatalf("expected direct upload source, got %s", file.SourceName)
+	}
+	if file.Uploader != "陈一" {
+		t.Fatalf("expected uploader display name, got %s", file.Uploader)
+	}
+	if file.Owner != "陈一" {
+		t.Fatalf("expected owner display name, got %s", file.Owner)
 	}
 	if state.Spaces[0].FileCount != 1 {
 		t.Fatalf("expected space file count 1, got %d", state.Spaces[0].FileCount)

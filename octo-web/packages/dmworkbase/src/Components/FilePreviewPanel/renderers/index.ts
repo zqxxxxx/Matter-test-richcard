@@ -33,6 +33,9 @@ export type { HtmlRendererProps } from "./HtmlRenderer";
 export { default as ExcelRenderer } from "./ExcelRenderer";
 export type { ExcelRendererProps } from "./ExcelRenderer";
 
+export { default as WordRenderer } from "./WordRenderer";
+export type { WordRendererProps } from "./WordRenderer";
+
 export { default as JsonRenderer } from "./JsonRenderer";
 export type { JsonRendererProps } from "./JsonRenderer";
 

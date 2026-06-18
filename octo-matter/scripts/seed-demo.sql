@@ -81,7 +81,7 @@ VALUES
     'pm_chen', 'delivery_liu', 'open',
     'solo', NULL, NULL, @project_id, 0, 1,
     0, 0, 0, 120,
-    '2026-06-17 10:20:00.000', '2026-06-17 09:35:00.000', NULL, 1000, NULL,
+    NOW(3), '2026-06-17 09:35:00.000', NULL, 1000, NULL,
     @delivery_group, 2, '华东项目交付群', JSON_ARRAY('msg-demo-1001', 'msg-demo-1004'),
     JSON_ARRAY(
       JSON_OBJECT(
@@ -107,7 +107,7 @@ VALUES
     'pm_chen', 'pm_chen', 'in_progress',
     'solo', NULL, NULL, @project_id, 0, 1,
     0, 0, 0, 180,
-    '2026-06-17 10:25:00.000', '2026-06-17 09:45:00.000', NULL, 900, NULL,
+    NOW(3), NOW(3), NULL, 900, NULL,
     @product_group, 2, '产品方案讨论群', JSON_ARRAY('msg-demo-1002', 'msg-demo-1003'),
     JSON_ARRAY(
       JSON_OBJECT(

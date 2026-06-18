@@ -53,6 +53,7 @@ export type FileType =
   | "jsonl"
   | "text"
   | "excel"
+  | "word"
   | "ppt"
   | "video"
   | "audio"

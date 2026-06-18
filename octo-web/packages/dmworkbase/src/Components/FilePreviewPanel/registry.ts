@@ -14,13 +14,14 @@ import ExcelRenderer from "./renderers/ExcelRenderer";
 import JsonRenderer from "./renderers/JsonRenderer";
 import JsonlRenderer from "./renderers/JsonlRenderer";
 import ImageRenderer from "./renderers/ImageRenderer";
+import WordRenderer from "./renderers/WordRenderer";
 
 /**
  * 文件渲染器注册表
  * 策略模式核心：根据文件扩展名选择对应的渲染器
  *
- * 注意：Word / PowerPoint 这类需要服务端转换的 Office 文档不在前端直出，
- * 走下载兜底；PDF、图片、文本、代码、Markdown、HTML、Excel/CSV 可在线预览。
+ * 注意：docx 通过浏览器端解析转为 HTML 预览；旧版 .doc 与 PowerPoint
+ * 仍走下载兜底，避免把无法稳定渲染的文件标记为可预览。
  */
 class FileRendererRegistry {
   private registry: Map<string, RendererRegistryItem> = new Map();
@@ -130,9 +131,17 @@ class FileRendererRegistry {
       needsFetch: true,
     });
 
+    // Word 文档。docx 为 OOXML，可在浏览器端解析为 HTML 进行快速阅读。
+    this.register({
+      type: "word",
+      extensions: ["docx"],
+      renderer: WordRenderer,
+      needsFetch: true,
+    });
+
     // 注意：以下类型明确不支持，走 FallbackRenderer：
     // - .pptx, .ppt (PowerPoint)
-    // - .docx, .doc (Word)
+    // - .doc (旧版 Word)
   }
 
   /** 注册渲染器 */

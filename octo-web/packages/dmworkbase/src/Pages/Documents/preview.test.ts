@@ -1,5 +1,10 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { canPreviewInPanel } from "../../Components/FilePreviewPanel";
 import { canPreviewDocumentAsset } from "./preview";
+
+vi.mock("react-virtuoso", () => ({
+  TableVirtuoso: () => null,
+}));
 
 const supported = (extension: string, name?: string) =>
   ["pdf", "xlsx", "txt", "png"].includes(
@@ -19,18 +24,6 @@ describe("canPreviewDocumentAsset", () => {
         supported
       )
     ).toBe(true);
-
-    expect(
-      canPreviewDocumentAsset(
-        {
-          name: "制度说明.docx",
-          extension: ".docx",
-          previewable: true,
-          storagePath: "common/documents/demo.docx",
-        },
-        supported
-      )
-    ).toBe(false);
 
     expect(
       canPreviewDocumentAsset(
@@ -55,5 +48,20 @@ describe("canPreviewDocumentAsset", () => {
         supported
       )
     ).toBe(false);
+  });
+
+  it("allows Word documents when backend preview permission and storage object are present", () => {
+    expect(canPreviewInPanel(".docx", "制度说明.docx")).toBe(true);
+    expect(
+      canPreviewDocumentAsset(
+        {
+          name: "制度说明.docx",
+          extension: ".docx",
+          previewable: true,
+          storagePath: "common/documents/demo.docx",
+        },
+        canPreviewInPanel
+      )
+    ).toBe(true);
   });
 });

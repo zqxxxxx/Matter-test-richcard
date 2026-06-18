@@ -12,9 +12,9 @@ import { useI18n } from "../../../i18n";
 import "./PptRenderer.css";
 
 /** PPT 页面数据 */
-export interface PptPageData extends PptPageContent {
+export type PptPageData = PptPageContent & {
   index: number;
-}
+};
 
 /** PPT 数据结构 */
 export interface PptData {
