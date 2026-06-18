@@ -7,8 +7,12 @@ set -eu
 # compose stack, set SUMMARY_API_URL=http://summary-api:8080 from .env.
 : "${SUMMARY_API_URL:=}"
 export SUMMARY_API_URL
+# Matter powers the Tasks surface. Leave blank to return a JSON 503 rather
+# than silently serving index.html for /matter/api/v1/* requests.
+: "${MATTER_API_URL:=}"
+export MATTER_API_URL
 
-envsubst '${API_URL} ${SUMMARY_API_URL}' < /nginx.conf.template > /etc/nginx/conf.d/default.conf
+envsubst '${API_URL} ${SUMMARY_API_URL} ${MATTER_API_URL}' < /nginx.conf.template > /etc/nginx/conf.d/default.conf
 
 
 exec "$@"

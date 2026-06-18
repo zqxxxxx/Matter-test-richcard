@@ -18,6 +18,7 @@ server {
         # these at container start; leaving an env blank yields an empty
         # string that the corresponding location block tests for.
         set $summary_api_url "${SUMMARY_API_URL}";
+        set $matter_api_url "${MATTER_API_URL}";
 
         # Security headers
         # Prevent clickjacking attacks
@@ -60,6 +61,26 @@ server {
             # forwards the rewritten request as-is.
             rewrite ^/summary/api/v1/(.*)$ /api/v1/$1 break;
             proxy_pass  $summary_api_url;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            client_max_body_size 100m;
+        }
+
+        # Matter backend — required by Tasks and related Matter integrations.
+        # Frontend code calls /matter/api/v1/* in both dev and production.
+        # Vite dev rewrites /matter/* to the Matter service; this production
+        # nginx route mirrors that behavior so deployed octo-web containers do
+        # not fall through to the SPA index.html for API requests.
+        location /matter/ {
+            default_type application/json;
+            if ($matter_api_url = "") {
+                return 503 '{"status":503,"msg":"matter service is not configured"}';
+            }
+            resolver 127.0.0.11 ipv6=off valid=30s;
+            rewrite ^/matter/(.*)$ /$1 break;
+            proxy_pass  $matter_api_url;
             proxy_set_header Host $host;
             proxy_set_header X-Real-IP $remote_addr;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
