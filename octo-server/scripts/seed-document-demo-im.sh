@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Sync the SQL demo groups into WuKongIM and send one real message so the
-# Octo web "最近" tab has a reproducible conversation to verify.
+# Sync the SQL demo groups into WuKongIM and send real messages so the Octo web
+# "最近" and "关注" tabs have reproducible business conversations to verify.
 #
 # Run after scripts/seed-document-demo.sql and after octo-server/WuKongIM start:
 #   OCTO_TOKEN=<login-token> bash octo-server/scripts/seed-document-demo-im.sh
@@ -36,9 +36,11 @@ send_group_text() {
 }
 
 sync_group "grp_product_docs" '["pm_chen","delivery_liu","admin_zhou"]'
-sync_group "grp_delivery_docs" '["pm_chen","delivery_liu"]'
+sync_group "grp_delivery_docs" '["pm_chen","delivery_liu","admin_zhou"]'
 sync_group "grp_policy_docs" '["pm_chen","hr_zhao","admin_zhou"]'
 
 send_group_text "grp_product_docs" "文档中心验收消息：上传、预览、下载已完成。"
+send_group_text "grp_delivery_docs" "交付资料验收消息：计划、截图和来源会话已完成。"
+send_group_text "grp_policy_docs" "制度空间验收消息：制度文档和回收站流程已完成。"
 
-echo "Seeded WuKongIM subscribers and demo conversation."
+echo "Seeded WuKongIM subscribers and demo conversations."

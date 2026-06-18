@@ -41,3 +41,19 @@ export function computeEffectiveCategories(categories: ValidCategoryItem[]): Val
         is_default: true,
     }]
 }
+
+export function getSidebarCategoryKey(category: ValidCategoryItem): string {
+    if (category.is_default && isVirtualCategory(category.category_id)) {
+        return ""
+    }
+    return category.category_id ?? ""
+}
+
+export function shouldShowCategoryInFollowView(
+    category: ValidCategoryItem,
+    itemsByCategory?: Map<string, unknown[]>
+): boolean {
+    if (!category.is_default) return true
+    const key = getSidebarCategoryKey(category)
+    return (itemsByCategory?.get(key)?.length ?? 0) > 0
+}

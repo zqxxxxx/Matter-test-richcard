@@ -9,6 +9,7 @@ SET @tenant_space_id = 'space-demo-octo';
 SET @product_group = 'grp_product_docs';
 SET @delivery_group = 'grp_delivery_docs';
 SET @policy_group = 'grp_policy_docs';
+SET @pm_default_category = 'catdemopmchendefault000000001';
 
 DELETE FROM document_asset_event
 WHERE tenant_space_id = @tenant_space_id
@@ -31,6 +32,7 @@ DELETE FROM document_space WHERE tenant_space_id = @tenant_space_id;
 
 DELETE FROM group_member WHERE group_no IN (@product_group, @delivery_group, @policy_group);
 DELETE FROM group_setting WHERE group_no IN (@product_group, @delivery_group, @policy_group);
+DELETE FROM group_category WHERE space_id = @tenant_space_id AND uid IN ('pm_chen', 'delivery_liu', 'hr_zhao', 'admin_zhou');
 DELETE FROM `group` WHERE group_no IN (@product_group, @delivery_group, @policy_group);
 DELETE FROM space_member WHERE space_id = @tenant_space_id;
 DELETE FROM `space` WHERE space_id = @tenant_space_id;
@@ -107,6 +109,31 @@ ON DUPLICATE KEY UPDATE
   role = VALUES(role),
   is_deleted = 0,
   status = 1,
+  updated_at = NOW();
+
+INSERT INTO group_category
+  (category_id, space_id, uid, name, sort, status, is_default, created_at, updated_at)
+VALUES
+  (@pm_default_category, @tenant_space_id, 'pm_chen', '__default__', 0, 1, 1, NOW(), NOW())
+ON DUPLICATE KEY UPDATE
+  space_id = VALUES(space_id),
+  uid = VALUES(uid),
+  name = VALUES(name),
+  sort = VALUES(sort),
+  status = 1,
+  is_default = 1,
+  updated_at = NOW();
+
+INSERT INTO group_setting
+  (uid, group_no, remark, mute, top, show_nick, save, chat_pwd_on, revoke_remind, join_group_remind, screenshot, receipt, version, category_id, category_sort, created_at, updated_at)
+VALUES
+  ('pm_chen', @product_group, '', 0, 0, 0, 0, 0, 1, 0, 1, 1, UNIX_TIMESTAMP(NOW(6)) * 1000000, @pm_default_category, 1, NOW(), NOW()),
+  ('pm_chen', @delivery_group, '', 0, 0, 0, 0, 0, 1, 0, 1, 1, UNIX_TIMESTAMP(NOW(6)) * 1000000, @pm_default_category, 2, NOW(), NOW()),
+  ('pm_chen', @policy_group, '', 0, 0, 0, 0, 0, 1, 0, 1, 1, UNIX_TIMESTAMP(NOW(6)) * 1000000, @pm_default_category, 3, NOW(), NOW())
+ON DUPLICATE KEY UPDATE
+  category_id = VALUES(category_id),
+  category_sort = VALUES(category_sort),
+  version = VALUES(version),
   updated_at = NOW();
 
 INSERT INTO document_space
@@ -194,4 +221,5 @@ SELECT
   @tenant_space_id AS tenant_space_id,
   (SELECT COUNT(*) FROM document_space WHERE tenant_space_id = @tenant_space_id) AS document_spaces,
   (SELECT COUNT(*) FROM document_asset WHERE tenant_space_id = @tenant_space_id) AS document_assets,
-  (SELECT COUNT(*) FROM document_asset_event WHERE tenant_space_id = @tenant_space_id) AS document_events;
+  (SELECT COUNT(*) FROM document_asset_event WHERE tenant_space_id = @tenant_space_id) AS document_events,
+  (SELECT COUNT(*) FROM group_setting WHERE uid = 'pm_chen' AND group_no IN (@product_group, @delivery_group, @policy_group) AND category_id = @pm_default_category) AS followed_groups;

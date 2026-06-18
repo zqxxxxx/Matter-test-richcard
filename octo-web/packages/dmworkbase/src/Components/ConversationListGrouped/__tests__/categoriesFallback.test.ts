@@ -2,7 +2,9 @@ import { beforeEach, describe, expect, it } from "vitest"
 import { i18n } from "../../../i18n"
 import {
     computeEffectiveCategories,
+    getSidebarCategoryKey,
     isVirtualCategory,
+    shouldShowCategoryInFollowView,
     VIRTUAL_DEFAULT_CATEGORY_ID,
     type ValidCategoryItem,
 } from "../categoriesFallback"
@@ -125,5 +127,45 @@ describe("computeEffectiveCategories", () => {
         expect(result).toBe(real)
         // 无虚拟分组渗入
         expect(result.some(c => isVirtualCategory(c.category_id))).toBe(false)
+    })
+})
+
+describe("default category visibility in follow view", () => {
+    it("真实默认分组有 sidebar follow items 时必须展示", () => {
+        const defaultCat: ValidCategoryItem = {
+            category_id: "cat-default-real",
+            name: "默认分组",
+            sort: 0,
+            groups: [{ group_no: "g1", name: "A", category_sort: 0 }],
+            is_default: true,
+        }
+        const itemsByCategory = new Map<string, unknown[]>([
+            ["cat-default-real", [{ target_id: "g1" }]],
+        ])
+
+        expect(getSidebarCategoryKey(defaultCat)).toBe("cat-default-real")
+        expect(shouldShowCategoryInFollowView(defaultCat, itemsByCategory)).toBe(true)
+    })
+
+    it("真实默认分组没有 sidebar follow items 时隐藏", () => {
+        const defaultCat: ValidCategoryItem = {
+            category_id: "cat-default-real",
+            name: "默认分组",
+            sort: 0,
+            groups: [],
+            is_default: true,
+        }
+
+        expect(shouldShowCategoryInFollowView(defaultCat, new Map())).toBe(false)
+    })
+
+    it("虚拟默认分组继续使用空 category key 兼容未分组 sidebar items", () => {
+        const [virtualCat] = computeEffectiveCategories([])
+        const itemsByCategory = new Map<string, unknown[]>([
+            ["", [{ target_id: "g1" }]],
+        ])
+
+        expect(getSidebarCategoryKey(virtualCat)).toBe("")
+        expect(shouldShowCategoryInFollowView(virtualCat, itemsByCategory)).toBe(true)
     })
 })
