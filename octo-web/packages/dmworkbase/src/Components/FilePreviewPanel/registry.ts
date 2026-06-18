@@ -19,9 +19,8 @@ import ImageRenderer from "./renderers/ImageRenderer";
  * 文件渲染器注册表
  * 策略模式核心：根据文件扩展名选择对应的渲染器
  *
- * 注意：以下文件类型明确不支持预览，走 FallbackRenderer：
- * - .docx / .xlsx / .xls / .pptx / .ppt（Office 文档）
- * - 图片、视频、音频（对话流内已渲染，不进入面板）
+ * 注意：Word / PowerPoint 这类需要服务端转换的 Office 文档不在前端直出，
+ * 走下载兜底；PDF、图片、文本、代码、Markdown、HTML、Excel/CSV 可在线预览。
  */
 class FileRendererRegistry {
   private registry: Map<string, RendererRegistryItem> = new Map();
