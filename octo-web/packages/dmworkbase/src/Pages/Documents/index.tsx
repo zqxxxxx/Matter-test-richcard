@@ -28,7 +28,10 @@ import {
   getPresignedPreviewUrl,
 } from "../../Utils/download";
 import { canPreviewDocumentAsset } from "./preview";
-import { documentRepository } from "./service";
+import {
+  documentRepository,
+  resolveDefaultArchiveSpaceName,
+} from "./service";
 import type { DocumentAsset, DocumentKind, DocumentState } from "./types";
 import "./index.css";
 
@@ -437,10 +440,7 @@ export function DocumentsWorkspace() {
 
   useEffect(() => {
     if (!state || !selectedFile) return;
-    const existingSpace = state.spaces.find(
-      (space) => space.name === selectedFile.spaceName
-    );
-    setArchiveSpaceName(existingSpace?.name || state.spaces[0]?.name || "");
+    setArchiveSpaceName(resolveDefaultArchiveSpaceName(state, selectedFile));
   }, [state, selectedFile?.id, selectedFile?.spaceName]);
 
   useEffect(() => {

@@ -1,6 +1,7 @@
 import APIClient from "../../Service/APIClient";
 import type {
   ArchiveMessageFileInput,
+  DocumentAsset,
   DocumentState,
   DocumentSummary,
   UploadDocumentInput,
@@ -61,6 +62,25 @@ export function createDocumentSummary(state: DocumentState): DocumentSummary {
     spaceFiles,
     conversationFiles,
   };
+}
+
+export function resolveDefaultArchiveSpaceName(
+  state: DocumentState,
+  file: DocumentAsset
+) {
+  const currentSpace = state.spaces.find(
+    (space) => space.name === file.spaceName
+  );
+  if (currentSpace) return currentSpace.name;
+
+  const boundSpace = state.spaces.find((space) =>
+    space.boundConversations.some(
+      (conversation) =>
+        conversation === file.sourceName ||
+        conversation === file.sourceChannelId
+    )
+  );
+  return boundSpace?.name || state.spaces[0]?.name || "";
 }
 
 function notifyListeners(

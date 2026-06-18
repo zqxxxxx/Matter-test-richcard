@@ -3,6 +3,7 @@ import {
   ApiDocumentRepository,
   createDocumentSummary,
   documentRepository,
+  resolveDefaultArchiveSpaceName,
 } from "./service";
 import type { DocumentState } from "./types";
 
@@ -88,6 +89,17 @@ function stateFixture(): DocumentState {
         pinnedFileIds: [],
         description: "产品资料沉淀空间",
       },
+      {
+        id: "space-delivery",
+        name: "华东交付空间",
+        owner: "刘青",
+        fileCount: 0,
+        memberCount: 2,
+        members: ["陈一", "刘青"],
+        boundConversations: ["华东项目交付群"],
+        pinnedFileIds: [],
+        description: "客户交付材料沉淀空间",
+      },
     ],
     audits: [],
   };
@@ -100,6 +112,24 @@ describe("createDocumentSummary", () => {
       spaceFiles: 1,
       conversationFiles: 1,
     });
+  });
+});
+
+describe("resolveDefaultArchiveSpaceName", () => {
+  it("uses the space already holding an archived file", () => {
+    const fixture = stateFixture();
+
+    expect(
+      resolveDefaultArchiveSpaceName(fixture, fixture.files[0])
+    ).toBe("产品部公共空间");
+  });
+
+  it("uses the space bound to the source conversation for conversation files", () => {
+    const fixture = stateFixture();
+
+    expect(
+      resolveDefaultArchiveSpaceName(fixture, fixture.files[1])
+    ).toBe("华东交付空间");
   });
 });
 
