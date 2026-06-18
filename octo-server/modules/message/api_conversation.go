@@ -221,9 +221,7 @@ func (co *Conversation) conversationExtraUpdate(c *wkhttp.Context) {
 		CMD:         common.CMDSyncConversationExtra,
 	})
 	if err != nil {
-		co.Error("发送同步扩展会话cmd失败！", zap.Error(err))
-		httperr.ResponseErrorL(c, errcode.ErrMessageNotifyFailed, nil, nil)
-		return
+		co.Warn("发送同步扩展会话cmd失败，已保存的会话扩展状态将由后续同步追平", zap.Error(err))
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"version": version,
