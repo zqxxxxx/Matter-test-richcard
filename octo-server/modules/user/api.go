@@ -214,6 +214,8 @@ func (u *User) Route(r *wkhttp.WKHttp) {
 		auth.GET("/user/search", searchLimit, u.search)
 		auth.POST("/users/:uid/avatar", u.uploadAvatar)              //上传用户头像
 		auth.PUT("/users/:uid/setting", u.setting.userSettingUpdate) // 更新用户设置
+		auth.GET("/sticker/user/category", u.stickerCategories)      // 用户贴图类别（兼容旧 Web 表情面板）
+		auth.GET("/sticker/user/sticker", u.stickers)                // 用户贴图列表（兼容旧 Web 表情面板）
 	}
 
 	user := r.Group("/v1/user", u.ctx.AuthMiddleware(r))

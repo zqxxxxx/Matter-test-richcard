@@ -198,6 +198,22 @@ describe("ApiDocumentRepository", () => {
     );
   });
 
+  it("checks source conversation access through the backend", async () => {
+    const apiClient = {
+      get: vi.fn().mockResolvedValue({ accessible: true }),
+      post: vi.fn(),
+    };
+    const repo = new ApiDocumentRepository(apiClient);
+
+    await expect(repo.checkSource("asset-space")).resolves.toBe(true);
+
+    expect(apiClient.get).toHaveBeenCalledWith("documents/source/check", {
+      param: {
+        asset_id: "asset-space",
+      },
+    });
+  });
+
   it("does not fall back to mock data when the backend API fails", async () => {
     const apiClient = {
       get: vi.fn().mockRejectedValue(new Error("api down")),

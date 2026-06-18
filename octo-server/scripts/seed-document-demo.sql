@@ -35,20 +35,23 @@ DELETE FROM `group` WHERE group_no IN (@product_group, @delivery_group, @policy_
 DELETE FROM space_member WHERE space_id = @tenant_space_id;
 DELETE FROM `space` WHERE space_id = @tenant_space_id;
 DELETE FROM `user`
-WHERE uid IN ('pm_chen', 'delivery_liu', 'hr_zhao', 'admin_zhou');
+WHERE uid IN ('pm_chen', 'delivery_liu', 'hr_zhao', 'admin_zhou', 'u_10000', 'fileHelper');
 
 INSERT INTO `user`
-  (uid, name, short_no, username, phone, zone, vercode, status, is_upload_avatar, created_at, updated_at)
+  (uid, name, short_no, username, phone, zone, vercode, status, is_upload_avatar, category, created_at, updated_at)
 VALUES
-  ('pm_chen', '陈一', '860101', 'pm_chen', '13900000101', '0086', 'seed-doc-pm', 1, 0, NOW(), NOW()),
-  ('delivery_liu', '刘青', '860102', 'delivery_liu', '13900000102', '0086', 'seed-doc-delivery', 1, 0, NOW(), NOW()),
-  ('hr_zhao', '赵宁', '860103', 'hr_zhao', '13900000103', '0086', 'seed-doc-hr', 1, 0, NOW(), NOW()),
-  ('admin_zhou', '周岚', '860104', 'admin_zhou', '13900000104', '0086', 'seed-doc-admin', 1, 0, NOW(), NOW())
+  ('pm_chen', '陈一', '860101', 'pm_chen', '13900000101', '0086', 'seed-doc-pm', 1, 0, '', NOW(), NOW()),
+  ('delivery_liu', '刘青', '860102', 'delivery_liu', '13900000102', '0086', 'seed-doc-delivery', 1, 0, '', NOW(), NOW()),
+  ('hr_zhao', '赵宁', '860103', 'hr_zhao', '13900000103', '0086', 'seed-doc-hr', 1, 0, '', NOW(), NOW()),
+  ('admin_zhou', '周岚', '860104', 'admin_zhou', '13900000104', '0086', 'seed-doc-admin', 1, 0, '', NOW(), NOW()),
+  ('u_10000', '系统通知', '860901', 'u_10000', '', '0086', 'seed-doc-system', 1, 1, 'system', NOW(), NOW()),
+  ('fileHelper', '文件传输助手', '860902', 'fileHelper', '', '0086', 'seed-doc-file-helper', 1, 1, 'system', NOW(), NOW())
 ON DUPLICATE KEY UPDATE
   name = VALUES(name),
   username = VALUES(username),
   phone = VALUES(phone),
   is_upload_avatar = VALUES(is_upload_avatar),
+  category = VALUES(category),
   status = 1,
   updated_at = NOW();
 

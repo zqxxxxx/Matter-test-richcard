@@ -38,6 +38,7 @@ export interface DocumentRepository {
   downloadFile(fileId: string, actor?: string): Promise<DocumentState>;
   deleteFile(fileId: string, actor?: string): Promise<DocumentState>;
   restoreFile(fileId: string, actor?: string): Promise<DocumentState>;
+  checkSource(fileId: string): Promise<boolean>;
 }
 
 function cloneState(state: DocumentState): DocumentState {
@@ -215,6 +216,18 @@ export class ApiDocumentRepository implements DocumentRepository {
     return this.applyState(
       this.apiClient.post(`documents/${encodeURIComponent(fileId)}/restore`)
     );
+  }
+
+  async checkSource(fileId: string) {
+    const result = await this.apiClient.get<{ accessible: boolean }>(
+      "documents/source/check",
+      {
+        param: {
+          asset_id: fileId,
+        },
+      }
+    );
+    return Boolean(result?.accessible);
   }
 
   private async uploadObject(file: File) {

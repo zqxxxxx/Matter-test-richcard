@@ -14,7 +14,7 @@ import {
   UserRound,
 } from "lucide-react";
 import { Button, Input, Modal, Select, Toast } from "@douyinfe/semi-ui";
-import { Channel, WKSDK } from "wukongimjssdk";
+import { Channel } from "wukongimjssdk";
 import WKApp from "../../App";
 import {
   canPreviewInPanel,
@@ -498,18 +498,17 @@ export function DocumentsWorkspace() {
     Toast.success(`已开始下载：${file.name}`);
   }
 
-  function openSource(file: DocumentAsset) {
+  async function openSource(file: DocumentAsset) {
     if (!file.sourceChannelId) {
       Toast.warning("直接上传的文件没有来源会话");
       return;
     }
-    const channel = new Channel(file.sourceChannelId, file.sourceChannelType);
-    const conversation =
-      WKSDK.shared().conversationManager.findConversation(channel);
-    if (!conversation) {
+    const accessible = await documentRepository.checkSource(file.id);
+    if (!accessible) {
       Toast.warning("来源会话暂不可访问");
       return;
     }
+    const channel = new Channel(file.sourceChannelId, file.sourceChannelType);
     try {
       WKApp.endpoints.showConversation(channel);
       Toast.success(`正在打开来源会话：${file.sourceName}`);
