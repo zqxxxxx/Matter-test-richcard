@@ -92,7 +92,7 @@ export default class ChatSummaryStarButton extends Component<
     }
 
     private handleClick = async () => {
-        if (!WKApp.remoteConfig.summaryEnabled) return;
+        if (!WKApp.remoteConfig?.summaryEnabled) return;
         if (this.state.loaded) {
             this.emitForHasSummaries(this.state.hasSummaries);
             return;
@@ -131,7 +131,7 @@ export default class ChatSummaryStarButton extends Component<
     }
 
     render() {
-        if (!WKApp.remoteConfig.summaryEnabled) return null;
+        if (!WKApp.remoteConfig?.summaryEnabled) return null;
         const { t } = this.context;
         return (
             <div

@@ -66,8 +66,10 @@ vi.mock("@douyinfe/semi-ui", () => ({
 
 import PersonaSettings from "../index"
 import { OboGrant } from "../vm"
+import { i18n } from "../../../i18n"
 
 beforeEach(() => {
+    i18n.setLocale("zh-CN", { persist: false })
     hoisted.get.mockReset()
     hoisted.post.mockReset()
     hoisted.del.mockReset()

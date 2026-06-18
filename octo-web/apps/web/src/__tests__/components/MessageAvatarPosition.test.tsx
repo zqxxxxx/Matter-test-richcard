@@ -13,7 +13,15 @@ describe("MessageBase Avatar Position", () => {
         cssContent = fs.readFileSync(cssPath, "utf-8");
     });
 
-    it("senderAvatar should be positioned at top instead of bottom", () => {
+    it("message rows should top-align the avatar with the message body", () => {
+        const rowMatch = cssContent.match(
+            /\.wk-message-base-box\s*\{[^}]+\}/
+        );
+        expect(rowMatch).not.toBeNull();
+        expect(rowMatch![0]).toMatch(/align-items:\s*flex-start/);
+    });
+
+    it("senderAvatar should be a stable flex item instead of absolute-positioned", () => {
         // Extract the .senderAvatar rule
         const senderAvatarMatch = cssContent.match(
             /\.senderAvatar\s*\{[^}]+\}/
@@ -22,24 +30,9 @@ describe("MessageBase Avatar Position", () => {
 
         const senderAvatarRule = senderAvatarMatch![0];
 
-        // Should have top: 0
-        expect(senderAvatarRule).toMatch(/top:\s*0/);
-
-        // Should NOT have bottom positioning
+        expect(senderAvatarRule).toMatch(/flex-shrink:\s*0/);
+        expect(senderAvatarRule).not.toMatch(/position:\s*absolute/);
         expect(senderAvatarRule).not.toMatch(/bottom:\s*\d+px/);
-    });
-
-    it("senderAvatar should use absolute positioning", () => {
-        const senderAvatarMatch = cssContent.match(
-            /\.senderAvatar\s*\{[^}]+\}/
-        );
-        expect(senderAvatarMatch).not.toBeNull();
-
-        const senderAvatarRule = senderAvatarMatch![0];
-
-        // Should have position: absolute and left: 0
-        expect(senderAvatarRule).toMatch(/position:\s*absolute/);
-        expect(senderAvatarRule).toMatch(/left:\s*0/);
     });
 
     it("senderAvatar should have correct dimensions", () => {
@@ -50,8 +43,7 @@ describe("MessageBase Avatar Position", () => {
 
         const senderAvatarRule = senderAvatarMatch![0];
 
-        // Should have 34px width and height
-        expect(senderAvatarRule).toMatch(/width:\s*34px/);
-        expect(senderAvatarRule).toMatch(/height:\s*34px/);
+        expect(senderAvatarRule).toMatch(/width:\s*32px/);
+        expect(senderAvatarRule).toMatch(/height:\s*32px/);
     });
 });

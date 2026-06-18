@@ -64,7 +64,11 @@ vi.mock(
     resetSharedSpaceSetting: vi.fn(),
     setSharedVoiceConfig: vi.fn(),
     getSharedSpaceFeedbackState: () => ({
-      spaceSetting: { voice_feedback_on: 1, voice_feedback_notice_acked: 1 },
+      spaceSetting: {
+        voice_input_enabled: 1,
+        voice_feedback_on: 1,
+        voice_feedback_notice_acked: 1,
+      },
     }),
     getSharedVoiceConfig: () => null,
     subscribe: vi.fn(() => vi.fn()),
@@ -407,7 +411,7 @@ describe("useVoiceInput - getChatContext", () => {
       "smart",
       true,
       1,
-      false
+      true
     );
   });
 
@@ -451,7 +455,7 @@ describe("useVoiceInput - getChatContext", () => {
       "smart",
       true,
       2,
-      false
+      true
     );
   });
 
@@ -648,7 +652,7 @@ describe("useVoiceInput - personal voice context", () => {
       "smart", // mode
       true, // skipLocal
       undefined, // channelType
-      false // allowFeedback
+      true // allowFeedback
     );
     expect(getChatContext).toHaveBeenCalled();
   });
@@ -691,7 +695,7 @@ describe("useVoiceInput - personal voice context", () => {
       "smart", // mode
       true, // skipLocal
       undefined, // channelType
-      false // allowFeedback
+      true // allowFeedback
     );
     expect(getChatContext).toHaveBeenCalled();
   });
@@ -734,7 +738,7 @@ describe("useVoiceInput - personal voice context", () => {
       "smart", // mode
       true, // skipLocal
       undefined, // channelType
-      false // allowFeedback
+      true // allowFeedback
     );
   });
 
@@ -773,7 +777,7 @@ describe("useVoiceInput - personal voice context", () => {
       "smart", // mode
       true, // skipLocal
       undefined, // channelType
-      false // allowFeedback
+      true // allowFeedback
     );
   });
 
@@ -834,7 +838,7 @@ describe("useVoiceInput - personal voice context", () => {
       "smart", // mode
       true, // skipLocal
       undefined, // channelType
-      false // allowFeedback
+      true // allowFeedback
     );
   });
 

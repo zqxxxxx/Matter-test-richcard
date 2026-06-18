@@ -23,7 +23,11 @@ vi.mock("@douyinfe/semi-ui", () => ({
     error: vi.fn(),
     warning: vi.fn(),
   },
-  Dropdown: Object.assign(vi.fn(({ children }: any) => children), {
+  Dropdown: Object.assign(vi.fn(({ children, render }: any) => {
+    const React = require("react");
+    const menu = typeof render === "function" ? render() : render;
+    return React.createElement(React.Fragment, null, children, menu);
+  }), {
     Menu: vi.fn(({ children }: any) => children),
     Item: vi.fn(({ children, onClick }: any) => {
       const React = require("react");
@@ -34,7 +38,11 @@ vi.mock("@douyinfe/semi-ui", () => ({
 vi.mock("@douyinfe/semi-icons", () => ({}));
 
 const mockSharedSpaceFeedbackState = {
-  spaceSetting: null as { voice_feedback_on?: number; voice_feedback_notice_acked?: number } | null,
+  spaceSetting: null as {
+    voice_input_enabled?: number;
+    voice_feedback_on?: number;
+    voice_feedback_notice_acked?: number;
+  } | null,
   loaded: false,
   apiAvailable: false,
   loadedSpaceId: null as string | null,
@@ -85,9 +93,13 @@ function createInputRef(): React.RefObject<HTMLTextAreaElement> {
 describe("VoiceInputButton - rendering", () => {
   beforeEach(() => {
     mockUseTextareaVoice.mockReturnValue(createMockReturn());
-    mockSharedSpaceFeedbackState.spaceSetting = null;
-    mockSharedSpaceFeedbackState.loaded = false;
-    mockSharedSpaceFeedbackState.apiAvailable = false;
+    mockSharedSpaceFeedbackState.spaceSetting = {
+      voice_input_enabled: 1,
+      voice_feedback_on: 0,
+      voice_feedback_notice_acked: 1,
+    };
+    mockSharedSpaceFeedbackState.loaded = true;
+    mockSharedSpaceFeedbackState.apiAvailable = true;
     mockSharedSpaceFeedbackState.loadedSpaceId = null;
     mockVoiceConfig.current = null;
     Object.defineProperty(navigator, "onLine", {
@@ -232,9 +244,13 @@ describe("VoiceInputButton - rendering", () => {
 describe("VoiceInputButton - interactions", () => {
   beforeEach(() => {
     mockUseTextareaVoice.mockReturnValue(createMockReturn());
-    mockSharedSpaceFeedbackState.spaceSetting = null;
-    mockSharedSpaceFeedbackState.loaded = false;
-    mockSharedSpaceFeedbackState.apiAvailable = false;
+    mockSharedSpaceFeedbackState.spaceSetting = {
+      voice_input_enabled: 1,
+      voice_feedback_on: 0,
+      voice_feedback_notice_acked: 1,
+    };
+    mockSharedSpaceFeedbackState.loaded = true;
+    mockSharedSpaceFeedbackState.apiAvailable = true;
     mockSharedSpaceFeedbackState.loadedSpaceId = null;
     mockVoiceConfig.current = null;
     Object.defineProperty(navigator, "onLine", {
@@ -519,6 +535,7 @@ describe("VoiceInputButton - mode menu", () => {
 
   it("should show feedback notice on handleModeSelect when notice not acked", async () => {
     mockSharedSpaceFeedbackState.spaceSetting = {
+      voice_input_enabled: 0,
       voice_feedback_on: 1,
       voice_feedback_notice_acked: 0,
     };
@@ -551,6 +568,7 @@ describe("VoiceInputButton - mode menu", () => {
 
   it("should allow handleModeSelect when notice already acked", async () => {
     mockSharedSpaceFeedbackState.spaceSetting = {
+      voice_input_enabled: 1,
       voice_feedback_on: 1,
       voice_feedback_notice_acked: 1,
     };
@@ -646,6 +664,7 @@ describe("VoiceInputButton - fail-closed when settings not loaded", () => {
     mockSharedSpaceFeedbackState.loaded = true;
     mockSharedSpaceFeedbackState.apiAvailable = true;
     mockSharedSpaceFeedbackState.spaceSetting = {
+      voice_input_enabled: 1,
       voice_feedback_on: 0,
       voice_feedback_notice_acked: 0,
     };

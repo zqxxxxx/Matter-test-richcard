@@ -95,7 +95,10 @@ vi.mock("../../../bridge/message/useMergeforwardMessageUI", () => ({
 }));
 vi.mock("../../../Components/WKModal", () => ({ default: () => null }));
 vi.mock("@douyinfe/semi-icons", () => ({
+  default: {},
+  IconAlertTriangle: () => null,
   IconArrowLeft: () => null,
+  IconChevronDown: () => null,
   IconClose: () => null,
 }));
 vi.mock("../index.css", () => ({}));

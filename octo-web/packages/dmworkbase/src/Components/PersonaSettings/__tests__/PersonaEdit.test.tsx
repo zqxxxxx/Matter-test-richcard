@@ -65,6 +65,7 @@ vi.mock("@douyinfe/semi-ui", () => ({
 // 在所有 mock 之后再 import 被测组件 + VM。
 import PersonaEdit from "../PersonaEdit"
 import { OboGrant, OboScope } from "../vm"
+import { i18n } from "../../../i18n"
 
 const baseGrant = (overrides: Partial<OboGrant> = {}): OboGrant => ({
     id: 99,
@@ -85,6 +86,7 @@ const scope = (overrides: Partial<OboScope> & Pick<OboScope, "id" | "channel_id"
 } as OboScope)
 
 beforeEach(() => {
+    i18n.setLocale("zh-CN", { persist: false })
     hoisted.get.mockReset()
     hoisted.post.mockReset()
     hoisted.del.mockReset()

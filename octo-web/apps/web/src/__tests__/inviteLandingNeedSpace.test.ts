@@ -89,9 +89,10 @@ describe('InviteLanding — dmworkim#1319 need_space handling', () => {
 
     it('shows the guidance copy and the "去输入邀请码" CTA', () => {
         const needBlock = extractNeedSpaceRenderBlock(sourceCode)!;
-        // 文案与 iOS / Android 端对齐
-        expect(needBlock).toMatch(/请先加入一个\s*Space/);
-        expect(needBlock).toContain('去输入邀请码');
+        // 文案通过 i18n key 输出，避免源码里散落硬编码中文。
+        expect(needBlock).toContain('app.invite.needSpace.title');
+        expect(needBlock).toContain('app.invite.needSpace.hint');
+        expect(needBlock).toContain('app.invite.needSpace.cta');
     });
 
     // ── CTA 行为：触发 onNeedJoinSpace ───────────────────────────────
@@ -163,7 +164,7 @@ describe('InviteLanding — dmworkim#1319 need_space handling', () => {
     it('does not regress login CTA or #1006 basePath helpers', () => {
         // 回归：确保 need_space 改动没破坏既有 CTA / basePath 逻辑
         expect(sourceCode).toContain('invite-landing-login-cta');
-        expect(sourceCode).toContain('登录后加入');
+        expect(sourceCode).toContain('app.invite.loginAfterJoin');
         expect(sourceCode).toMatch(/getAppBasePath/);
     });
 });

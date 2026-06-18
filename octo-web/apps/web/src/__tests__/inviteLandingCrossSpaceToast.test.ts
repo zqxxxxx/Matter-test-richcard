@@ -35,7 +35,7 @@ describe('InviteLanding + MainPage — dmwork-web#1065 cross-space toast', () =>
         // The snapshot line must precede the actual fetch — prevent regression that reads
         // localStorage AFTER join (which wouldn't reflect the user's "pre-join" space).
         const snapIdx = inviteLanding.search(/prevCurrentSpaceId\s*=\s*localStorage/);
-        const joinIdx = inviteLanding.search(/fetch\(\s*`[^`]*\/space\/join`/);
+        const joinIdx = inviteLanding.search(/apiFetchJson<[\s\S]{0,120}\/space\/join/);
         expect(snapIdx).toBeGreaterThan(0);
         expect(joinIdx).toBeGreaterThan(snapIdx);
     });
@@ -86,9 +86,9 @@ describe('InviteLanding + MainPage — dmwork-web#1065 cross-space toast', () =>
     });
 
     it('Toast component renders two lines + switch button when crossSpace', () => {
-        expect(toast).toMatch(/已加入/);
-        expect(toast).toMatch(/切换过去/);
-        expect(toast).toMatch(/位于/);
+        expect(toast).toMatch(/joinSuccessToast\.groupJoined/);
+        expect(toast).toMatch(/joinSuccessToast\.switch/);
+        expect(toast).toMatch(/joinSuccessToast\.locatedInSpace/);
         expect(toast).toMatch(/join-success-toast-switch/);
     });
 

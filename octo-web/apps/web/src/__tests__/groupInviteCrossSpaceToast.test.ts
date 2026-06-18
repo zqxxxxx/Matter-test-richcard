@@ -70,14 +70,14 @@ describe('JoinSuccessToast + MainPage — dmwork-web#1100 cross-space group-join
     });
 
     it('B4. non-cross-space group toast shows "已加入「...」群聊"', () => {
-        // 单行 Toast.success 分支里，group 场景应渲染「<name>」群聊 文案。
-        expect(toast).toMatch(/已加入「\$\{entityName\}」群聊/);
+        // 单行 Toast.success 分支里，group 场景应渲染群聊文案（通过 i18n key）。
+        expect(toast).toMatch(/joinSuccessToast\.groupJoined/);
     });
 
     it('B5. cross-space group toast shows "位于「<space> 空间」" + "切换过去 →"', () => {
-        // 双行分支中「位于」/「切换过去」是既有产品文案，回归保护避免无意改动。
-        expect(toast).toMatch(/位于「\{spaceName\}\s*空间」/);
-        expect(toast).toMatch(/切换过去\s*→/);
+        // 双行分支中「位于」/「切换过去」通过 i18n key 输出。
+        expect(toast).toMatch(/joinSuccessToast\.locatedInSpace/);
+        expect(toast).toMatch(/joinSuccessToast\.switch/);
     });
 
     // ---------- C. MainPage forwards kind + prefers groupName ----------
@@ -100,7 +100,7 @@ describe('JoinSuccessToast + MainPage — dmwork-web#1100 cross-space group-join
     // ---------- D. Back-compat with "space" payloads ----------
 
     it('D1. undefined/space kind still renders the original single-line toast', () => {
-        // 确认 fallback 分支 (`已加入「${entityName}」`) 仍在源码里，避免 group 分支把 space 分支玩坏。
-        expect(toast).toMatch(/已加入「\$\{entityName\}」(?!\s*群聊)/);
+        // 确认 fallback 分支仍走普通 joined key，避免 group 分支把 space 分支玩坏。
+        expect(toast).toMatch(/joinSuccessToast\.joined/);
     });
 });

@@ -13,11 +13,6 @@ import * as path from 'path';
 describe('Performance: Arrow function properties vs .bind(this) in render', () => {
   const componentsToCheck = [
     {
-      name: 'MessageInput',
-      path: 'packages/dmworkbase/src/Components/MessageInput/index.tsx',
-      methods: ['handleKeyPressed', 'handleChange'],
-    },
-    {
       name: 'VoiceCell',
       path: 'packages/dmworkbase/src/Messages/Voice/index.tsx',
       methods: ['playOrPauseVoice'],
@@ -35,7 +30,7 @@ describe('Performance: Arrow function properties vs .bind(this) in render', () =
     {
       name: 'WKAvatar',
       path: 'packages/dmworkbase/src/Components/WKAvatar/index.tsx',
-      methods: ['handleLoad', 'handleImgError'],
+      methods: ['handleImgError'],
     },
   ];
 

@@ -34,6 +34,8 @@ export default function ClawOverviewTab({
   onRecheck,
 }: ClawOverviewTabProps) {
   const { t } = useI18n();
+  const formatFixed = (value: number | null | undefined, digits: number) =>
+    typeof value === 'number' && Number.isFinite(value) ? value.toFixed(digits) : '—';
 
   // 计算健康检查状态
   const getProcessStatus = (): HealthStatus => {
@@ -53,7 +55,7 @@ export default function ClawOverviewTab({
 
   const getMemoryStatus = (): HealthStatus => {
     // 内存大于 4GB 视为正常
-    return runtimeInfo.memory_gb >= 4 ? 'success' : 'warning';
+    return typeof runtimeInfo.memory_gb === 'number' && runtimeInfo.memory_gb >= 4 ? 'success' : 'warning';
   };
 
   if (loading) {
@@ -89,7 +91,7 @@ export default function ClawOverviewTab({
           <ClawConfigItem
             icon={<HardDrive />}
             label={t('base.claw.overview.writableDiskSpace')}
-            value={`${runtimeInfo.disk_space_gb.toFixed(1)} GB`}
+            value={runtimeInfo.disk_space_gb == null ? '—' : `${formatFixed(runtimeInfo.disk_space_gb, 1)} GB`}
           />
           <ClawConfigItem
             icon={<FolderOpen />}
@@ -148,7 +150,7 @@ export default function ClawOverviewTab({
               runtimeInfo.gateway_status === 'connected'
                 ? runtimeInfo.network_latency_ms != null
                   ? t('base.claw.overview.latency', {
-                    values: { value: runtimeInfo.network_latency_ms.toFixed(2) },
+                    values: { value: formatFixed(runtimeInfo.network_latency_ms, 2) },
                   })
                   : t('base.claw.overview.connected')
                 : t('base.claw.overview.disconnected')
@@ -162,7 +164,7 @@ export default function ClawOverviewTab({
           <ClawHealthCheckItem
             status={getMemoryStatus()}
             label={t('base.claw.overview.memory')}
-            value={`${runtimeInfo.memory_gb.toFixed(0)}GB`}
+            value={runtimeInfo.memory_gb == null ? '—' : `${formatFixed(runtimeInfo.memory_gb, 0)}GB`}
           />
         </div>
       </div>

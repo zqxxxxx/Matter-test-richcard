@@ -20,6 +20,30 @@ export const buildAcceptLanguage = () => 'zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7';
 
 export const isSafeUrl = (url: string) => /^https?:\/\//.test(url);
 
+export const useI18n = () => ({
+  t: (key: string) => {
+    const labels: Record<string, string> = {
+      'base.filePreview.preview': '预览',
+      'base.filePreview.download': '下载',
+      'todo.outputs.column.title': '标题',
+      'todo.outputs.column.description': '描述',
+      'todo.outputs.column.sender': '发送人',
+      'todo.outputs.column.sourceGroup': '来源群',
+      'todo.outputs.column.sentAt': '发送时间',
+      'todo.outputs.column.actions': '操作',
+      'todo.outputs.searchPlaceholder': '搜索',
+      'todo.outputs.searchAriaLabel': '搜索产出文件',
+      'todo.outputs.emptySearch': '没有匹配的产出文件',
+      'todo.outputs.emptyDefault': '暂无产出文件',
+      'todo.outputs.unnamedFile': '未命名文件',
+      'todo.outputs.loadMore': '加载更多',
+      'todo.outputs.loading': '加载中',
+      'todo.outputs.retry': '重试',
+    };
+    return labels[key] || key;
+  },
+});
+
 // Thread enum / type re-exports — production code imports these from
 // '@octo/base' (re-exported via dmworkbase/src/index.tsx). The vitest
 // alias points '@octo/base' at this mock file, so we re-export the

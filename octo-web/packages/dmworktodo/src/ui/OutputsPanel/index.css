@@ -308,18 +308,24 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 16px;
-  height: 16px;
+  width: 32px;
+  height: 32px;
   padding: 0;
   border: none;
+  border-radius: 6px;
   background: transparent;
   color: var(--wk-text-tertiary);
   cursor: pointer;
   flex-shrink: 0;
-  transition: color var(--wk-dur-fast);
+  position: relative;
+  z-index: 1;
+  transition:
+    background-color var(--wk-dur-fast),
+    color var(--wk-dur-fast);
 }
 
 .wk-outputs__action-btn:hover {
+  background: var(--wk-bg-tertiary);
   color: var(--wk-text-primary);
 }
 

@@ -81,7 +81,9 @@ export default function useTextareaVoice({
       const selEnd = el.selectionEnd ?? 0;
       hadSelectionRef.current = selStart !== selEnd;
       savedSelectionRangeRef.current = { from: selStart, to: selEnd };
-      const selectedText = (selStart !== selEnd) ? el.value.slice(selStart, selEnd) : undefined;
+      const currentValue =
+        typeof el.value === "string" ? el.value : getCurrentTextRef.current?.() ?? "";
+      const selectedText = (selStart !== selEnd) ? currentValue.slice(selStart, selEnd) : undefined;
       savedSelectedTextRef.current = selectedText;
 
       const effectiveMode = mode ?? "append_only";

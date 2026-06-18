@@ -28,7 +28,11 @@ vi.mock("@douyinfe/semi-ui", () => ({
 vi.mock("@douyinfe/semi-icons", () => ({}));
 
 const mockSharedSpaceFeedbackState = {
-  spaceSetting: null as { voice_feedback_on?: number; voice_feedback_notice_acked?: number } | null,
+  spaceSetting: null as {
+    voice_input_enabled?: number;
+    voice_feedback_on?: number;
+    voice_feedback_notice_acked?: number;
+  } | null,
   loaded: false,
   apiAvailable: false,
   loadedSpaceId: null as string | null,
@@ -81,9 +85,13 @@ describe("VoiceInputButton - Left Shift long-press", () => {
     document.body.appendChild(textarea);
     inputRef = { current: textarea } as React.RefObject<HTMLTextAreaElement>;
     mockUseTextareaVoice.mockReturnValue(createMockReturn());
-    mockSharedSpaceFeedbackState.spaceSetting = null;
-    mockSharedSpaceFeedbackState.loaded = false;
-    mockSharedSpaceFeedbackState.apiAvailable = false;
+    mockSharedSpaceFeedbackState.spaceSetting = {
+      voice_input_enabled: 1,
+      voice_feedback_on: 0,
+      voice_feedback_notice_acked: 1,
+    };
+    mockSharedSpaceFeedbackState.loaded = true;
+    mockSharedSpaceFeedbackState.apiAvailable = true;
     mockSharedSpaceFeedbackState.loadedSpaceId = null;
     mockVoiceConfig.current = null;
     Object.defineProperty(navigator, "onLine", {
@@ -428,6 +436,7 @@ describe("VoiceInputButton - Left Shift long-press", () => {
 
   it("should show feedback notice instead of recording when notice not acked", () => {
     mockSharedSpaceFeedbackState.spaceSetting = {
+      voice_input_enabled: 0,
       voice_feedback_on: 1,
       voice_feedback_notice_acked: 0,
     };
@@ -466,6 +475,7 @@ describe("VoiceInputButton - Left Shift long-press", () => {
 
   it("should allow recording via long-press when notice already acked", () => {
     mockSharedSpaceFeedbackState.spaceSetting = {
+      voice_input_enabled: 1,
       voice_feedback_on: 1,
       voice_feedback_notice_acked: 1,
     };

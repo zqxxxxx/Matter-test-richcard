@@ -139,12 +139,14 @@ vi.mock("../../PersonaSettings", () => ({ default: () => null }))
 
 // 真正要测的 class
 import { MeInfoVM } from "../vm"
+import { i18n } from "../../../i18n"
 
 describe("MeInfoVM.startRealnameVerify — window.open + return_to 合同", () => {
   const originalLocation = window.location
   const originalOpen = window.open
 
   beforeEach(() => {
+    i18n.setLocale("zh-CN", { persist: false })
     hoisted.apiClientPost.mockReset()
     hoisted.apiClientGet.mockReset()
     hoisted.toastError.mockReset()

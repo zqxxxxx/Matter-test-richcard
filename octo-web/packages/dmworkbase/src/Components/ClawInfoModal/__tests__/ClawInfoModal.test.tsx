@@ -1,18 +1,19 @@
 import React from "react";
-import { render, screen, waitFor } from "@testing-library/react";
-import { vi } from "vitest";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { beforeEach, vi } from "vitest";
 import "@testing-library/jest-dom";
 import ClawInfoModal from "../ClawInfoModal";
-import type { AgentCardData } from "../../Service/AgentCardService";
+import type { AgentCardData } from "../../../Service/AgentCardService";
+import { i18n } from "../../../i18n";
 
 // Mock AgentCardService
-vi.mock("../../Service/AgentCardService", () => ({
+vi.mock("../../../Service/AgentCardService", () => ({
   default: {
     getAgentCard: vi.fn(),
   },
 }));
 
-import AgentCardService from "../../Service/AgentCardService";
+import AgentCardService from "../../../Service/AgentCardService";
 
 // Mock WKModal
 vi.mock("../../WKModal", () => ({
@@ -29,7 +30,13 @@ vi.mock("../../ClawSessionItem", () => ({
 describe("ClawInfoModal", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    i18n.setLocale("zh-CN", { persist: false });
   });
+
+  async function openSessionTab() {
+    const tab = await screen.findByTestId("tab-session");
+    fireEvent.click(tab);
+  }
 
   /**
    * AC-1: 有 Session 数据时，正确渲染列表和统计
@@ -96,6 +103,8 @@ describe("ClawInfoModal", () => {
 
     render(<ClawInfoModal botId="test_bot" visible={true} onClose={() => {}} />);
 
+    await openSessionTab();
+
     // 等待数据加载
     await waitFor(() => {
       expect(screen.getByText(/2 running/)).toBeInTheDocument();
@@ -129,13 +138,15 @@ describe("ClawInfoModal", () => {
 
     render(<ClawInfoModal botId="empty_bot" visible={true} onClose={() => {}} />);
 
+    await openSessionTab();
+
     await waitFor(() => {
       expect(screen.getByText(/0 running/)).toBeInTheDocument();
     });
 
     // 检查空态文案
     expect(
-      screen.getByText(/最近 1 小时内没有活跃的会话，有新对话产生后会出现在这里/)
+      screen.getByText(/暂无活跃的会话，有新对话产生后会出现在这里/)
     ).toBeInTheDocument();
   });
 
@@ -160,6 +171,8 @@ describe("ClawInfoModal", () => {
     vi.mocked(AgentCardService.getAgentCard).mockRejectedValueOnce(new Error("网络错误"));
 
     render(<ClawInfoModal botId="error_bot" visible={true} onClose={() => {}} />);
+
+    await openSessionTab();
 
     await waitFor(() => {
       expect(screen.getByText(/网络错误/)).toBeInTheDocument();
@@ -230,6 +243,8 @@ describe("ClawInfoModal", () => {
     vi.mocked(AgentCardService.getAgentCard).mockResolvedValueOnce(mockData);
 
     render(<ClawInfoModal botId="sort_bot" visible={true} onClose={() => {}} />);
+
+    await openSessionTab();
 
     await waitFor(() => {
       const sessionCards = screen.getAllByTestId("claw-session-card");

@@ -1,4 +1,14 @@
 import '@testing-library/jest-dom'
+import { i18n } from '@octo/base/src/i18n/instance'
+
+i18n.setLocale('zh-CN', { persist: false })
+
+if (typeof window !== 'undefined' && window.localStorage) {
+    Object.defineProperty(globalThis, 'localStorage', {
+        configurable: true,
+        value: window.localStorage,
+    })
+}
 
 // ResizeObserver polyfill for jsdom (Semi UI components trigger this)
 if (typeof ResizeObserver === 'undefined') {

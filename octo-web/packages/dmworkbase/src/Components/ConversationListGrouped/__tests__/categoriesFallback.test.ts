@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest"
+import { beforeEach, describe, expect, it } from "vitest"
+import { i18n } from "../../../i18n"
 import {
     computeEffectiveCategories,
     isVirtualCategory,
@@ -85,6 +86,10 @@ describe("isVirtualCategory", () => {
 })
 
 describe("computeEffectiveCategories", () => {
+    beforeEach(() => {
+        i18n.setLocale("zh-CN", { persist: false })
+    })
+
     it("场景 1: categories=[] 时兜底一个虚拟默认分组", () => {
         const result = computeEffectiveCategories([])
 
@@ -92,7 +97,7 @@ describe("computeEffectiveCategories", () => {
         const [virtualCat] = result
         expect(virtualCat.category_id).toBe(VIRTUAL_DEFAULT_CATEGORY_ID)
         expect(virtualCat.is_default).toBe(true)
-        expect(virtualCat.name).toBe("默认")
+        expect(virtualCat.name).toBe("分组")
         expect(virtualCat.groups).toEqual([])
         expect(isVirtualCategory(virtualCat.category_id)).toBe(true)
     })

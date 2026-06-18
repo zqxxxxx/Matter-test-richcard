@@ -10,6 +10,7 @@ export default defineConfig({
   },
   resolve: {
     alias: {
+      '@octo/base/src/Components/MessageInput/AttachmentNode': path.resolve(__dirname, 'src/__mocks__/attachmentNode.ts'),
       '@octo/base': path.resolve(__dirname, 'src/__mocks__/dmworkBase.ts'),
     },
   },

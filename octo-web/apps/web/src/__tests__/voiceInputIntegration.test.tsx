@@ -38,6 +38,31 @@ vi.mock("@douyinfe/semi-ui", () => ({
   }),
 }));
 
+vi.mock("@octo/base/src/Components/MessageInput/useSpaceFeedbackSetting", () => ({
+  default: () => ({
+    spaceSetting: {
+      voice_input_enabled: 1,
+      voice_feedback_on: 0,
+      voice_feedback_notice_acked: 1,
+    },
+    loaded: true,
+    apiAvailable: true,
+    voiceConfig: null,
+    updateSetting: vi.fn(),
+  }),
+  getSharedSpaceFeedbackState: () => ({
+    spaceSetting: {
+      voice_input_enabled: 1,
+      voice_feedback_on: 0,
+      voice_feedback_notice_acked: 1,
+    },
+    loaded: true,
+    apiAvailable: true,
+  }),
+  getSharedVoiceConfig: () => null,
+  acceptVoiceInput: vi.fn(),
+}));
+
 import VoiceInputButton from "@octo/base/src/Components/VoiceInputButton";
 import type { ReplaceMode } from "@octo/base/src/Components/VoiceInputButton";
 

@@ -8,10 +8,12 @@ const mockOpenSummaryDetail = vi.fn();
 
 vi.mock('@octo/base', async () => {
     const actual = await vi.importActual<Record<string, unknown>>('../../__mocks__/dmworkBase');
+    const baseWKApp = actual.WKApp as Record<string, unknown>;
     return {
         ...actual,
         WKApp: {
-            mittBus: { emit: (...args: any[]) => mockEmit(...args) },
+            ...baseWKApp,
+            mittBus: { ...(baseWKApp.mittBus as Record<string, unknown>), emit: (...args: any[]) => mockEmit(...args) },
             openSummaryDetail: (...args: any[]) => mockOpenSummaryDetail(...args),
         },
     };

@@ -29,6 +29,7 @@ vi.mock("@douyinfe/semi-ui", () => ({
 
 vi.mock("@douyinfe/semi-icons", () => ({
   IconPlus: () => <span>+</span>,
+  IconClock: () => <span data-testid="icon-clock" />,
 }));
 
 vi.mock("@octo/base/src/App", () => ({

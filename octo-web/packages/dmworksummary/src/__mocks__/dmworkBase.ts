@@ -59,6 +59,10 @@ export const useI18n = () => React.useContext(I18nContext);
 export const WKApp = {
   loginInfo: { token: 'test-token-abc', uid: 'test-uid' },
   shared: { currentSpaceId: 'space-123', logout: () => {}, avatarUser: () => '' },
+  remoteConfig: {
+    summaryEnabled: true,
+    addConfigChangeListener: () => () => {},
+  },
   routeRight: { push: () => {}, replaceToRoot: () => {} },
   mittBus: { on: () => {}, off: () => {}, emit: () => {} },
   apiClient: {},

@@ -16,9 +16,10 @@ describe('InviteLanding security: no hardcoded verification code', () => {
             expect(sourceCode).not.toMatch(hardcodedCodePattern);
         });
 
-        it('should use usernameregister API instead of register with code', () => {
-            // Verify that we use the usernameregister endpoint
-            expect(sourceCode).toContain('user/usernameregister');
+        it('should not perform registration from the invite landing page', () => {
+            // Registration now lives in the login module. InviteLanding should only
+            // persist the invite and route users to login, never mint an account here.
+            expect(sourceCode).not.toMatch(/user\/(?:username)?register/);
         });
 
         it('should not use user/register endpoint with code parameter', () => {
@@ -27,9 +28,10 @@ describe('InviteLanding security: no hardcoded verification code', () => {
             expect(sourceCode).not.toMatch(vulnerablePattern);
         });
 
-        it('should include flag parameter for usernameregister', () => {
-            // usernameregister API requires flag parameter
-            expect(sourceCode).toMatch(/flag\s*:\s*1/);
+        it('should not send legacy register-only flag parameters', () => {
+            // The old register shortcut required flag=1 alongside a hardcoded code.
+            // Keeping it out of this page avoids reviving that bypass.
+            expect(sourceCode).not.toMatch(/flag\s*:\s*1/);
         });
 
         it('should include name parameter for usernameregister', () => {
