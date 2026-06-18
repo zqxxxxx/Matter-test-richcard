@@ -47,4 +47,11 @@ describe('Nginx Security Headers', () => {
   it('should have HSTS header available (commented for manual enable)', () => {
     expect(nginxConfig).toContain('Strict-Transport-Security');
   });
+
+  it('should proxy Matter API requests instead of serving the SPA shell', () => {
+    expect(nginxConfig).toContain('set $matter_api_url "${MATTER_API_URL}"');
+    expect(nginxConfig).toMatch(/location\s+\/matter\/\s*\{/);
+    expect(nginxConfig).toMatch(/rewrite\s+\^\/matter\/\(\.\*\)\$\s+\/\$1\s+break;/);
+    expect(nginxConfig).toMatch(/proxy_pass\s+\$matter_api_url;/);
+  });
 });
