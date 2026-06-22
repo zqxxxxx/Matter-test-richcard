@@ -3,6 +3,98 @@
   max-width: 100%;
 }
 
+.wk-link-preview-card {
+  width: min(420px, calc(100vw - 168px));
+  max-width: 100%;
+  box-sizing: border-box;
+  padding: 10px;
+  border-radius: 8px;
+  background: #d8efff;
+  color: var(--wk-text-primary, #1f2329);
+}
+
+.wk-link-preview-url {
+  margin-bottom: 8px;
+  color: #1f63d8;
+  font-size: 20px;
+  line-height: 26px;
+  overflow-wrap: anywhere;
+}
+
+.wk-link-preview-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 64px;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 86px;
+  padding: 14px 12px;
+  border: 0;
+  border-radius: 6px;
+  background: #fff;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.wk-link-preview-panel:hover {
+  background: #f9fafb;
+}
+
+.wk-link-preview-panel:disabled {
+  cursor: default;
+}
+
+.wk-link-preview-copy {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.wk-link-preview-title {
+  color: var(--wk-text-primary, #1f2329);
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 24px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wk-link-preview-desc {
+  display: -webkit-box;
+  color: var(--wk-text-secondary, #646a73);
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 22px;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.wk-link-preview-thumb,
+.wk-link-preview-favicon {
+  width: 64px;
+  height: 64px;
+  border-radius: 6px;
+  flex: 0 0 auto;
+}
+
+.wk-link-preview-thumb {
+  object-fit: cover;
+  background: #f2f3f5;
+}
+
+.wk-link-preview-favicon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #eef4ff;
+  color: #1f63d8;
+  font-size: 22px;
+  font-weight: 700;
+}
+
 .wk-business-card {
   position: relative;
   width: 100%;
@@ -344,6 +436,36 @@
 @media (max-width: 560px) {
   .wk-business-card-message {
     width: 100%;
+  }
+
+  .wk-link-preview-card {
+    width: 100%;
+  }
+
+  .wk-link-preview-url {
+    font-size: 17px;
+    line-height: 23px;
+  }
+
+  .wk-link-preview-panel {
+    grid-template-columns: minmax(0, 1fr) 52px;
+    min-height: 76px;
+  }
+
+  .wk-link-preview-title {
+    font-size: 16px;
+    line-height: 22px;
+  }
+
+  .wk-link-preview-desc {
+    font-size: 14px;
+    line-height: 20px;
+  }
+
+  .wk-link-preview-thumb,
+  .wk-link-preview-favicon {
+    width: 52px;
+    height: 52px;
   }
 
   .wk-business-card {

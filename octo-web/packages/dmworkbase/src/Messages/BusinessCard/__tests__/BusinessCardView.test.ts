@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { getBusinessCardActions } from "../BusinessCardView";
+import React from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { BusinessCardView, getBusinessCardActions } from "../BusinessCardView";
 import type { BusinessCardPayload } from "../BusinessCardContent";
 
 describe("BusinessCardView actions", () => {
@@ -53,5 +55,32 @@ describe("BusinessCardView actions", () => {
     };
 
     expect(getBusinessCardActions(card).filter((action) => action.type === "open_matter_workspace")).toHaveLength(1);
+  });
+
+  it("renders external links as a link preview instead of a business status card", () => {
+    const card: BusinessCardPayload = {
+      id: "link-preview",
+      cardType: "external_link",
+      title: "DeepSeek | 深度求索",
+      body: "深度求索（DeepSeek），成立于 2023 年，专注于研究世界领先的通用人工智能。",
+      metrics: [
+        { label: "类型", value: "网页" },
+        { label: "域名", value: "deepseek.com" },
+      ],
+      actions: [
+        { label: "打开链接", type: "open_url", kind: "primary", url: "https://www.deepseek.com/" },
+      ],
+      extra: {
+        domain: "deepseek.com",
+      },
+    };
+
+    const html = renderToStaticMarkup(React.createElement(BusinessCardView, { card }));
+
+    expect(html).toContain("wk-link-preview-card");
+    expect(html).toContain("https://www.deepseek.com/");
+    expect(html).toContain("DeepSeek | 深度求索");
+    expect(html).not.toContain("wk-business-card-fields");
+    expect(html).not.toContain("wk-business-card-footer");
   });
 });

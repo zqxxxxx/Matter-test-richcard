@@ -88,6 +88,26 @@ function getSourceText(card: BusinessCardPayload) {
   return card.extra?.sourceText || card.extra?.quote || card.extra?.source;
 }
 
+function getExternalLinkAction(card: BusinessCardPayload) {
+  return (card.actions ?? []).find((action) => action.type === "open_url" && action.url);
+}
+
+function getExternalLinkUrl(card: BusinessCardPayload) {
+  return getExternalLinkAction(card)?.url || card.extra?.url || card.entityId || "";
+}
+
+function getExternalLinkDomain(card: BusinessCardPayload) {
+  if (card.extra?.domain) return card.extra.domain;
+  const url = getExternalLinkUrl(card);
+  if (!url) return "";
+  try {
+    const base = typeof window === "undefined" ? "http://localhost" : window.location.origin;
+    return new URL(url, base).hostname.replace(/^www\./, "");
+  } catch {
+    return "";
+  }
+}
+
 export interface BusinessCardViewProps {
   card: BusinessCardPayload;
   actionLoadingType?: string | null;
@@ -95,6 +115,40 @@ export interface BusinessCardViewProps {
 }
 
 export function BusinessCardView({ card, actionLoadingType, onAction }: BusinessCardViewProps) {
+  if (card.cardType === "external_link") {
+    const action = getExternalLinkAction(card);
+    const url = getExternalLinkUrl(card);
+    const domain = getExternalLinkDomain(card);
+    const imageUrl = card.extra?.image || card.extra?.imageUrl || card.extra?.thumbnail || card.extra?.thumbnailUrl;
+    const description = card.body || card.subtitle || domain;
+    const canOpen = !!action;
+
+    return (
+      <article className="wk-link-preview-card" aria-label="外部链接预览">
+        {url && <div className="wk-link-preview-url">{url}</div>}
+        <button
+          type="button"
+          className="wk-link-preview-panel"
+          disabled={!canOpen}
+          onClick={(event) => {
+            event.stopPropagation();
+            if (action) onAction?.(action);
+          }}
+        >
+          <span className="wk-link-preview-copy">
+            <span className="wk-link-preview-title">{card.title}</span>
+            {description && <span className="wk-link-preview-desc">{description}</span>}
+          </span>
+          {imageUrl ? (
+            <img className="wk-link-preview-thumb" src={imageUrl} alt="" loading="lazy" />
+          ) : (
+            <span className="wk-link-preview-favicon" aria-hidden="true">{domain.slice(0, 1).toUpperCase() || "L"}</span>
+          )}
+        </button>
+      </article>
+    );
+  }
+
   const statusLabel = card.status ? statusCopy[card.status] ?? card.status : "";
   const typeLabel = cardTypeCopy[card.cardType] ?? "业务卡片";
   const shortTypeLabel = cardTypeShortCopy[card.cardType] ?? "卡";
