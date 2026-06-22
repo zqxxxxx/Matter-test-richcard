@@ -33,6 +33,35 @@ function getActionClassName(action: BusinessCardAction) {
   return `wk-business-card-action wk-business-card-action--${action.kind ?? "secondary"}`;
 }
 
+function insertAfterAction(actions: BusinessCardAction[], afterType: string, action: BusinessCardAction) {
+  const insertIndex = actions.findIndex((item) => item.type === afterType);
+  if (insertIndex < 0) return [...actions, action];
+  return [...actions.slice(0, insertIndex + 1), action, ...actions.slice(insertIndex + 1)];
+}
+
+export function getBusinessCardActions(card: BusinessCardPayload): BusinessCardAction[] {
+  const actions = card.actions ?? [];
+  const hasAction = (type: string) => actions.some((action) => action.type === type);
+
+  if (card.cardType === "matter_status" && !hasAction("open_matter_workspace")) {
+    return insertAfterAction(actions, "open_matter", {
+      label: "进入 Matter",
+      type: "open_matter_workspace",
+      kind: "secondary",
+    });
+  }
+
+  if (card.cardType === "summary_feedback" && !hasAction("open_summary_workspace")) {
+    return insertAfterAction(actions, "open_summary", {
+      label: "进入群总结",
+      type: "open_summary_workspace",
+      kind: "secondary",
+    });
+  }
+
+  return actions;
+}
+
 function getProgressPercent(card: BusinessCardPayload) {
   const progress = card.metrics?.find((item) => /进度|progress/i.test(item.label))?.value;
   if (!progress) return undefined;
@@ -72,6 +101,7 @@ export function BusinessCardView({ card, actionLoadingType, onAction }: Business
   const tone = statusTone[card.status ?? ""] ?? "info";
   const progressPercent = getProgressPercent(card);
   const sourceText = getSourceText(card);
+  const actions = getBusinessCardActions(card);
 
   return (
     <article className={`wk-business-card wk-business-card--${card.cardType}`} aria-label={typeLabel}>
@@ -112,9 +142,9 @@ export function BusinessCardView({ card, actionLoadingType, onAction }: Business
 
         {sourceText && <div className="wk-business-card-source">{sourceText}</div>}
 
-        {!!card.actions?.length && (
+        {!!actions.length && (
           <div className="wk-business-card-actions">
-            {card.actions.map((action) => {
+            {actions.map((action) => {
               const loading = actionLoadingType === action.type;
               return (
                 <button
