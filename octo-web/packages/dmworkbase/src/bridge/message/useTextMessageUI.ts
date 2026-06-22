@@ -4,6 +4,7 @@ import type { MessageWrap, Part } from "../../Service/Model";
 import { PartType } from "../../Service/Model";
 import type { TextContentUIProps } from "./types";
 import type { MentionInfo, EmojiInfo } from "../../Messages/Text/MarkdownContent";
+import { getTextMessageLinkPreview } from "../../Messages/Text/linkPreview";
 import { buildTextMessageMentions } from "./textMessageMentions";
 import {
   useMessageRow,
@@ -59,6 +60,7 @@ export function getTextMessageUI(
         emojis: [],
         isLargeEmoji: false,
         isStreaming: message.isStreaming,
+        linkPreview: undefined,
       },
     };
   }
@@ -100,6 +102,7 @@ export function getTextMessageUI(
       mentions,
       emojis,
       isLargeEmoji,
+      linkPreview: getTextMessageLinkPreview(effectiveContent),
     },
   };
 }
@@ -151,6 +154,7 @@ export function useTextMessageUI(message: MessageWrap) {
       mentions,
       emojis,
       isLargeEmoji,
+      linkPreview: getTextMessageLinkPreview(effectiveContent),
     };
   }, [message]);
 

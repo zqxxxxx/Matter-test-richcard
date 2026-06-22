@@ -222,6 +222,15 @@ export interface TextContentUIProps {
   /** 是否为流式消息（正在流式输出中） */
   isStreaming?: boolean
 
+  /** 文本链接解析预览。仅当正文包含对应 URL 时展示 */
+  linkPreview?: {
+    url: string
+    title: string
+    description?: string
+    image?: string
+    domain: string
+  }
+
   /** 点击 @ 提及回调 */
   onMentionClick?: (uid: string) => void
 }

@@ -3,6 +3,7 @@ import MarkdownContent, {
   type MentionInfo,
   type EmojiInfo,
 } from "../../../Messages/Text/MarkdownContent";
+import type { TextMessageLinkPreview } from "../../../Messages/Text/linkPreview";
 import "./index.css";
 
 export interface TextContentProps {
@@ -20,6 +21,9 @@ export interface TextContentProps {
 
   /** 是否为流式消息（正在流式输出中） */
   isStreaming?: boolean;
+
+  /** 链接解析预览 */
+  linkPreview?: TextMessageLinkPreview;
 
   /** 点击 @ 提及回调 */
   onMentionClick?: (uid: string) => void;
@@ -47,6 +51,7 @@ export default function TextContent({
   emojis = [],
   isLargeEmoji = false,
   isStreaming = false,
+  linkPreview,
   onMentionClick,
   enableMarkdown = true,
 }: TextContentProps) {
@@ -71,6 +76,35 @@ export default function TextContent({
         emojis={emojis}
         enableMarkdown={enableMarkdown}
       />
+      {linkPreview && <TextLinkPreview preview={linkPreview} />}
     </div>
+  );
+}
+
+function TextLinkPreview({ preview }: { preview: TextMessageLinkPreview }) {
+  return (
+    <button
+      type="button"
+      className="wk-msg-link-preview"
+      aria-label={`打开链接：${preview.title}`}
+      onClick={(event) => {
+        event.stopPropagation();
+        window.open(preview.url, "_blank", "noopener,noreferrer");
+      }}
+    >
+      <span className="wk-msg-link-preview-copy">
+        <span className="wk-msg-link-preview-title">{preview.title}</span>
+        {preview.description && (
+          <span className="wk-msg-link-preview-desc">{preview.description}</span>
+        )}
+      </span>
+      {preview.image ? (
+        <img className="wk-msg-link-preview-thumb" src={preview.image} alt="" loading="lazy" />
+      ) : (
+        <span className="wk-msg-link-preview-favicon" aria-hidden="true">
+          {preview.domain.slice(0, 1).toUpperCase() || "L"}
+        </span>
+      )}
+    </button>
   );
 }

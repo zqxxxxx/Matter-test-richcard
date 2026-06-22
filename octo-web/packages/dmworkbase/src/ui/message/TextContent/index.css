@@ -10,6 +10,79 @@
   word-break: break-word;
 }
 
+.wk-msg-link-preview {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 56px;
+  align-items: center;
+  gap: 12px;
+  width: min(360px, 100%);
+  min-height: 78px;
+  margin-top: 8px;
+  padding: 12px;
+  border: 1px solid rgba(31, 35, 41, 0.08);
+  border-radius: 6px;
+  background: #fff;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  box-sizing: border-box;
+  transition: background-color 160ms ease, border-color 160ms ease;
+}
+
+.wk-msg-link-preview:hover {
+  background: #f7f8fa;
+  border-color: rgba(31, 35, 41, 0.14);
+}
+
+.wk-msg-link-preview-copy {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.wk-msg-link-preview-title {
+  color: #1f2329;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 21px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wk-msg-link-preview-desc {
+  display: -webkit-box;
+  color: #646a73;
+  font-size: 13px;
+  line-height: 19px;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.wk-msg-link-preview-thumb,
+.wk-msg-link-preview-favicon {
+  width: 56px;
+  height: 56px;
+  border-radius: 6px;
+  flex: 0 0 auto;
+}
+
+.wk-msg-link-preview-thumb {
+  object-fit: cover;
+  background: #f2f3f5;
+}
+
+.wk-msg-link-preview-favicon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #eef4ff;
+  color: #1f63d8;
+  font-size: 20px;
+  font-weight: 700;
+}
+
 /**
  * 大表情（230×230）
  */
