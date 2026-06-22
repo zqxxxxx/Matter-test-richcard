@@ -41,6 +41,7 @@ import MatterPickerModal from "../components/MatterPickerModal";
 import * as matterBridge from "../api/matterBridge";
 import SummaryEditor from "../components/SummaryEditor";
 import { buildSummaryFeedbackCard } from "../utils/businessCard";
+import { openSummaryWorkspace } from "../utils/summaryWorkspaceNavigation";
 
 interface SummaryDetailPageProps {
     taskId?: number;
@@ -938,26 +939,12 @@ export default class SummaryDetailPage extends Component<SummaryDetailPageProps,
 
     handleOpenSummaryWorkspace = () => {
         const { detail } = this.state;
-        if (!detail?.origin_channel_id || detail.origin_channel_type == null) {
+        if (!detail?.task_id) {
             Toast.error(t("summary.common.operationFailed"));
             return;
         }
 
-        const payload = {
-            channelId: detail.origin_channel_id,
-            channelType: detail.origin_channel_type,
-            summaryPanelView: "history" as const,
-            taskId: detail.task_id,
-            forceOpen: true,
-        };
-
-        WKApp.endpoints.showConversation(
-            new Channel(detail.origin_channel_id, detail.origin_channel_type),
-            { fromSidebarList: true },
-        );
-        window.setTimeout(() => {
-            WKApp.mittBus.emit("wk:toggle-summary-panel", payload);
-        }, 80);
+        openSummaryWorkspace(detail.task_id);
     };
 
     renderScheduleButton() {
@@ -1054,7 +1041,7 @@ export default class SummaryDetailPage extends Component<SummaryDetailPageProps,
                         {detail?.title || t("summary.detail.defaultTitle")}
                     </OverflowTooltip>
                     <div className="summary-detail-header-actions">
-                        {detail?.origin_channel_id && detail.origin_channel_type != null && (
+                        {detail?.task_id && (
                             <Button
                                 theme="borderless"
                                 icon={<IconHistory />}

@@ -25,6 +25,7 @@ import {
 import { Toast } from "./utils/toast";
 import { parseMentions } from "./utils/mention";
 import { buildMatterStatusCard } from "./utils/businessCard";
+import { openMatterWorkspace } from "./utils/matterWorkspaceNavigation";
 
 import enUS from "./i18n/en-US.json";
 import zhCN from "./i18n/zh-CN.json";
@@ -216,16 +217,7 @@ export default class MatterModule implements IModule {
       }
 
       if (action.type === "open_matter_workspace") {
-        if (!channelId || channelType == null) {
-          Toast.error(translate("todo.toast.loadFailed"));
-          return true;
-        }
-        WKApp.mittBus.emit("wk:toggle-matter-panel", {
-          channelId,
-          channelType,
-          matterId,
-          forceOpen: true,
-        });
+        openMatterWorkspace(matterId);
         return true;
       }
 

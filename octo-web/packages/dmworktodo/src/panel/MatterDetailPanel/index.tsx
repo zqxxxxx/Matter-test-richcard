@@ -61,6 +61,7 @@ import {
 } from "../../hooks/useMembersFromChannels";
 import { useUserName, useUserNames } from "../../hooks/useUserName";
 import { buildMatterStatusCard } from "../../utils/businessCard";
+import { openMatterWorkspace } from "../../utils/matterWorkspaceNavigation";
 import "./index.css";
 
 export interface MatterDetailPanelProps {
@@ -531,33 +532,8 @@ export default function MatterDetailPanel({
 
   const handleOpenMatterWorkspace = useCallback(() => {
     if (!matter) return;
-    const targetChannelId = channelId || matter.source_channel_id;
-    const targetChannelType = channelId ? _channelType : matter.source_channel_type;
-    if (!targetChannelId || targetChannelType == null) {
-      Toast.error(t("todo.toast.loadFailed"));
-      return;
-    }
-
-    const openPanel = () => {
-      WKApp.mittBus.emit("wk:toggle-matter-panel", {
-        channelId: targetChannelId,
-        channelType: targetChannelType,
-        matterId: matter.id,
-        forceOpen: true,
-      });
-    };
-
-    if (!channelId) {
-      WKApp.endpoints.showConversation(
-        new Channel(targetChannelId, targetChannelType),
-        { fromSidebarList: true } as ShowConversationOptions,
-      );
-      window.setTimeout(openPanel, 80);
-      return;
-    }
-
-    openPanel();
-  }, [matter, channelId, _channelType, t]);
+    openMatterWorkspace(matter.id);
+  }, [matter]);
 
   const handleDeleteMatter = useCallback(async () => {
     if (!matter) return;
@@ -1045,7 +1021,7 @@ export default function MatterDetailPanel({
                 </div>
               </div>
               <div className="wk-mp-header__actions">
-                {(channelId || matter.source_channel_id) && (
+                {matter.id && (
                   <button
                     type="button"
                     className="wk-mp-header__action"

@@ -1,6 +1,12 @@
 import React, { useEffect, useState } from "react";
 import ReactDOM from "react-dom";
 import { WKApp, t as translate } from "@octo/base";
+import {
+  buildMatterWorkspaceSrc,
+  consumePendingMatterWorkspaceMatterId,
+  MATTER_WORKSPACE_OPEN_EVENT,
+  type MatterWorkspaceOpenPayload,
+} from "../utils/matterWorkspaceNavigation";
 
 /**
  * matter-v2: the Matter workspace now lives in the octo-matter service
@@ -20,6 +26,7 @@ import { WKApp, t as translate } from "@octo/base";
  */
 const MatterWorkspace: React.FC = () => {
   const [active, setActive] = useState(true); // mounted on first activation
+  const [src, setSrc] = useState(() => buildMatterWorkspaceSrc(consumePendingMatterWorkspaceMatterId()));
   const spaceId = WKApp.shared.currentSpaceId || "";
 
   useEffect(() => {
@@ -33,6 +40,19 @@ const MatterWorkspace: React.FC = () => {
     };
   }, []);
 
+  useEffect(() => {
+    const openMatter = (payload: unknown) => {
+      const matterId = (payload as MatterWorkspaceOpenPayload | undefined)?.matterId;
+      if (!matterId) return;
+      setActive(true);
+      setSrc(buildMatterWorkspaceSrc(matterId));
+    };
+    WKApp.mittBus.on(MATTER_WORKSPACE_OPEN_EVENT, openMatter);
+    return () => {
+      WKApp.mittBus.off(MATTER_WORKSPACE_OPEN_EVENT, openMatter);
+    };
+  }, []);
+
   try {
     if (spaceId) localStorage.setItem("currentSpaceId", spaceId);
   } catch {
@@ -43,7 +63,7 @@ const MatterWorkspace: React.FC = () => {
     <iframe
       key={spaceId || "no-space"}
       title={translate("todo.menu.title")}
-      src="/matter/ui/?embed=1#/inbox"
+      src={src}
       style={{
         // iframes are replaced elements: left+right do NOT stretch them
         // (width:auto falls back to the intrinsic 300x150), so size

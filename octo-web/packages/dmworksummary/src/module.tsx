@@ -11,6 +11,7 @@ import ScheduleListPage from "./pages/ScheduleListPage";
 import { getChatCandidates, respondToTask } from "./api/summaryApi";
 import { notifyChatSummaryCreated } from "./utils/chatSummaryActions";
 import { isSupportedChannelType } from "./utils/channelType";
+import { openSummaryWorkspace } from "./utils/summaryWorkspaceNavigation";
 import ChatSummaryStarButton from "./components/ChatSummaryStarButton";
 import ChatSummaryPanel from "./components/ChatSummaryPanel";
 import ChatSummaryNewModal from "./components/ChatSummaryNewModal";
@@ -34,6 +35,7 @@ export class SummaryModule implements IModule {
 
         WKApp.openSummaryDetail = (taskId: number) => {
             WKApp.switchToMenuById?.("summary");
+            WKApp.mittBus.emit("wk:nav-menu-activated", { menuId: "summary" });
             WKApp.routeLeft.popToRoot();
             WKApp.routeRight.replaceToRoot(
                 <SummaryDetailPage taskId={taskId} />
@@ -116,19 +118,7 @@ export class SummaryModule implements IModule {
             }
 
             if (action.type === "open_summary_workspace") {
-                const channelId = card.sourceChannelId || data?.message?.channelId;
-                const channelType = card.sourceChannelType || data?.message?.channelType;
-                if (!channelId || channelType == null) {
-                    Toast.error(t("summary.common.operationFailed"));
-                    return true;
-                }
-                WKApp.mittBus.emit("wk:toggle-summary-panel", {
-                    channelId,
-                    channelType,
-                    summaryPanelView: "history",
-                    taskId,
-                    forceOpen: true,
-                });
+                openSummaryWorkspace(taskId);
                 return true;
             }
 
