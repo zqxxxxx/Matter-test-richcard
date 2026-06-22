@@ -111,6 +111,9 @@ export default defineConfig(({ mode }) => {
     server: {
       port: env.VITE_PORT ? Number(env.VITE_PORT) : 3000,
       host: env.VITE_HOST ?? true,
+      allowedHosts: env.VITE_ALLOWED_HOSTS
+        ? env.VITE_ALLOWED_HOSTS.split(",").map((host) => host.trim())
+        : true,
       proxy: {
         // Summary service API — must be before the general /api/ rule
         "/summary/api/v1": {

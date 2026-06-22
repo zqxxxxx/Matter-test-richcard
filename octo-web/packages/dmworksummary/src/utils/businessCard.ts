@@ -50,6 +50,7 @@ export function buildSummaryFeedbackCard(
         ],
         actions: [
             { label: "查看总结", type: "open_summary", kind: "primary" },
+            { label: "进入群总结", type: "open_summary_workspace", kind: "secondary" },
             { label: "认可", type: "summary_accept", kind: "secondary" },
             { label: "需要调整", type: "summary_reject", kind: "secondary" },
         ],

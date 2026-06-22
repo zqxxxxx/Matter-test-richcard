@@ -55,6 +55,8 @@ export interface MatterListProps {
   channelName?: string;
   /** 关闭回调（mode="channel" 时必填） */
   onClose?: () => void;
+  /** 外部入口指定要直接打开的事项 */
+  initialMatterId?: string;
 
   // ── 功能开关（可覆盖默认值）──
   /** 显示 Splitter 拖拽（默认 channel 模式开启） */
@@ -93,6 +95,7 @@ export default function MatterList({
   mode,
   channelId,
   channelType,
+  initialMatterId,
   onClose,
   showSplitter = mode === "channel",
   showCloseButton = mode === "channel",
@@ -117,6 +120,11 @@ export default function MatterList({
   const [showCreateModal, setShowCreateModal] = useState(false);
 
   const myUid = WKApp.loginInfo.uid ?? "";
+
+  useEffect(() => {
+    if (mode !== "channel") return;
+    setSelectedMatterId(initialMatterId || null);
+  }, [mode, initialMatterId]);
 
   const tabs = useMemo<Array<{ id: NavTab; label: string }>>(
     () => [

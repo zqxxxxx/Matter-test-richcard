@@ -13,6 +13,7 @@ import SummaryDetailPage from '../pages/SummaryDetailPage';
 interface ChatSummaryPanelProps {
     visible: boolean;
     channel: { channelID: string; channelType: number };
+    initialTaskId?: number;
     onClose: () => void;
 }
 
@@ -36,7 +37,9 @@ export default class ChatSummaryPanel extends Component<
 
     constructor(props: ChatSummaryPanelProps) {
         super(props);
-        this.state = { view: 'list', selectedTaskId: null, isDragging: false };
+        this.state = props.initialTaskId
+            ? { view: 'detail', selectedTaskId: props.initialTaskId, isDragging: false }
+            : { view: 'list', selectedTaskId: null, isDragging: false };
     }
 
     componentDidMount() {
@@ -60,7 +63,19 @@ export default class ChatSummaryPanel extends Component<
             prev.channelType !== next.channelType
         ) {
             // 切换会话时回到列表视图，避免残留上个会话的详情
-            this.setState({ view: 'list', selectedTaskId: null });
+            this.setState(
+                this.props.initialTaskId
+                    ? { view: 'detail', selectedTaskId: this.props.initialTaskId }
+                    : { view: 'list', selectedTaskId: null },
+            );
+            return;
+        }
+        if (prevProps.initialTaskId !== this.props.initialTaskId) {
+            this.setState(
+                this.props.initialTaskId
+                    ? { view: 'detail', selectedTaskId: this.props.initialTaskId }
+                    : { view: 'list', selectedTaskId: null },
+            );
         }
     }
 

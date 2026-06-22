@@ -7,8 +7,10 @@ export type BusinessCardStatus = "open" | "in_progress" | "done" | "blocked" | "
 export type BusinessCardActionKind = "primary" | "secondary" | "danger";
 export type BusinessCardActionType =
   | "open_matter"
+  | "open_matter_workspace"
   | "complete_matter"
   | "open_summary"
+  | "open_summary_workspace"
   | "summary_accept"
   | "summary_reject"
   | "open_url"
@@ -61,6 +63,12 @@ function readNumber(value: unknown): number | undefined {
 function readRecord(value: unknown): Record<string, any> {
   if (!value || typeof value !== "object" || Array.isArray(value)) return {};
   return value as Record<string, any>;
+}
+
+function compactRecord(value: Record<string, any>): Record<string, any> {
+  return Object.fromEntries(
+    Object.entries(value).filter(([, item]) => item !== undefined && item !== null && item !== "")
+  );
 }
 
 function normalizeMetrics(value: unknown): BusinessCardMetric[] {
@@ -185,6 +193,16 @@ export class BusinessCardContent extends MessageContent implements BusinessCardP
   }
 
   decodeJSON(content: Record<string, any>): void {
+    const knownExtra = compactRecord({
+      matterNo: readString(content.matter_no) ?? readString(content.matterNo),
+      statusText: readString(content.status_text) ?? readString(content.statusText),
+      sourceText: readString(content.source_text) ?? readString(content.sourceText),
+      quote: readString(content.quote),
+      domain: readString(content.domain),
+      favicon: readString(content.favicon),
+      spaceId: readString(content.space_id) ?? readString(content.spaceId),
+    });
+
     this.applyPayload({
       id: readString(content.card_id) ?? readString(content.id) ?? "",
       cardType: readString(content.card_type) ?? readString(content.cardType) ?? "external_link",
@@ -202,7 +220,10 @@ export class BusinessCardContent extends MessageContent implements BusinessCardP
       sourceChannelType: readNumber(content.source_channel_type) ?? readNumber(content.sourceChannelType),
       metrics: normalizeMetrics(content.metrics),
       actions: normalizeActions(content.actions),
-      extra: readRecord(content.extra),
+      extra: {
+        ...knownExtra,
+        ...readRecord(content.extra),
+      },
     });
   }
 }

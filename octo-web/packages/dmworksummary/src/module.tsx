@@ -85,10 +85,11 @@ export class SummaryModule implements IModule {
 
         WKApp.endpoints.registerChatSummaryPanel(
             "chatsummarypanel",
-            ({ channel, onClose }) => (
+            ({ channel, onClose, activeTaskId }) => (
                 <ChatSummaryPanel
                     visible={true}
                     channel={channel}
+                    initialTaskId={activeTaskId}
                     onClose={onClose}
                 />
             ),
@@ -111,6 +112,23 @@ export class SummaryModule implements IModule {
 
             if (action.type === "open_summary") {
                 WKApp.openSummaryDetail?.(taskId);
+                return true;
+            }
+
+            if (action.type === "open_summary_workspace") {
+                const channelId = card.sourceChannelId || data?.message?.channelId;
+                const channelType = card.sourceChannelType || data?.message?.channelType;
+                if (!channelId || channelType == null) {
+                    Toast.error(t("summary.common.operationFailed"));
+                    return true;
+                }
+                WKApp.mittBus.emit("wk:toggle-summary-panel", {
+                    channelId,
+                    channelType,
+                    summaryPanelView: "history",
+                    taskId,
+                    forceOpen: true,
+                });
                 return true;
             }
 

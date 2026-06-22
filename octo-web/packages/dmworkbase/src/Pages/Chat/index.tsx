@@ -217,6 +217,8 @@ export interface ChatContentPageState {
   showSummaryPanel: boolean;
   /** 总结面板初始视图 */
   summaryPanelView: 'history' | 'new';
+  /** 当前需要在总结面板中打开的总结任务 */
+  activeSummaryTaskId: number | null;
 }
 export class ChatContentPage extends Component<
   ChatContentPageProps,
@@ -246,6 +248,7 @@ export class ChatContentPage extends Component<
       previewHadThreadShell: false,
       showSummaryPanel: false,
       summaryPanelView: 'new',
+      activeSummaryTaskId: null,
     };
   }
 
@@ -397,13 +400,13 @@ export class ChatContentPage extends Component<
       )
         return;
       this.setState((prevState) => {
-        const opening = !prevState.showMatterPanel;
+        const opening = data.forceOpen ? true : !prevState.showMatterPanel;
         return {
           showMatterPanel: opening,
           showMatterDetailPanel: opening
             ? false
             : prevState.showMatterDetailPanel,
-          activeMatterId: opening ? null : prevState.activeMatterId,
+          activeMatterId: opening ? data.matterId ?? null : prevState.activeMatterId,
           showThreadPanel: opening ? false : prevState.showThreadPanel,
           activeThread: opening ? null : prevState.activeThread,
           previewFile: opening ? null : prevState.previewFile,
@@ -459,6 +462,7 @@ export class ChatContentPage extends Component<
         return {
           showSummaryPanel: opening,
           summaryPanelView: opening ? data.summaryPanelView : prevState.summaryPanelView,
+          activeSummaryTaskId: opening ? data.taskId ?? null : prevState.activeSummaryTaskId,
           showMatterPanel: opening ? false : prevState.showMatterPanel,
           showMatterDetailPanel: opening ? false : prevState.showMatterDetailPanel,
           showThreadPanel: opening ? false : prevState.showThreadPanel,
@@ -735,6 +739,7 @@ export class ChatContentPage extends Component<
       activeMatterId,
       showSummaryPanel,
       summaryPanelView,
+      activeSummaryTaskId,
     } = this.state;
     // 子区页面不显示讨论串按钮
     const isThreadChannel = channel.channelType === ChannelTypeCommunityTopic;
@@ -1113,6 +1118,7 @@ export class ChatContentPage extends Component<
           >
             {WKApp.endpoints.chatMatterPanel(channel, () =>
               this.setState({ showMatterPanel: false }),
+              activeMatterId ?? undefined,
             )}
           </div>
         )}
@@ -1141,6 +1147,7 @@ export class ChatContentPage extends Component<
             {WKApp.endpoints.chatSummaryPanel(
               channel,
               () => this.setState({ showSummaryPanel: false }),
+              activeSummaryTaskId ?? undefined,
             )}
           </div>
         )}

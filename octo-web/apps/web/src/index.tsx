@@ -7,7 +7,7 @@ if (!root) {
   throw new Error('Root element #root not found');
 }
 
-if (window.location.pathname === '/matter-richcard-preview') {
+if (import.meta.env.DEV && window.location.pathname === '/matter-richcard-preview') {
   import('./dev/richCardPreview/RichCardPreviewApp').then(({ mountRichCardPreview }) => {
     mountRichCardPreview(root);
   });

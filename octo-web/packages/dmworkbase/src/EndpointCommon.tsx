@@ -303,10 +303,11 @@ export class EndpointCommon {
     );
   }
 
-  chatMatterPanel(channel: Channel, onClose: () => void): JSX.Element | undefined {
+  chatMatterPanel(channel: Channel, onClose: () => void, activeMatterId?: string): JSX.Element | undefined {
     return EndpointManager.shared.invoke(EndpointCategory.chatMatterPanel, {
       channel,
       onClose,
+      activeMatterId,
     });
   }
 
@@ -352,10 +353,12 @@ export class EndpointCommon {
   chatSummaryPanel(
     channel: Channel,
     onClose: () => void,
+    activeTaskId?: number,
   ): JSX.Element | undefined {
     return EndpointManager.shared.invoke(EndpointCategory.chatSummaryPanel, {
       channel,
       onClose,
+      activeTaskId,
     });
   }
 

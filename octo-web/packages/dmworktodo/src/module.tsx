@@ -215,6 +215,20 @@ export default class MatterModule implements IModule {
         return true;
       }
 
+      if (action.type === "open_matter_workspace") {
+        if (!channelId || channelType == null) {
+          Toast.error(translate("todo.toast.loadFailed"));
+          return true;
+        }
+        WKApp.mittBus.emit("wk:toggle-matter-panel", {
+          channelId,
+          channelType,
+          matterId,
+          forceOpen: true,
+        });
+        return true;
+      }
+
       if (action.type === "complete_matter") {
         try {
           const updated = await transitionMatter(matterId, "done");
@@ -312,7 +326,7 @@ export default class MatterModule implements IModule {
   private registerChatMatterPanel(): void {
     WKApp.endpoints.registerChatMatterPanel(
       "chatmatterpanel",
-      ({ channel, onClose }) => {
+      ({ channel, onClose, activeMatterId }) => {
         if (
           channel.channelType !== ChannelTypeGroup &&
           channel.channelType !== ChannelTypeCommunityTopic
@@ -323,6 +337,7 @@ export default class MatterModule implements IModule {
           <ChatMatterPanel
             channelId={channel.channelID}
             channelType={channel.channelType}
+            initialMatterId={activeMatterId}
             onClose={onClose}
           />
         );

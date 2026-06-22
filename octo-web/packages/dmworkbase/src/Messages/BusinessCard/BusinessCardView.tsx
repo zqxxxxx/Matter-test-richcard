@@ -10,13 +10,53 @@ const statusCopy: Record<string, string> = {
 };
 
 const cardTypeCopy: Record<string, string> = {
-  matter_status: "Matter",
-  summary_feedback: "总结",
-  external_link: "链接",
+  matter_status: "Matter 状态卡",
+  summary_feedback: "群总结卡",
+  external_link: "外部链接卡",
+};
+
+const cardTypeShortCopy: Record<string, string> = {
+  matter_status: "MT",
+  summary_feedback: "总",
+  external_link: "链",
+};
+
+const statusTone: Record<string, "success" | "warn" | "error" | "info"> = {
+  done: "success",
+  blocked: "warn",
+  archived: "success",
+  in_progress: "info",
+  open: "info",
 };
 
 function getActionClassName(action: BusinessCardAction) {
   return `wk-business-card-action wk-business-card-action--${action.kind ?? "secondary"}`;
+}
+
+function getProgressPercent(card: BusinessCardPayload) {
+  const progress = card.metrics?.find((item) => /进度|progress/i.test(item.label))?.value;
+  if (!progress) return undefined;
+  const match = progress.match(/(\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)/);
+  if (!match) return undefined;
+  const current = Number(match[1]);
+  const total = Number(match[2]);
+  if (!Number.isFinite(current) || !Number.isFinite(total) || total <= 0) return undefined;
+  return `${Math.max(0, Math.min(100, Math.round((current / total) * 100)))}%`;
+}
+
+function getKicker(card: BusinessCardPayload) {
+  if (card.cardType === "matter_status") {
+    return String(card.extra?.matterNo || card.entityId || card.source || "Matter");
+  }
+  if (card.cardType === "summary_feedback") {
+    const msgCount = card.metrics?.find((item) => /消息/.test(item.label))?.value;
+    return [card.time, msgCount ? `${msgCount} 条消息` : undefined].filter(Boolean).join(" · ") || card.source || "Summary";
+  }
+  return [card.source, card.time].filter(Boolean).join(" · ") || card.extra?.domain || "Link";
+}
+
+function getSourceText(card: BusinessCardPayload) {
+  return card.extra?.sourceText || card.extra?.quote || card.extra?.source;
 }
 
 export interface BusinessCardViewProps {
@@ -27,44 +67,51 @@ export interface BusinessCardViewProps {
 
 export function BusinessCardView({ card, actionLoadingType, onAction }: BusinessCardViewProps) {
   const statusLabel = card.status ? statusCopy[card.status] ?? card.status : "";
-  const typeLabel = cardTypeCopy[card.cardType] ?? "业务";
+  const typeLabel = cardTypeCopy[card.cardType] ?? "业务卡片";
+  const shortTypeLabel = cardTypeShortCopy[card.cardType] ?? "卡";
+  const tone = statusTone[card.status ?? ""] ?? "info";
+  const progressPercent = getProgressPercent(card);
+  const sourceText = getSourceText(card);
 
   return (
-    <article className={`wk-business-card wk-business-card--${card.cardType}`}>
-      <header className="wk-business-card-header">
-        <div className="wk-business-card-icon" aria-hidden="true">
-          {typeLabel.slice(0, 1)}
-        </div>
-        <div className="wk-business-card-headcopy">
-          {(card.source || card.time) && (
-            <div className="wk-business-card-eyebrow">
-              {[card.source, card.time].filter(Boolean).join(" · ")}
+    <article className={`wk-business-card wk-business-card--${card.cardType}`} aria-label={typeLabel}>
+      <div className="wk-business-card-main">
+        <header className="wk-business-card-head">
+          <div className="wk-business-card-title-group">
+            <div className="wk-business-card-kicker">
+              <span className={`wk-business-card-status-dot wk-business-card-status-dot--${tone}`} aria-hidden="true" />
+              <span>{getKicker(card)}</span>
             </div>
-          )}
-          <h3>{card.title}</h3>
-          {card.subtitle && <p>{card.subtitle}</p>}
-        </div>
-        <div className="wk-business-card-badges">
-          {card.priority && <span className="wk-business-card-badge wk-business-card-badge--priority">{card.priority}</span>}
-          {statusLabel && <span className={`wk-business-card-badge wk-business-card-badge--${card.status}`}>{statusLabel}</span>}
-        </div>
-      </header>
+            <h3 className="wk-business-card-title">{card.title}</h3>
+            {card.subtitle && <p className="wk-business-card-subtitle">{card.subtitle}</p>}
+          </div>
+          <div className="wk-business-card-badges">
+            {card.priority && <span className="wk-business-card-badge wk-business-card-badge--priority">{card.priority}</span>}
+            {statusLabel && <span className={`wk-business-card-badge wk-business-card-badge--${tone}`}>{statusLabel}</span>}
+          </div>
+        </header>
 
-      {card.body && <p className="wk-business-card-body">{card.body}</p>}
+        {card.body && <p className="wk-business-card-desc">{card.body}</p>}
 
-      {!!card.metrics?.length && (
-        <dl className="wk-business-card-metrics">
-          {card.metrics.map((item) => (
-            <div key={`${item.label}-${item.value}`}>
-              <dt>{item.label}</dt>
-              <dd>{item.value}</dd>
-            </div>
-          ))}
-        </dl>
-      )}
+        {!!card.metrics?.length && (
+          <dl className="wk-business-card-fields">
+            {card.metrics.map((item) => (
+              <div className="wk-business-card-field" key={`${item.label}-${item.value}`}>
+                <dt>{item.label}</dt>
+                <dd>{item.value}</dd>
+              </div>
+            ))}
+          </dl>
+        )}
 
-      <footer className="wk-business-card-footer">
-        {card.actor && <span className="wk-business-card-actor">由 {card.actor} 触发</span>}
+        {progressPercent && (
+          <div className="wk-business-card-progress" aria-hidden="true">
+            <span style={{ width: progressPercent }} />
+          </div>
+        )}
+
+        {sourceText && <div className="wk-business-card-source">{sourceText}</div>}
+
         {!!card.actions?.length && (
           <div className="wk-business-card-actions">
             {card.actions.map((action) => {
@@ -86,6 +133,11 @@ export function BusinessCardView({ card, actionLoadingType, onAction }: Business
             })}
           </div>
         )}
+      </div>
+
+      <footer className="wk-business-card-footer">
+        <span>{typeLabel}</span>
+        <span>{card.time || card.actor || shortTypeLabel}</span>
       </footer>
     </article>
   );

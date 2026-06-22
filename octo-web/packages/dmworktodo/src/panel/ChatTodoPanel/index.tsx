@@ -12,6 +12,7 @@ export interface ChatMatterPanelProps {
   channelId: string;
   channelType: number;
   channelName?: string;
+  initialMatterId?: string;
   onClose: () => void;
 }
 
@@ -19,6 +20,7 @@ export default function ChatMatterPanel({
   channelId,
   channelType,
   channelName,
+  initialMatterId,
   onClose,
 }: ChatMatterPanelProps) {
   return (
@@ -27,6 +29,7 @@ export default function ChatMatterPanel({
       channelId={channelId}
       channelType={channelType}
       channelName={channelName}
+      initialMatterId={initialMatterId}
       onClose={onClose}
     />
   );

@@ -21,10 +21,10 @@ export type MittEvents = {
     shortId?: string;
   };
   "wk:close-thread-panel": undefined;
-  "wk:toggle-matter-panel": { channelId: string; channelType: number };
+  "wk:toggle-matter-panel": { channelId: string; channelType: number; matterId?: string; forceOpen?: boolean };
   /** v0.7 Matter 详情面板切换（跟子区/文件预览/任务列表可并存） */
   "wk:toggle-matter-detail-panel": { channelId: string; channelType: number; matterId?: string; forceOpen?: boolean };
-  "wk:toggle-summary-panel": { channelId: string; channelType: number; summaryPanelView: 'history' | 'new'; forceOpen?: boolean };
+  "wk:toggle-summary-panel": { channelId: string; channelType: number; summaryPanelView: 'history' | 'new'; taskId?: number; forceOpen?: boolean };
   "wk:open-summary-modal": { channelId: string; channelType: number };
   /** 打开多选→同步到项目的弹出菜单（由 dmworktodo 模块接管渲染） */
   "wk:open-matter-link-menu": { anchor: HTMLElement; channelId: string; channelType: number; messages?: Array<{ messageSeq?: number; messageID?: string; fromUID?: string; fromUName?: string; content?: string; timestamp?: number; attachments?: any[] }> };

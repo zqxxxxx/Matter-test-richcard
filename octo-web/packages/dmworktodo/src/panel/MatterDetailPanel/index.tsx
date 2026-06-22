@@ -51,7 +51,7 @@ import {
   formatFileSize,
 } from "@octo/base/src/Components/MessageInput/AttachmentNode";
 import { getExtension } from "@octo/base/src/Components/FilePreviewPanel/types";
-import { Eye, Download as DownloadIcon } from "lucide-react";
+import { Eye, Download as DownloadIcon, PanelRightOpen } from "lucide-react";
 import { ShowConversationOptions } from "@octo/base/src/EndpointCommon";
 import { useChannelName } from "../../hooks/useChannelName";
 import { useMyGroups } from "../../hooks/useMyGroups";
@@ -528,6 +528,36 @@ export default function MatterDetailPanel({
     },
     [matter, applyMatterUpdate, channelId, _channelType, t],
   );
+
+  const handleOpenMatterWorkspace = useCallback(() => {
+    if (!matter) return;
+    const targetChannelId = channelId || matter.source_channel_id;
+    const targetChannelType = channelId ? _channelType : matter.source_channel_type;
+    if (!targetChannelId || targetChannelType == null) {
+      Toast.error(t("todo.toast.loadFailed"));
+      return;
+    }
+
+    const openPanel = () => {
+      WKApp.mittBus.emit("wk:toggle-matter-panel", {
+        channelId: targetChannelId,
+        channelType: targetChannelType,
+        matterId: matter.id,
+        forceOpen: true,
+      });
+    };
+
+    if (!channelId) {
+      WKApp.endpoints.showConversation(
+        new Channel(targetChannelId, targetChannelType),
+        { fromSidebarList: true } as ShowConversationOptions,
+      );
+      window.setTimeout(openPanel, 80);
+      return;
+    }
+
+    openPanel();
+  }, [matter, channelId, _channelType, t]);
 
   const handleDeleteMatter = useCallback(async () => {
     if (!matter) return;
@@ -1015,6 +1045,17 @@ export default function MatterDetailPanel({
                 </div>
               </div>
               <div className="wk-mp-header__actions">
+                {(channelId || matter.source_channel_id) && (
+                  <button
+                    type="button"
+                    className="wk-mp-header__action"
+                    onClick={handleOpenMatterWorkspace}
+                    title="进入 Matter"
+                  >
+                    <PanelRightOpen size={14} />
+                    <span>进入 Matter</span>
+                  </button>
+                )}
                 <button
                   type="button"
                   className="wk-mp-header__close"

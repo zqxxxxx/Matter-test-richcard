@@ -936,6 +936,30 @@ export default class SummaryDetailPage extends Component<SummaryDetailPageProps,
         this.setState({ isEditing: false });
     };
 
+    handleOpenSummaryWorkspace = () => {
+        const { detail } = this.state;
+        if (!detail?.origin_channel_id || detail.origin_channel_type == null) {
+            Toast.error(t("summary.common.operationFailed"));
+            return;
+        }
+
+        const payload = {
+            channelId: detail.origin_channel_id,
+            channelType: detail.origin_channel_type,
+            summaryPanelView: "history" as const,
+            taskId: detail.task_id,
+            forceOpen: true,
+        };
+
+        WKApp.endpoints.showConversation(
+            new Channel(detail.origin_channel_id, detail.origin_channel_type),
+            { fromSidebarList: true },
+        );
+        window.setTimeout(() => {
+            WKApp.mittBus.emit("wk:toggle-summary-panel", payload);
+        }, 80);
+    };
+
     renderScheduleButton() {
         const { detail, scheduleItem, scheduleLoading, isEditing } = this.state;
         const { t } = this.context;
@@ -1030,6 +1054,15 @@ export default class SummaryDetailPage extends Component<SummaryDetailPageProps,
                         {detail?.title || t("summary.detail.defaultTitle")}
                     </OverflowTooltip>
                     <div className="summary-detail-header-actions">
+                        {detail?.origin_channel_id && detail.origin_channel_type != null && (
+                            <Button
+                                theme="borderless"
+                                icon={<IconHistory />}
+                                onClick={this.handleOpenSummaryWorkspace}
+                            >
+                                进入群总结
+                            </Button>
+                        )}
                         {(detail?.summary_mode !== SummaryMode.BY_PERSON || !this.state.personalResult || this.state.personalLoading) && this.renderScheduleButton()}
                         {detail && detail.status === TaskStatus.COMPLETED && (
                             <Button
