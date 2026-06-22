@@ -7,28 +7,28 @@
   width: min(420px, calc(100vw - 168px));
   max-width: 100%;
   box-sizing: border-box;
-  padding: 10px;
+  padding: 10px 12px;
   border-radius: 8px;
-  background: #d8efff;
+  background: #d7ecff;
   color: var(--wk-text-primary, #1f2329);
 }
 
 .wk-link-preview-url {
-  margin-bottom: 8px;
-  color: #1f63d8;
-  font-size: 20px;
-  line-height: 26px;
+  margin-bottom: 7px;
+  color: #1f6fe5;
+  font-size: 17px;
+  line-height: 23px;
   overflow-wrap: anywhere;
 }
 
 .wk-link-preview-panel {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 64px;
+  grid-template-columns: minmax(0, 1fr) 56px;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   width: 100%;
-  min-height: 86px;
-  padding: 14px 12px;
+  min-height: 74px;
+  padding: 12px;
   border: 0;
   border-radius: 6px;
   background: #fff;
@@ -47,15 +47,15 @@
 
 .wk-link-preview-copy {
   display: grid;
-  gap: 8px;
+  gap: 5px;
   min-width: 0;
 }
 
 .wk-link-preview-title {
   color: var(--wk-text-primary, #1f2329);
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 700;
-  line-height: 24px;
+  line-height: 22px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -64,9 +64,9 @@
 .wk-link-preview-desc {
   display: -webkit-box;
   color: var(--wk-text-secondary, #646a73);
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 600;
-  line-height: 22px;
+  line-height: 20px;
   overflow: hidden;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
@@ -74,8 +74,8 @@
 
 .wk-link-preview-thumb,
 .wk-link-preview-favicon {
-  width: 64px;
-  height: 64px;
+  width: 56px;
+  height: 56px;
   border-radius: 6px;
   flex: 0 0 auto;
 }
@@ -90,8 +90,8 @@
   align-items: center;
   justify-content: center;
   background: #eef4ff;
-  color: #1f63d8;
-  font-size: 22px;
+  color: #1f6fe5;
+  font-size: 20px;
   font-weight: 700;
 }
 
@@ -503,23 +503,23 @@
   }
 
   .wk-link-preview-url {
-    font-size: 17px;
-    line-height: 23px;
-  }
-
-  .wk-link-preview-panel {
-    grid-template-columns: minmax(0, 1fr) 52px;
-    min-height: 76px;
-  }
-
-  .wk-link-preview-title {
     font-size: 16px;
     line-height: 22px;
   }
 
+  .wk-link-preview-panel {
+    grid-template-columns: minmax(0, 1fr) 52px;
+    min-height: 72px;
+  }
+
+  .wk-link-preview-title {
+    font-size: 15px;
+    line-height: 21px;
+  }
+
   .wk-link-preview-desc {
-    font-size: 14px;
-    line-height: 20px;
+    font-size: 13px;
+    line-height: 19px;
   }
 
   .wk-link-preview-thumb,

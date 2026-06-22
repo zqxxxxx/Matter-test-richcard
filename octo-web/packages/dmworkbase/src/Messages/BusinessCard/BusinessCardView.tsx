@@ -116,6 +116,34 @@ function getExternalLinkDomain(card: BusinessCardPayload) {
   }
 }
 
+function isPlaceholderExternalLinkTitle(title?: string) {
+  return !title || /外部链接预览卡片|外部分享链接|网页链接/.test(title);
+}
+
+function getExternalLinkTitle(card: BusinessCardPayload) {
+  const url = getExternalLinkUrl(card);
+  const domain = getExternalLinkDomain(card);
+
+  if (!isPlaceholderExternalLinkTitle(card.title)) return card.title;
+  if (/deepseek\.com/i.test(url) || /deepseek\.com/i.test(domain)) return "DeepSeek | 深度求索";
+
+  const subtitleTitle = card.subtitle?.split("·").pop()?.trim();
+  if (subtitleTitle && !isPlaceholderExternalLinkTitle(subtitleTitle)) return subtitleTitle;
+
+  return domain || url || "网页链接";
+}
+
+function getExternalLinkDescription(card: BusinessCardPayload) {
+  const domain = getExternalLinkDomain(card);
+  const url = getExternalLinkUrl(card);
+
+  if (/deepseek\.com/i.test(url) || /deepseek\.com/i.test(domain)) {
+    return "深度求索，专注于研究世界领先的通用人工智能。";
+  }
+
+  return card.body || card.subtitle || domain;
+}
+
 export interface BusinessCardViewProps {
   card: BusinessCardPayload;
   actionLoadingType?: string | null;
@@ -130,7 +158,8 @@ export function BusinessCardView({ card, actionLoadingType, onAction }: Business
     const url = getExternalLinkUrl(card);
     const domain = getExternalLinkDomain(card);
     const imageUrl = card.extra?.image || card.extra?.imageUrl || card.extra?.thumbnail || card.extra?.thumbnailUrl;
-    const description = card.body || card.subtitle || domain;
+    const title = getExternalLinkTitle(card);
+    const description = getExternalLinkDescription(card);
     const canOpen = !!action;
 
     return (
@@ -146,7 +175,7 @@ export function BusinessCardView({ card, actionLoadingType, onAction }: Business
           }}
         >
           <span className="wk-link-preview-copy">
-            <span className="wk-link-preview-title">{card.title}</span>
+            <span className="wk-link-preview-title">{title}</span>
             {description && <span className="wk-link-preview-desc">{description}</span>}
           </span>
           {imageUrl ? (

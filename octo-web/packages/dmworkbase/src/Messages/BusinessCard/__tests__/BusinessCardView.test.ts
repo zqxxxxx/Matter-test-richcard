@@ -83,4 +83,26 @@ describe("BusinessCardView actions", () => {
     expect(html).not.toContain("wk-business-card-fields");
     expect(html).not.toContain("wk-business-card-footer");
   });
+
+  it("normalizes legacy external link placeholder copy", () => {
+    const card: BusinessCardPayload = {
+      id: "legacy-link-preview",
+      cardType: "external_link",
+      title: "外部链接预览卡片",
+      body: "用于验证后续外部分享链接卡片场景，点击后打开配置的真实链接。",
+      actions: [
+        { label: "打开链接", type: "open_url", kind: "primary", url: "https://www.deepseek.com/" },
+      ],
+      extra: {
+        domain: "www.deepseek.com",
+      },
+    };
+
+    const html = renderToStaticMarkup(React.createElement(BusinessCardView, { card }));
+
+    expect(html).toContain("https://www.deepseek.com/");
+    expect(html).toContain("DeepSeek | 深度求索");
+    expect(html).toContain("深度求索，专注于研究世界领先的通用人工智能。");
+    expect(html).not.toContain("外部链接预览卡片");
+  });
 });
