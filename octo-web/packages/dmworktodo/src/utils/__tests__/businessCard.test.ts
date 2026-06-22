@@ -38,4 +38,47 @@ describe("buildMatterStatusCard", () => {
       "complete_matter",
     ]);
   });
+
+  it("uses the same core fields as the Matter module card", () => {
+    const matter: MatterDetail = {
+      id: "matter-1",
+      seq_no: 1001,
+      space_id: "space-1",
+      title: "跟进重点客户方案",
+      description: "需要在今天同步方案状态",
+      creator_id: "u-creator",
+      status: "open",
+      deadline: "2026-06-22T10:00:00Z",
+      source_channel_id: "group-1",
+      source_channel_type: 2,
+      source_name: "售前项目群",
+      source_msgs: ["客户希望今天看到新版方案"],
+      assignees: [
+        {
+          id: "assignee-1",
+          matter_id: "matter-1",
+          user_id: "u-owner",
+          created_at: "2026-06-22T09:00:00Z",
+        },
+      ],
+      created_at: "2026-06-22T09:00:00Z",
+      updated_at: "2026-06-22T09:30:00Z",
+      channels: [],
+    };
+
+    const card = buildMatterStatusCard(matter);
+
+    expect(card.extra?.matterNo).toBe("M-1001");
+    expect(card.subtitle).toBe("M-1001 · 来自 售前项目群");
+    expect(card.metrics?.map((item) => item.label)).toEqual([
+      "创建人",
+      "负责人",
+      "截止",
+    ]);
+    expect(card.metrics?.map((item) => item.value)).toEqual([
+      "u-creator",
+      "u-owner",
+      "2026/06/22 18:00",
+    ]);
+  });
 });

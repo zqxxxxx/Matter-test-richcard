@@ -60,7 +60,12 @@ export class BusinessCardCell extends MessageCell<MessageBaseCellProps, { loadin
     const content = message.content as BusinessCardContent;
 
     return (
-      <MessageBase hiddeBubble={true} message={message} context={context}>
+      <MessageBase
+        className="wk-message-base--business-card"
+        hiddeBubble={true}
+        message={message}
+        context={context}
+      >
         <div className="wk-business-card-message">
           <BusinessCardView
             card={content.toPayload()}

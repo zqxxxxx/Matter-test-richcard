@@ -3,6 +3,33 @@
   max-width: 100%;
 }
 
+.wk-message-base--business-card .wk-message-base-box {
+  position: relative;
+  gap: 0;
+}
+
+.wk-message-base--business-card .senderAvatar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform: translateX(-40px);
+}
+
+.wk-message-base--business-card .senderAvatar-placeholder {
+  display: none;
+}
+
+.wk-message-base--business-card .wk-msg-head {
+  margin-bottom: 4px;
+}
+
+.wk-message-base--business-card .wk-message-base-bubble-box,
+.wk-message-base--business-card .wk-message-base-bubble,
+.wk-message-base--business-card .wk-message-base-content {
+  width: auto;
+  max-width: none;
+}
+
 .wk-business-card {
   position: relative;
   width: 100%;

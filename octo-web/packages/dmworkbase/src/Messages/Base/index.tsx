@@ -310,7 +310,7 @@ export default class MessageBase extends Component<MessageBaseProps, any> {
   }
 
   render() {
-    const { message, context, hiddeBubble, bubbleStyle } = this.props;
+    const { message, context, hiddeBubble, bubbleStyle, className } = this.props;
     const hasContinue = this.isContinue();
     const channelInfo = WKSDK.shared().channelManager.getChannelInfo(
       new Channel(message.fromUID, ChannelTypePerson)
@@ -452,6 +452,7 @@ export default class MessageBase extends Component<MessageBaseProps, any> {
       <div
         className={classNames(
           "wk-message-base",
+          className,
           selectionMode && selectable ? "wk-message-base-check-open" : undefined
         )}
         onClick={

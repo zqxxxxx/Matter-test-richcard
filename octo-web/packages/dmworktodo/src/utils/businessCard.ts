@@ -4,15 +4,6 @@ import type { MatterDetail } from "../bridge/types";
 const CARD_BODY_MAX_LENGTH = 180;
 const SOURCE_MAX_LENGTH = 160;
 
-const STATUS_LABELS: Record<string, string> = {
-  open: "待处理",
-  in_progress: "进行中",
-  review: "待复核",
-  blocked: "受阻",
-  done: "已完成",
-  archived: "已归档",
-};
-
 export interface BuildMatterStatusCardOptions {
   actor?: string;
   sourceChannelId?: string;
@@ -63,8 +54,9 @@ export function buildMatterStatusCard(
   const assigneeLabel = getAssigneeLabel(matter);
   const deadlineLabel = formatDeadline(matter.deadline);
   const sourceText = getSourceText(matter, sourceName);
+  const matterNo = matter.seq_no ? `M-${matter.seq_no}` : undefined;
   const metrics = [
-    { label: "状态", value: STATUS_LABELS[matter.status] ?? matter.status },
+    matter.creator_id ? { label: "创建人", value: matter.creator_id } : null,
     assigneeLabel ? { label: "负责人", value: assigneeLabel } : null,
     deadlineLabel ? { label: "截止", value: deadlineLabel } : null,
   ].filter(Boolean) as Array<{ label: string; value: string }>;
@@ -73,7 +65,9 @@ export function buildMatterStatusCard(
     id: `matter-${matter.id}-${matter.status}`,
     cardType: "matter_status",
     title: matter.title,
-    subtitle: sourceName ? `来自 ${sourceName}` : "事项状态更新",
+    subtitle: [matterNo, sourceName ? `来自 ${sourceName}` : undefined]
+      .filter(Boolean)
+      .join(" · ") || "事项状态更新",
     body: truncate(compactText(matter.description), CARD_BODY_MAX_LENGTH),
     status: matter.status,
     source: "Matter",
@@ -92,7 +86,7 @@ export function buildMatterStatusCard(
         : [{ label: "标记完成", type: "complete_matter", kind: "secondary" as const }]),
     ],
     extra: {
-      matterNo: `MAT-${matter.seq_no}`,
+      matterNo,
       sourceText,
       sourceName,
       spaceId: matter.space_id,
