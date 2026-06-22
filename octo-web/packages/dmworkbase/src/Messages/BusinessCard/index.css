@@ -433,6 +433,66 @@
   background: rgba(252, 136, 0, 0.04);
 }
 
+.wk-business-card--external_link {
+  padding: 10px;
+  border: 0;
+  border-radius: 8px;
+  background: #d8efff;
+  box-shadow: none;
+}
+
+.wk-business-card--external_link::before {
+  content: none;
+}
+
+.wk-business-card--external_link .wk-business-card-main {
+  gap: 8px;
+  padding: 0;
+}
+
+.wk-business-card--external_link .wk-business-card-type-mark,
+.wk-business-card--external_link .wk-business-card-kicker,
+.wk-business-card--external_link .wk-business-card-badges,
+.wk-business-card--external_link .wk-business-card-fields,
+.wk-business-card--external_link .wk-business-card-actions,
+.wk-business-card--external_link .wk-business-card-footer {
+  display: none;
+}
+
+.wk-business-card--external_link .wk-business-card-head {
+  display: block;
+  min-height: 76px;
+  padding: 14px 12px;
+  border-radius: 6px;
+  background: #fff;
+}
+
+.wk-business-card--external_link .wk-business-card-title {
+  color: var(--wk-text-primary, #1f2329);
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 24px;
+}
+
+.wk-business-card--external_link .wk-business-card-subtitle,
+.wk-business-card--external_link .wk-business-card-desc {
+  display: -webkit-box;
+  margin-top: 8px;
+  color: var(--wk-text-secondary, #646a73);
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 22px;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.wk-business-card--external_link .wk-business-card-desc {
+  margin: -70px 12px 12px;
+  padding-right: 76px;
+  pointer-events: none;
+}
+
 @media (max-width: 560px) {
   .wk-business-card-message {
     width: 100%;

@@ -88,6 +88,14 @@ function getSourceText(card: BusinessCardPayload) {
   return card.extra?.sourceText || card.extra?.quote || card.extra?.source;
 }
 
+function getCardType(card: BusinessCardPayload) {
+  return String(card.cardType || (card as any).card_type || "").trim();
+}
+
+function isExternalLinkCard(card: BusinessCardPayload) {
+  return getCardType(card) === "external_link";
+}
+
 function getExternalLinkAction(card: BusinessCardPayload) {
   return (card.actions ?? []).find((action) => action.type === "open_url" && action.url);
 }
@@ -115,7 +123,9 @@ export interface BusinessCardViewProps {
 }
 
 export function BusinessCardView({ card, actionLoadingType, onAction }: BusinessCardViewProps) {
-  if (card.cardType === "external_link") {
+  const cardType = getCardType(card);
+
+  if (isExternalLinkCard(card)) {
     const action = getExternalLinkAction(card);
     const url = getExternalLinkUrl(card);
     const domain = getExternalLinkDomain(card);
@@ -150,15 +160,15 @@ export function BusinessCardView({ card, actionLoadingType, onAction }: Business
   }
 
   const statusLabel = card.status ? statusCopy[card.status] ?? card.status : "";
-  const typeLabel = cardTypeCopy[card.cardType] ?? "业务卡片";
-  const shortTypeLabel = cardTypeShortCopy[card.cardType] ?? "卡";
+  const typeLabel = cardTypeCopy[cardType] ?? "业务卡片";
+  const shortTypeLabel = cardTypeShortCopy[cardType] ?? "卡";
   const tone = statusTone[card.status ?? ""] ?? "info";
   const progressPercent = getProgressPercent(card);
   const sourceText = getSourceText(card);
   const actions = getBusinessCardActions(card);
 
   return (
-    <article className={`wk-business-card wk-business-card--${card.cardType}`} aria-label={typeLabel}>
+    <article className={`wk-business-card wk-business-card--${cardType}`} aria-label={typeLabel}>
       <div className="wk-business-card-main">
         <header className="wk-business-card-head">
           <span className="wk-business-card-type-mark" aria-hidden="true">{shortTypeLabel}</span>
