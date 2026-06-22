@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from "react";
 import ReactDOM from "react-dom";
-import { WKApp, t as translate } from "@octo/base";
+import { getSourceConversationLabel, openSourceConversation, WKApp, t as translate, type SourceConversationRef } from "@octo/base";
 import {
   buildMatterWorkspaceSrc,
   consumePendingMatterWorkspaceMatterId,
+  consumePendingMatterWorkspaceSource,
   MATTER_WORKSPACE_OPEN_EVENT,
   type MatterWorkspaceOpenPayload,
 } from "../utils/matterWorkspaceNavigation";
@@ -27,6 +28,7 @@ import {
 const MatterWorkspace: React.FC = () => {
   const [active, setActive] = useState(true); // mounted on first activation
   const [src, setSrc] = useState(() => buildMatterWorkspaceSrc(consumePendingMatterWorkspaceMatterId()));
+  const [source, setSource] = useState<SourceConversationRef | undefined>(() => consumePendingMatterWorkspaceSource());
   const spaceId = WKApp.shared.currentSpaceId || "";
 
   useEffect(() => {
@@ -46,6 +48,7 @@ const MatterWorkspace: React.FC = () => {
       if (!matterId) return;
       setActive(true);
       setSrc(buildMatterWorkspaceSrc(matterId));
+      setSource((payload as MatterWorkspaceOpenPayload | undefined)?.source);
     };
     WKApp.mittBus.on(MATTER_WORKSPACE_OPEN_EVENT, openMatter);
     return () => {
@@ -60,25 +63,51 @@ const MatterWorkspace: React.FC = () => {
   }
 
   return ReactDOM.createPortal(
-    <iframe
-      key={spaceId || "no-space"}
-      title={translate("todo.menu.title")}
-      src={src}
-      style={{
-        // iframes are replaced elements: left+right do NOT stretch them
-        // (width:auto falls back to the intrinsic 300x150), so size
-        // explicitly off the viewport.
-        position: "fixed",
-        top: 0,
-        left: "var(--wk-width-layout-tab, 56px)",
-        width: "calc(100vw - var(--wk-width-layout-tab, 56px))",
-        height: "100vh",
-        border: 0,
-        display: active ? "block" : "none",
-        zIndex: 900, // above app panes; below host modals/toasts (semi-ui ~1000+)
-        background: "var(--wk-bg-color, #fff)",
-      }}
-    />,
+    <>
+      <iframe
+        key={spaceId || "no-space"}
+        title={translate("todo.menu.title")}
+        src={src}
+        style={{
+          // iframes are replaced elements: left+right do NOT stretch them
+          // (width:auto falls back to the intrinsic 300x150), so size
+          // explicitly off the viewport.
+          position: "fixed",
+          top: 0,
+          left: "var(--wk-width-layout-tab, 56px)",
+          width: "calc(100vw - var(--wk-width-layout-tab, 56px))",
+          height: "100vh",
+          border: 0,
+          display: active ? "block" : "none",
+          zIndex: 900, // above app panes; below host modals/toasts (semi-ui ~1000+)
+          background: "var(--wk-bg-color, #fff)",
+        }}
+      />
+      {active && source && (
+        <button
+          type="button"
+          onClick={() => openSourceConversation(source)}
+          style={{
+            position: "fixed",
+            top: 14,
+            left: "calc(var(--wk-width-layout-tab, 56px) + 16px)",
+            zIndex: 901,
+            height: 32,
+            padding: "0 12px",
+            border: "1px solid rgba(31, 35, 41, 0.1)",
+            borderRadius: 6,
+            background: "rgba(255, 255, 255, 0.96)",
+            color: "var(--wk-text-primary, #1f2329)",
+            fontSize: 13,
+            fontWeight: 600,
+            boxShadow: "0 4px 12px rgba(31, 35, 41, 0.08)",
+            cursor: "pointer",
+          }}
+        >
+          ← {getSourceConversationLabel(source)}
+        </button>
+      )}
+    </>,
     document.body,
   );
 };

@@ -8,8 +8,9 @@ describe("summary workspace navigation", () => {
     });
 
     it("opens the summary detail in the Summary module", () => {
-        openSummaryWorkspace(42);
+        const source = { channelId: "group-1", channelType: 2, label: "验收群", messageSeq: 12 };
+        openSummaryWorkspace(42, source);
 
-        expect(WKApp.openSummaryDetail).toHaveBeenCalledWith(42);
+        expect(WKApp.openSummaryDetail).toHaveBeenCalledWith(42, source);
     });
 });

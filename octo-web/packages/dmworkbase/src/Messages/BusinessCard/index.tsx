@@ -61,11 +61,13 @@ export class BusinessCardCell extends MessageCell<MessageBaseCellProps, { loadin
 
     return (
       <MessageBase hiddeBubble={true} message={message} context={context}>
-        <BusinessCardView
-          card={content.toPayload()}
-          actionLoadingType={this.state.loadingActionType}
-          onAction={this.handleAction}
-        />
+        <div className="wk-business-card-message">
+          <BusinessCardView
+            card={content.toPayload()}
+            actionLoadingType={this.state.loadingActionType}
+            onAction={this.handleAction}
+          />
+        </div>
       </MessageBase>
     );
   }
@@ -87,4 +89,10 @@ export type {
   BusinessCardStatus,
   BusinessCardType,
 } from "./BusinessCardContent";
+export {
+  buildSourceConversationRef,
+  getSourceConversationLabel,
+  openSourceConversation,
+} from "./sourceConversation";
+export type { SourceConversationRef } from "./sourceConversation";
 export default BusinessCardCell;

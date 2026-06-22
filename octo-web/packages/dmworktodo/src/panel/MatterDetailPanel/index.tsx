@@ -532,8 +532,19 @@ export default function MatterDetailPanel({
 
   const handleOpenMatterWorkspace = useCallback(() => {
     if (!matter) return;
-    openMatterWorkspace(matter.id);
-  }, [matter]);
+    const targetChannelId = channelId || matter.source_channel_id;
+    const targetChannelType = channelId ? _channelType : matter.source_channel_type;
+    openMatterWorkspace(
+      matter.id,
+      targetChannelId && targetChannelType != null
+        ? {
+            channelId: targetChannelId,
+            channelType: targetChannelType,
+            label: matter.source_name || matter.channels?.[0]?.channel_name,
+          }
+        : undefined,
+    );
+  }, [matter, channelId, _channelType]);
 
   const handleDeleteMatter = useCallback(async () => {
     if (!matter) return;

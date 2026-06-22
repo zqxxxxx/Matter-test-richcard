@@ -1,5 +1,12 @@
+.wk-business-card-message {
+  width: min(420px, calc(100vw - 168px));
+  max-width: 100%;
+}
+
 .wk-business-card {
-  width: min(560px, 100%);
+  position: relative;
+  width: 100%;
+  box-sizing: border-box;
   border: 1px solid var(--wk-border-color, rgba(0, 0, 0, 0.08));
   border-radius: 8px;
   background: var(--wk-bg-elevated, #fff);
@@ -7,6 +14,16 @@
   overflow: hidden;
   box-shadow: 0 1px 0 rgba(31, 35, 41, 0.04);
   transition: border-color 160ms ease, box-shadow 160ms ease, background 160ms ease;
+}
+
+.wk-business-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 3px;
+  background: #1f63d8;
 }
 
 .wk-business-card:hover {
@@ -24,10 +41,26 @@
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 12px;
+  gap: 10px;
+}
+
+.wk-business-card-type-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  flex: 0 0 auto;
+  background: #eef4ff;
+  color: #1f63d8;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
 }
 
 .wk-business-card-title-group {
+  flex: 1;
   min-width: 0;
 }
 
@@ -192,14 +225,14 @@
   display: block;
   height: 100%;
   border-radius: inherit;
-  background: linear-gradient(90deg, #41dfff, #7f3bf5);
+  background: #1f63d8;
 }
 
 .wk-business-card-source {
-  border-left: 3px solid rgba(127, 59, 245, 0.28);
+  border-left: 3px solid rgba(31, 99, 216, 0.24);
   border-radius: 6px;
   padding: 9px 10px;
-  background: rgba(127, 59, 245, 0.04);
+  background: rgba(31, 99, 216, 0.04);
   color: var(--wk-text-secondary, #4e5969);
   font-size: 13px;
   line-height: 20px;
@@ -276,11 +309,43 @@
   background: #0b867d;
 }
 
+.wk-business-card--summary_feedback::before {
+  background: #0b867d;
+}
+
+.wk-business-card--summary_feedback .wk-business-card-type-mark {
+  background: #e7f6f4;
+  color: #0b867d;
+}
+
+.wk-business-card--summary_feedback .wk-business-card-source {
+  border-left-color: rgba(11, 134, 125, 0.24);
+  background: rgba(11, 134, 125, 0.04);
+}
+
 .wk-business-card--external_link .wk-business-card-status-dot--info {
   background: #fc8800;
 }
 
+.wk-business-card--external_link::before {
+  background: #fc8800;
+}
+
+.wk-business-card--external_link .wk-business-card-type-mark {
+  background: #fff6e5;
+  color: #a15c00;
+}
+
+.wk-business-card--external_link .wk-business-card-source {
+  border-left-color: rgba(252, 136, 0, 0.24);
+  background: rgba(252, 136, 0, 0.04);
+}
+
 @media (max-width: 560px) {
+  .wk-business-card-message {
+    width: 100%;
+  }
+
   .wk-business-card {
     width: 100%;
   }

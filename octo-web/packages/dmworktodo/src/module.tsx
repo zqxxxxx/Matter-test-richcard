@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import ReactDOM from "react-dom/client";
-import { WKApp, Menus, ChannelTypeCommunityTopic, i18n, t as translate, useI18n, BusinessCardContent, registerBusinessCardActionHandler } from "@octo/base";
+import { WKApp, Menus, ChannelTypeCommunityTopic, i18n, t as translate, useI18n, BusinessCardContent, buildSourceConversationRef, registerBusinessCardActionHandler } from "@octo/base";
 import type { IModule, ConversationContext } from "@octo/base";
 import WKSDK, { Channel, ChannelTypeGroup } from "wukongimjssdk";
 // matter-v2: route content swapped to the embedded workspace served by
@@ -217,7 +217,7 @@ export default class MatterModule implements IModule {
       }
 
       if (action.type === "open_matter_workspace") {
-        openMatterWorkspace(matterId);
+        openMatterWorkspace(matterId, buildSourceConversationRef(data));
         return true;
       }
 

@@ -11,7 +11,7 @@ import {
 } from "@douyinfe/semi-ui";
 import { IconEdit, IconMore, IconSend, IconClock, IconTick, IconClose, IconInfoCircle, IconHistory, IconUser } from "@douyinfe/semi-icons";
 import { Channel, ChannelTypePerson, WKSDK } from "wukongimjssdk";
-import { BusinessCardContent, I18nContext, t } from "@octo/base";
+import { BusinessCardContent, I18nContext, getSourceConversationLabel, openSourceConversation, t, type SourceConversationRef } from "@octo/base";
 import WKApp from "@octo/base/src/App";
 import SummaryConfirmPage from "./SummaryConfirmPage";
 import * as api from "../api/summaryApi";
@@ -45,6 +45,7 @@ import { openSummaryWorkspace } from "../utils/summaryWorkspaceNavigation";
 
 interface SummaryDetailPageProps {
     taskId?: number;
+    returnToConversation?: SourceConversationRef;
 }
 
 interface SummaryDetailPageState {
@@ -944,7 +945,22 @@ export default class SummaryDetailPage extends Component<SummaryDetailPageProps,
             return;
         }
 
-        openSummaryWorkspace(detail.task_id);
+        openSummaryWorkspace(
+            detail.task_id,
+            detail.origin_channel_id && detail.origin_channel_type != null
+                ? {
+                    channelId: detail.origin_channel_id,
+                    channelType: detail.origin_channel_type,
+                    label: this.props.returnToConversation?.label,
+                }
+                : this.props.returnToConversation,
+        );
+    };
+
+    handleReturnToConversation = () => {
+        if (!openSourceConversation(this.props.returnToConversation)) {
+            Toast.error(t("summary.common.operationFailed"));
+        }
     };
 
     renderScheduleButton() {
@@ -1037,6 +1053,15 @@ export default class SummaryDetailPage extends Component<SummaryDetailPageProps,
         return (
             <div className="summary-detail-header">
                 <div className="summary-detail-header-inner">
+                    {this.props.returnToConversation && (
+                        <Button
+                            theme="borderless"
+                            className="summary-detail-return-chat"
+                            onClick={this.handleReturnToConversation}
+                        >
+                            ← {getSourceConversationLabel(this.props.returnToConversation)}
+                        </Button>
+                    )}
                     <OverflowTooltip as="h2" className="summary-detail-title" title={detail?.title || t("summary.detail.defaultTitle")}>
                         {detail?.title || t("summary.detail.defaultTitle")}
                     </OverflowTooltip>

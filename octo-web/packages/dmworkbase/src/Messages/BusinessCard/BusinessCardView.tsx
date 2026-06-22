@@ -16,7 +16,7 @@ const cardTypeCopy: Record<string, string> = {
 };
 
 const cardTypeShortCopy: Record<string, string> = {
-  matter_status: "MT",
+  matter_status: "M",
   summary_feedback: "总",
   external_link: "链",
 };
@@ -107,6 +107,7 @@ export function BusinessCardView({ card, actionLoadingType, onAction }: Business
     <article className={`wk-business-card wk-business-card--${card.cardType}`} aria-label={typeLabel}>
       <div className="wk-business-card-main">
         <header className="wk-business-card-head">
+          <span className="wk-business-card-type-mark" aria-hidden="true">{shortTypeLabel}</span>
           <div className="wk-business-card-title-group">
             <div className="wk-business-card-kicker">
               <span className={`wk-business-card-status-dot wk-business-card-status-dot--${tone}`} aria-hidden="true" />

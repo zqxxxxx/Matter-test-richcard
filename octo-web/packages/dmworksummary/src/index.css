@@ -326,6 +326,17 @@
     gap: 16px;
 }
 
+.summary-detail-return-chat {
+    flex-shrink: 0;
+    color: var(--semi-color-text-1);
+    font-weight: 600;
+}
+
+.summary-detail-return-chat:hover {
+    background: var(--semi-color-fill-0);
+    color: var(--semi-color-text-0);
+}
+
 .summary-detail-title {
     margin: 0;
     font-size: 24px;

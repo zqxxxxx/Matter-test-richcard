@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import ReactDOM from "react-dom/client";
 import type { IModule } from "@octo/base";
-import { i18n, I18nProvider, WKApp, t, registerBusinessCardActionHandler } from "@octo/base";
+import { buildSourceConversationRef, i18n, I18nProvider, WKApp, t, registerBusinessCardActionHandler, type SourceConversationRef } from "@octo/base";
 import { Toast } from "@douyinfe/semi-ui";
 import SummaryListPage from "./pages/SummaryListPage";
 import SummaryCreatePage from "./pages/SummaryCreatePage";
@@ -33,12 +33,12 @@ export class SummaryModule implements IModule {
             "en-US": enUS,
         });
 
-        WKApp.openSummaryDetail = (taskId: number) => {
+        WKApp.openSummaryDetail = (taskId: number, source?: SourceConversationRef) => {
             WKApp.switchToMenuById?.("summary");
             WKApp.mittBus.emit("wk:nav-menu-activated", { menuId: "summary" });
             WKApp.routeLeft.popToRoot();
             WKApp.routeRight.replaceToRoot(
-                <SummaryDetailPage taskId={taskId} />
+                <SummaryDetailPage taskId={taskId} returnToConversation={source} />
             );
         };
 
@@ -118,7 +118,7 @@ export class SummaryModule implements IModule {
             }
 
             if (action.type === "open_summary_workspace") {
-                openSummaryWorkspace(taskId);
+                openSummaryWorkspace(taskId, buildSourceConversationRef(data));
                 return true;
             }
 
