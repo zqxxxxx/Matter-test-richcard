@@ -48,7 +48,20 @@
 .wk-mp-header__row2 {
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: 6px;
+}
+
+.wk-mp-header__preview-label {
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--wk-brand-tint-08, rgba(31, 99, 216, 0.08));
+  color: var(--wk-color-accent, #1f63d8);
+  font-size: 12px;
+  font-weight: var(--wk-font-medium, 500);
+  line-height: 18px;
 }
 
 .wk-mp-header__left {

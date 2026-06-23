@@ -354,6 +354,7 @@ export default class MatterModule implements IModule {
             matterId={matterId}
             onClose={onClose}
             showClose
+            previewMode
           />
         );
       },

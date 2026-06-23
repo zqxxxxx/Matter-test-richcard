@@ -38,6 +38,29 @@ function getAssigneeLabel(matter: MatterDetail): string | undefined {
   return `${assignees.length} 人`;
 }
 
+function getStatusText(status: string, assigneeLabel?: string): string {
+  if (status === "review") return "东西回来了，等你确认";
+  if (status === "done") return "已验收完成，结果可回看";
+  if (status === "blocked") return "卡住了，需要补充输入";
+  if (status === "in_progress") return assigneeLabel ? `${assigneeLabel} 正在处理` : "正在推进中";
+  return assigneeLabel ? `已交给 ${assigneeLabel}` : "已接收，待开始";
+}
+
+function getProgressText(status: string): string {
+  if (status === "done") return "4 / 4";
+  if (status === "review") return "3 / 4";
+  if (status === "blocked") return "2 / 4";
+  if (status === "in_progress") return "2 / 4";
+  return "1 / 4";
+}
+
+function getActions(_status: string): BusinessCardPayload["actions"] {
+  return [
+    { label: "进入 Matter", type: "open_matter_workspace", kind: "primary" },
+    { label: "预览", type: "open_matter", kind: "ghost" },
+  ];
+}
+
 function getSourceText(matter: MatterDetail, sourceName?: string): string | undefined {
   const sourceMessage = matter.source_msgs?.map(compactText).find(Boolean);
   if (sourceMessage) return truncate(sourceMessage, SOURCE_MAX_LENGTH);
@@ -56,9 +79,9 @@ export function buildMatterStatusCard(
   const sourceText = getSourceText(matter, sourceName);
   const matterNo = matter.seq_no ? `M-${matter.seq_no}` : undefined;
   const metrics = [
-    matter.creator_id ? { label: "创建人", value: matter.creator_id } : null,
-    assigneeLabel ? { label: "负责人", value: assigneeLabel } : null,
+    assigneeLabel ? { label: "现在该谁处理", value: assigneeLabel } : null,
     deadlineLabel ? { label: "截止", value: deadlineLabel } : null,
+    { label: "进度", value: getProgressText(matter.status) },
   ].filter(Boolean) as Array<{ label: string; value: string }>;
 
   return {
@@ -78,17 +101,24 @@ export function buildMatterStatusCard(
     sourceChannelId,
     sourceChannelType,
     metrics,
-    actions: [
-      { label: "查看 Matter", type: "open_matter", kind: "primary" },
-      { label: "进入 Matter", type: "open_matter_workspace", kind: "secondary" },
-      ...(matter.status === "done"
-        ? []
-        : [{ label: "标记完成", type: "complete_matter", kind: "secondary" as const }]),
-    ],
+    actions: getActions(matter.status),
     extra: {
       matterNo,
+      statusText: getStatusText(matter.status, assigneeLabel),
       sourceText,
       sourceName,
+      agentName: matter.status === "blocked" ? "Matter 助手" : "Brooks",
+      agentRole: matter.status === "review" ? "已汇总" : "带队",
+      participantText: matter.participants?.length ? `${matter.participants.length} 个参与者` : undefined,
+      participantRoles: matter.status === "review" ? ["Research", "Review"] : ["法务", "销售"],
+      progress: getProgressText(matter.status),
+      outputs: matter.status === "review" || matter.status === "done" ? ["风险说明", "审批结论"] : [],
+      trail: [
+        { label: "创建", title: "从群消息创建事项" },
+        { label: "编排", title: "分派给参与者" },
+        { label: "当前", title: getStatusText(matter.status, assigneeLabel) },
+        { label: "下一步", title: matter.status === "review" ? "等待 PM 盖章" : "继续推进" },
+      ],
       spaceId: matter.space_id,
       updatedAt: matter.updated_at,
       createdAt: matter.created_at,

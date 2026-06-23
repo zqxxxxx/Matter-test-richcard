@@ -4,7 +4,7 @@ import { MessageContentTypeConst } from "../../Service/Const";
 
 export type BusinessCardType = "matter_status" | "summary_feedback" | "external_link" | string;
 export type BusinessCardStatus = "open" | "in_progress" | "done" | "blocked" | "archived" | string;
-export type BusinessCardActionKind = "primary" | "secondary" | "danger";
+export type BusinessCardActionKind = "primary" | "secondary" | "danger" | "ghost";
 export type BusinessCardActionType =
   | "open_matter"
   | "open_matter_workspace"

@@ -71,6 +71,8 @@ export interface MatterDetailPanelProps {
   onClose: () => void;
   /** 是否显示关闭按钮（嵌入会话页面时为 true） */
   showClose?: boolean;
+  /** 从富格式消息卡打开时，作为轻量预览面板展示 */
+  previewMode?: boolean;
 }
 
 export default function MatterDetailPanel({
@@ -79,6 +81,7 @@ export default function MatterDetailPanel({
   matterId,
   onClose,
   showClose = false,
+  previewMode = false,
 }: MatterDetailPanelProps) {
   const { t } = useI18n();
   const [matter, setMatter] = useState<MatterDetail | null>(null);
@@ -1020,6 +1023,9 @@ export default function MatterDetailPanel({
                   />
                 </div>
                 <div className="wk-mp-header__row2">
+                  {previewMode && (
+                    <span className="wk-mp-header__preview-label">Matter 预览</span>
+                  )}
                   <EditableDeadline
                     value={matter.deadline || null}
                     onSave={async (newVal) => {

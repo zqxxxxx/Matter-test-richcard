@@ -5,7 +5,7 @@ import { BusinessCardView, getBusinessCardActions } from "../BusinessCardView";
 import type { BusinessCardPayload } from "../BusinessCardContent";
 
 describe("BusinessCardView actions", () => {
-  it("adds the matter workspace jump action for legacy matter cards", () => {
+  it("promotes matter cards to the workspace primary action and preview link", () => {
     const card: BusinessCardPayload = {
       id: "matter-legacy",
       cardType: "matter_status",
@@ -16,11 +16,21 @@ describe("BusinessCardView actions", () => {
       ],
     };
 
-    expect(getBusinessCardActions(card).map((action) => action.type)).toEqual([
-      "open_matter",
+    const actions = getBusinessCardActions(card);
+
+    expect(actions.map((action) => action.type)).toEqual([
       "open_matter_workspace",
       "complete_matter",
+      "open_matter",
     ]);
+    expect(actions[0]).toMatchObject({
+      label: "进入 Matter",
+      kind: "primary",
+    });
+    expect(actions[2]).toMatchObject({
+      label: "预览",
+      kind: "ghost",
+    });
   });
 
   it("adds the summary workspace jump action for legacy summary cards", () => {
@@ -104,5 +114,46 @@ describe("BusinessCardView actions", () => {
     expect(html).toContain("DeepSeek | 深度求索");
     expect(html).toContain("深度求索，专注于研究世界领先的通用人工智能。");
     expect(html).not.toContain("外部链接预览卡片");
+  });
+
+  it("renders matter review cards with the richer Matter field hierarchy", () => {
+    const card: BusinessCardPayload = {
+      id: "matter-review",
+      cardType: "matter_status",
+      title: "风险说明已回传，等待 PM 确认",
+      subtitle: "MAT-RC-004 · Matter",
+      body: "法务已给出红线条款说明，销售补充了客户侧承诺口径。",
+      status: "review",
+      priority: "P0",
+      metrics: [
+        { label: "现在该谁处理", value: "赵倩笑 PM" },
+        { label: "需要你确认", value: "风险口径" },
+        { label: "进度", value: "3 / 4" },
+      ],
+      actions: [
+        { label: "看东西", type: "open_matter_workspace", kind: "primary" },
+        { label: "行", type: "complete_matter", kind: "secondary" },
+      ],
+      extra: {
+        statusText: "东西回来了，等你确认",
+        agentName: "Brooks",
+        agentRole: "已汇总",
+        participantText: "3 个参与者",
+        participantRoles: ["Research", "Review"],
+        trail: [
+          { label: "法务", title: "提交风险说明" },
+          { label: "销售", title: "补充客户口径" },
+        ],
+        outputs: ["风险说明", "审批结论"],
+      },
+    };
+
+    const html = renderToStaticMarkup(React.createElement(BusinessCardView, { card }));
+
+    expect(html).toContain("wk-business-card--tone-review");
+    expect(html).toContain("等你看");
+    expect(html).toContain("东西回来了，等你确认");
+    expect(html).toContain("Brooks");
+    expect(html).toContain("展开");
   });
 });
