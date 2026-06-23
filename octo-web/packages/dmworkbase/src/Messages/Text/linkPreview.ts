@@ -45,15 +45,42 @@ function getPreviewPayload(content: Record<string, any>) {
   return readRecord(content.link_preview) ?? readRecord(content.linkPreview);
 }
 
+function detectFirstHttpUrl(text: string): string | undefined {
+  const match = text.match(/https?:\/\/[^\s<>"'，。！？、]+/i);
+  if (!match) return undefined;
+  return normalizeHttpUrl(match[0].replace(/[),.;!?]+$/, ""));
+}
+
+function readMessageText(record: Record<string, any>, rawPayload?: Record<string, any>) {
+  return readString(record.text) ?? readString(record.content) ?? readString(rawPayload?.content) ?? "";
+}
+
 export function getTextMessageLinkPreview(content: unknown): TextMessageLinkPreview | undefined {
   const record = readRecord(content);
   if (!record) return undefined;
 
   const rawPayload = readRecord(record.contentObj);
   const preview = getPreviewPayload(record) ?? (rawPayload ? getPreviewPayload(rawPayload) : undefined);
-  if (!preview) return undefined;
+  const text = readMessageText(record, rawPayload);
+  if (!preview) {
+    const url = detectFirstHttpUrl(text);
+    if (!url) return undefined;
 
-  const text = readString(record.text) ?? readString(record.content) ?? readString(rawPayload?.content) ?? "";
+    let domain = "";
+    try {
+      domain = new URL(url).hostname.replace(/^www\./, "");
+    } catch {
+      return undefined;
+    }
+
+    return {
+      url,
+      title: domain,
+      description: url,
+      domain,
+    };
+  }
+
   const rawUrl = readString(preview.url);
   const url = rawUrl ? normalizeHttpUrl(rawUrl) : undefined;
   if (!url || !textContainsUrl(text, url)) return undefined;

@@ -71,4 +71,25 @@ describe("getTextMessageLinkPreview", () => {
     expect(preview?.title).toBe("DeepSeek | 深度求索");
     expect(preview?.domain).toBe("deepseek.com");
   });
+
+  it("falls back to a detected safe URL when no parsed metadata exists", () => {
+    const preview = getTextMessageLinkPreview({
+      content: "这是一个链接 https://www.deepseek.com/ 可以打开",
+    });
+
+    expect(preview).toEqual({
+      url: "https://www.deepseek.com/",
+      title: "deepseek.com",
+      description: "https://www.deepseek.com/",
+      domain: "deepseek.com",
+    });
+  });
+
+  it("does not fallback-preview non-http URLs", () => {
+    expect(
+      getTextMessageLinkPreview({
+        content: "javascript:alert(1)",
+      })
+    ).toBeUndefined();
+  });
 });
