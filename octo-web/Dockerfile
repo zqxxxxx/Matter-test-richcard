@@ -1,6 +1,7 @@
 # syntax=docker/dockerfile:1.7
 FROM node:22.16.0-bookworm AS builder
 WORKDIR /app
+ENV CI=true
 RUN npm install -g pnpm@10
 RUN pnpm config set registry https://registry.npmmirror.com
 RUN git config --global url."https://github.com/".insteadOf "git+ssh://git@github.com/" && git config --global url."https://github.com/".insteadOf "ssh://git@github.com/"
