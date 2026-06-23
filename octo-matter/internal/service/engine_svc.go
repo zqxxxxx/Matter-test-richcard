@@ -173,7 +173,145 @@ func (e *Engine) sendHomecoming(row *model.OutboxRow, params map[string]any) err
 	default:
 		text = fmt.Sprintf("%s「%s」有新进展", seq, title)
 	}
+	if ps, ok := e.bell.(notification.ChannelPayloadSender); ok {
+		return ps.SendChannelPayload(row.TargetUID, channelID, channelType, buildMatterHomecomingCardPayload(row, params, text))
+	}
 	return cs.SendChannelMessage(row.TargetUID, channelID, channelType, text, mention)
+}
+
+func buildMatterHomecomingCardPayload(row *model.OutboxRow, params map[string]any, fallbackText string) map[string]interface{} {
+	title, _ := params["Title"].(string)
+	if title == "" {
+		title = "Matter 状态更新"
+	}
+	edge, _ := params["Edge"].(string)
+	status := statusFromEdge(edge)
+	seqNo := int64(0)
+	if v, ok := params["seq_no"].(float64); ok {
+		seqNo = int64(v)
+	} else if v, ok := params["Seq"].(float64); ok {
+		seqNo = int64(v)
+	}
+	matterNo := ""
+	if seqNo > 0 {
+		matterNo = fmt.Sprintf("M-%d", seqNo)
+	}
+	channelID, _ := params["channel_id"].(string)
+	channelType := uint8(2)
+	if v, ok := params["channel_type"].(float64); ok && v > 0 {
+		channelType = uint8(v)
+	}
+	sourceName, _ := params["source_name"].(string)
+	reason, _ := params["Reason"].(string)
+	summary, _ := params["Summary"].(string)
+	body := summary
+	if body == "" {
+		body = reason
+	}
+	if body == "" {
+		body = fallbackText
+	}
+
+	metrics := []map[string]string{}
+	if assignee, _ := params["leader_uid"].(string); assignee != "" {
+		metrics = append(metrics, map[string]string{"label": "现在该谁处理", "value": assignee})
+	}
+	if deadline, _ := params["deadline"].(string); deadline != "" {
+		metrics = append(metrics, map[string]string{"label": "截止", "value": deadline})
+	}
+	metrics = append(metrics, map[string]string{"label": "进度", "value": progressForStatus(status)})
+
+	cardID := fmt.Sprintf("matter-%s-%s-%v", row.MatterID, status, params["events_seq"])
+	return map[string]interface{}{
+		"type":                17,
+		"card_id":             cardID,
+		"card_type":           "matter_status",
+		"title":               title,
+		"subtitle":            strings.TrimSpace(strings.Join(nonEmpty([]string{matterNo, sourceName}), " · ")),
+		"body":                body,
+		"status":              status,
+		"source":              "Matter",
+		"actor":               params["Actor"],
+		"entity_id":           row.MatterID,
+		"entity_type":         "matter",
+		"source_channel_id":   channelID,
+		"source_channel_type": channelType,
+		"metrics":             metrics,
+		"actions": []map[string]interface{}{
+			{"label": "进入 Matter", "type": "open_matter_workspace", "kind": "primary"},
+			{"label": "预览", "type": "open_matter", "kind": "ghost"},
+		},
+		"extra": map[string]interface{}{
+			"matterNo":        matterNo,
+			"statusText":      matterStatusText(status, reason),
+			"sourceName":      sourceName,
+			"sourceText":      fallbackText,
+			"agentName":       row.TargetUID,
+			"agentRole":       "带队",
+			"progress":        progressForStatus(status),
+			"blockReason":     reason,
+			"spaceId":         row.SpaceID,
+			"eventsSeq":       params["events_seq"],
+			"assignmentEpoch": params["epoch"],
+		},
+	}
+}
+
+func statusFromEdge(edge string) string {
+	if edge == "" {
+		return string(model.MatterStatusInProgress)
+	}
+	parts := strings.Split(edge, "->")
+	if len(parts) == 0 {
+		return string(model.MatterStatusInProgress)
+	}
+	status := strings.TrimSpace(parts[len(parts)-1])
+	if status == "" {
+		return string(model.MatterStatusInProgress)
+	}
+	return status
+}
+
+func progressForStatus(status string) string {
+	switch model.MatterStatus(status) {
+	case model.MatterStatusDone:
+		return "4 / 4"
+	case model.MatterStatusReview:
+		return "3 / 4"
+	case model.MatterStatusBlocked, model.MatterStatusInProgress:
+		return "2 / 4"
+	default:
+		return "1 / 4"
+	}
+}
+
+func matterStatusText(status, reason string) string {
+	switch model.MatterStatus(status) {
+	case model.MatterStatusReview:
+		return "东西回来了，等你确认"
+	case model.MatterStatusDone:
+		return "已验收完成，结果可回看"
+	case model.MatterStatusBlocked:
+		if reason != "" {
+			return "卡住了：" + reason
+		}
+		return "卡住了，需要补充输入"
+	case model.MatterStatusInProgress:
+		return "正在推进中"
+	default:
+		return "已接收，待开始"
+	}
+}
+
+func nonEmpty(values []string) []string {
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value != "" {
+			out = append(out, value)
+		}
+	}
+	return out
 }
 
 func (e *Engine) escalateDead(ctx context.Context, row *model.OutboxRow) {

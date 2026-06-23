@@ -4,7 +4,14 @@
 
 // ─── Status enums ───────────────────────────────────────
 
-export type MatterStatus = "open" | "done" | "archived";
+export type MatterStatus =
+  | "open"
+  | "in_progress"
+  | "review"
+  | "done"
+  | "blocked"
+  | "cancelled"
+  | "archived";
 
 // ─── Core models (match backend JSON exactly) ───────────
 

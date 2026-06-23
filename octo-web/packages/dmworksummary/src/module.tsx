@@ -1,17 +1,20 @@
 import React, { useState, useEffect } from "react";
 import ReactDOM from "react-dom/client";
 import type { IModule } from "@octo/base";
-import { buildSourceConversationRef, i18n, I18nProvider, WKApp, t, registerBusinessCardActionHandler, type SourceConversationRef } from "@octo/base";
-import { Toast } from "@douyinfe/semi-ui";
+import { BusinessCardContent, buildSourceConversationRef, i18n, I18nProvider, WKApp, t, registerBusinessCardActionHandler, type SourceConversationRef } from "@octo/base";
+import { Modal, TextArea, Toast } from "@douyinfe/semi-ui";
+import WKSDK, { Channel } from "wukongimjssdk";
 import SummaryListPage from "./pages/SummaryListPage";
 import SummaryCreatePage from "./pages/SummaryCreatePage";
 import SummaryDetailPage from "./pages/SummaryDetailPage";
 import SummaryConfirmPage from "./pages/SummaryConfirmPage";
 import ScheduleListPage from "./pages/ScheduleListPage";
-import { getChatCandidates, respondToTask } from "./api/summaryApi";
+import { batchStatus, getChatCandidates, getSummaryDetail, regenerateSummary, respondToTask } from "./api/summaryApi";
 import { notifyChatSummaryCreated } from "./utils/chatSummaryActions";
 import { isSupportedChannelType } from "./utils/channelType";
 import { openSummaryWorkspace } from "./utils/summaryWorkspaceNavigation";
+import { buildSummaryFeedbackCard } from "./utils/businessCard";
+import { TaskStatus } from "./types/summary";
 import ChatSummaryStarButton from "./components/ChatSummaryStarButton";
 import ChatSummaryPanel from "./components/ChatSummaryPanel";
 import ChatSummaryNewModal from "./components/ChatSummaryNewModal";
@@ -113,7 +116,7 @@ export class SummaryModule implements IModule {
             }
 
             if (action.type === "open_summary") {
-                WKApp.openSummaryDetail?.(taskId);
+                WKApp.openSummaryDetail?.(taskId, buildSourceConversationRef(data));
                 return true;
             }
 
@@ -122,11 +125,18 @@ export class SummaryModule implements IModule {
                 return true;
             }
 
-            if (action.type === "summary_accept" || action.type === "summary_reject") {
-                const responseAction = action.type === "summary_accept" ? "accept" : "reject";
+            if (action.type === "summary_reject") {
+                openSummaryFeedbackModal({
+                    taskId,
+                    source: buildSourceConversationRef(data),
+                });
+                return true;
+            }
+
+            if (action.type === "summary_accept") {
                 try {
-                    await respondToTask(taskId, responseAction);
-                    Toast.success(responseAction === "accept" ? t("summary.action.accepted") : t("summary.action.rejected"));
+                    await respondToTask(taskId, "accept");
+                    Toast.success(t("summary.action.accepted"));
                 } catch (err: any) {
                     Toast.error(err?.message || t("summary.common.operationFailed"));
                 }
@@ -135,6 +145,82 @@ export class SummaryModule implements IModule {
             return false;
         });
     }
+}
+
+function buildRegenerateTopic(baseTitle: string, feedback: string) {
+    const title = baseTitle.trim() || "群聊总结";
+    const note = feedback.trim();
+    return note ? `${title}\n\n调整要求：${note}` : title;
+}
+
+async function waitForCompletedSummary(taskId: number, timeoutMs = 90000) {
+    const startedAt = Date.now();
+    while (Date.now() - startedAt < timeoutMs) {
+        const statuses = await batchStatus([taskId]);
+        const status = statuses.find((item) => item.id === taskId)?.status;
+        if (status === TaskStatus.COMPLETED) {
+            return getSummaryDetail(taskId);
+        }
+        if (status === TaskStatus.FAILED || status === TaskStatus.CANCELLED) {
+            throw new Error(t("summary.common.operationFailed"));
+        }
+        await new Promise((resolve) => setTimeout(resolve, 3000));
+    }
+    throw new Error("新版总结仍在生成中，请稍后回到群聊查看");
+}
+
+async function sendSummaryCardToSource(taskId: number, source?: SourceConversationRef, feedback?: string) {
+    const original = await getSummaryDetail(taskId);
+    const next = await regenerateSummary(taskId, {
+        topic: buildRegenerateTopic(original.title, feedback || ""),
+    });
+    const nextDetail = await waitForCompletedSummary(next.task_id);
+    const channelId = source?.channelId || nextDetail.origin_channel_id || original.origin_channel_id;
+    const channelType = source?.channelType || nextDetail.origin_channel_type || original.origin_channel_type;
+    if (!channelId || channelType == null) return nextDetail;
+
+    await WKSDK.shared().chatManager.send(
+        new BusinessCardContent(buildSummaryFeedbackCard(nextDetail, {
+            sourceChannelId: channelId,
+            sourceChannelType: channelType,
+            time: new Date().toLocaleString(),
+        })),
+        new Channel(channelId, channelType),
+    );
+    return nextDetail;
+}
+
+function openSummaryFeedbackModal(params: { taskId: number; source?: SourceConversationRef }) {
+    let feedback = "";
+    Modal.confirm({
+        title: "需要调整群总结",
+        content: (
+            <div className="summary-card-feedback-modal">
+                <div className="summary-card-feedback-modal__hint">
+                    写下需要补充或修正的点，Octo 会重新生成一版总结并回发到原群聊。
+                </div>
+                <TextArea
+                    autosize={{ minRows: 4, maxRows: 6 }}
+                    maxCount={500}
+                    showClear
+                    placeholder="例如：补充法务风险结论，把客户下一步动作列成清单。"
+                    onChange={(value) => {
+                        feedback = value;
+                    }}
+                />
+            </div>
+        ),
+        okText: "提交并重新生成",
+        cancelText: "取消",
+        onOk: async () => {
+            try {
+                await sendSummaryCardToSource(params.taskId, params.source, feedback);
+                Toast.success("新版总结已生成并回发群聊");
+            } catch (err: any) {
+                Toast.error(err?.message || t("summary.common.operationFailed"));
+            }
+        },
+    });
 }
 
 if (import.meta.hot) {

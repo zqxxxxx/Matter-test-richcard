@@ -2,7 +2,8 @@
 -- AI-era Zettelkasten: atomic behavior rules distilled from Matter feedback.
 -- Each card = one reusable gotcha the agent should not repeat.
 
-CREATE TABLE preference_cards (
+-- +migrate Up
+CREATE TABLE IF NOT EXISTS preference_cards (
   id CHAR(36) NOT NULL PRIMARY KEY,
   space_id VARCHAR(64) NOT NULL,
   matter_id CHAR(36) NULL,
@@ -24,3 +25,6 @@ CREATE TABLE preference_cards (
   INDEX idx_project (project_id),
   FULLTEXT idx_content (content, evidence, avoid)
 );
+
+-- +migrate Down
+DROP TABLE IF EXISTS preference_cards;

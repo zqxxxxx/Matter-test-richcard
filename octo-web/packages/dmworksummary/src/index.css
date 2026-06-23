@@ -190,6 +190,18 @@
     font-weight: 500;
 }
 
+.summary-card-feedback-modal {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.summary-card-feedback-modal__hint {
+    color: var(--semi-color-text-2);
+    font-size: 13px;
+    line-height: 20px;
+}
+
 /* Sidebar reuses SummaryCard in a narrow column: tighten spacing without dropping fields. */
 .chat-summary-history .summary-card {
     padding: 12px;

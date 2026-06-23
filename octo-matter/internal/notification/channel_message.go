@@ -17,6 +17,13 @@ type ChannelSender interface {
 	SendChannelMessage(fromUID, channelID string, channelType uint8, content string, mentionUIDs []string) error
 }
 
+// ChannelPayloadSender posts a fully-formed IM payload. It is used by rich
+// cards whose payload type is not plain text. SendChannelMessage remains the
+// text fallback for deployments that only implement the older interface.
+type ChannelPayloadSender interface {
+	SendChannelPayload(fromUID, channelID string, channelType uint8, payload map[string]interface{}) error
+}
+
 // BotGroup is one conversation a bot is a member of — picker data for the
 // automation "send result to" target (no human ever types a channel id).
 type BotGroup struct {
@@ -70,6 +77,16 @@ func (n *OctoNotifier) SendChannelMessage(fromUID, channelID string, channelType
 	}
 	if len(mentionUIDs) > 0 {
 		payload["mention"] = map[string]interface{}{"uids": mentionUIDs}
+	}
+	return n.SendChannelPayload(fromUID, channelID, channelType, payload)
+}
+
+// SendChannelPayload posts via octo-server POST /v1/internal/bot/sendMessage
+// (X-Internal-Token). The payload is forwarded as-is after octo-server's
+// normal internal validation/enrichment.
+func (n *OctoNotifier) SendChannelPayload(fromUID, channelID string, channelType uint8, payload map[string]interface{}) error {
+	if fromUID == "" || channelID == "" {
+		return nil
 	}
 	body, err := json.Marshal(map[string]interface{}{
 		"channel_id":   channelID,

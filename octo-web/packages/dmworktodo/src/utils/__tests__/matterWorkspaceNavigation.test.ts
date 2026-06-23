@@ -8,6 +8,15 @@ import {
   openMatterWorkspace,
 } from "../matterWorkspaceNavigation";
 
+vi.mock("@octo/base", () => ({
+  WKApp: {
+    switchToMenuById: vi.fn(),
+    mittBus: {
+      emit: vi.fn(),
+    },
+  },
+}));
+
 describe("matter workspace navigation", () => {
   beforeEach(() => {
     consumePendingMatterWorkspaceMatterId();

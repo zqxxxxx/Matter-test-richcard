@@ -945,15 +945,26 @@ export default class SummaryDetailPage extends Component<SummaryDetailPageProps,
             return;
         }
 
-        openSummaryWorkspace(
-            detail.task_id,
+        const existing = this.props.returnToConversation;
+        const detailSource =
             detail.origin_channel_id && detail.origin_channel_type != null
                 ? {
                     channelId: detail.origin_channel_id,
                     channelType: detail.origin_channel_type,
-                    label: this.props.returnToConversation?.label,
+                    label: existing?.label,
                 }
-                : this.props.returnToConversation,
+                : undefined;
+        const source =
+            existing &&
+            detailSource &&
+            existing.channelId === detailSource.channelId &&
+            existing.channelType === detailSource.channelType
+                ? existing
+                : detailSource || existing;
+
+        openSummaryWorkspace(
+            detail.task_id,
+            source,
         );
     };
 

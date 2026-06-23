@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"strings"
+	"time"
 
 	"github.com/Mininglamp-OSS/octo-matter/internal/apperr"
 	"github.com/Mininglamp-OSS/octo-matter/internal/i18n"
@@ -32,18 +33,18 @@ const (
 	// 审核中/受阻自动发回来源会话; done stays a manual send-back in v1).
 	// Aliased to the model constant so the repo's consumption-hook exemption
 	// can never drift from the event the router writes.
-	DoorbellHomecoming = model.OutboxEventHomecoming
-	DoorbellNextSegment     = "matter.doorbell.next_segment"      // pipeline k → k+1
-	DoorbellVerify          = "matter.doorbell.verify"            // critic generator → verifier
-	DoorbellFeedback        = "matter.doorbell.feedback"          // 圈一笔 → 负责人
-	DoorbellBlocked         = "matter.doorbell.blocked"
-	DoorbellCancelled       = "matter.doorbell.cancelled"
-	DoorbellReassigned      = "matter.doorbell.reassigned"
-	DoorbellDone            = "matter.doorbell.done"
-	DoorbellReflect         = "matter.doorbell.reflect" // acceptance → 偏好沉淀 prompt
-	DoorbellRevive          = "matter.doorbell.watchdog_revive"
-	DoorbellWatchdogBlock   = "matter.doorbell.watchdog_blocked"
-	DoorbellSchedule        = "matter.doorbell.schedule"
+	DoorbellHomecoming    = model.OutboxEventHomecoming
+	DoorbellNextSegment   = "matter.doorbell.next_segment" // pipeline k → k+1
+	DoorbellVerify        = "matter.doorbell.verify"       // critic generator → verifier
+	DoorbellFeedback      = "matter.doorbell.feedback"     // 圈一笔 → 负责人
+	DoorbellBlocked       = "matter.doorbell.blocked"
+	DoorbellCancelled     = "matter.doorbell.cancelled"
+	DoorbellReassigned    = "matter.doorbell.reassigned"
+	DoorbellDone          = "matter.doorbell.done"
+	DoorbellReflect       = "matter.doorbell.reflect" // acceptance → 偏好沉淀 prompt
+	DoorbellRevive        = "matter.doorbell.watchdog_revive"
+	DoorbellWatchdogBlock = "matter.doorbell.watchdog_blocked"
+	DoorbellSchedule      = "matter.doorbell.schedule"
 )
 
 // TransitionInput is one guarded status-write request.
@@ -493,6 +494,11 @@ func (s *TransitionService) route(ctx context.Context, r *repository.TxRepos, m,
 			target: m.LeaderOrEmpty(), event: event,
 			messageKey: key, params: params,
 		})
+		if parent == nil {
+			if hb := homecomingBell(m, in, params); hb != nil {
+				eff.doorbells = append(eff.doorbells, *hb)
+			}
+		}
 	}
 	return eff, nil
 }
@@ -541,6 +547,15 @@ func (s *TransitionService) doorbellParamsFor(m *model.Matter, from model.Matter
 		"Actor":  in.ActorUID,
 		"Edge":   string(from) + "->" + string(in.Target),
 		"Reason": in.Reason,
+	}
+	if m.LeaderUID != nil {
+		p["leader_uid"] = *m.LeaderUID
+	}
+	if m.SourceName != nil {
+		p["source_name"] = *m.SourceName
+	}
+	if m.Deadline != nil {
+		p["deadline"] = m.Deadline.Format(time.RFC3339)
 	}
 	return p
 }

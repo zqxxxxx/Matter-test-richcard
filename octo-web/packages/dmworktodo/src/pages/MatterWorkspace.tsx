@@ -62,6 +62,13 @@ const MatterWorkspace: React.FC = () => {
     /* storage unavailable → the embedded app shows its connect panel */
   }
 
+  const handleReturnToSource = () => {
+    returnToSourceAndClose(source, () => {
+      setActive(false);
+      setSource(undefined);
+    });
+  };
+
   return ReactDOM.createPortal(
     <>
       <iframe
@@ -86,7 +93,7 @@ const MatterWorkspace: React.FC = () => {
       {active && source && (
         <button
           type="button"
-          onClick={() => openSourceConversation(source)}
+          onClick={handleReturnToSource}
           style={{
             position: "fixed",
             top: 14,
@@ -113,3 +120,11 @@ const MatterWorkspace: React.FC = () => {
 };
 
 export default MatterWorkspace;
+
+export function returnToSourceAndClose(source: SourceConversationRef | undefined, close: () => void) {
+  const returned = openSourceConversation(source);
+  if (returned) {
+    close();
+  }
+  return returned;
+}

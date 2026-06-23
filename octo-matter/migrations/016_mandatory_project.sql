@@ -11,3 +11,9 @@
 -- Then assign orphans:
 -- UPDATE matters SET project_id = <default_project_id>
 -- WHERE project_id IS NULL AND space_id = '<space>';
+
+-- +migrate Up
+SELECT 1;
+
+-- +migrate Down
+SELECT 1;
