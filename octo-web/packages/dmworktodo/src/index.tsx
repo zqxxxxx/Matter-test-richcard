@@ -4,7 +4,7 @@
 export { default as MatterModule } from './module';
 
 // Pages
-export { default as MatterPage } from './pages/TodoPage';
+export { default as MatterPage } from './pages/MatterWorkspace';
 
 // UI Components
 export { default as MatterStatusBadge } from './ui/TodoStatusBadge';

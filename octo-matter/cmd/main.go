@@ -140,13 +140,14 @@ func main() {
 		RedeliverAfter:   cfg.OutboxRedeliverAfter,
 		MaxRetries:       cfg.OutboxMaxRetries,
 		WatchdogInterval: cfg.WatchdogInterval,
+		WatchdogEnabled:  cfg.WatchdogEnabled,
 		ReviveSilence:    cfg.WatchdogReviveSilence,
 		LeafSLA:          cfg.WatchdogLeafSLA,
 		BlockAfterRevive: cfg.WatchdogBlockAfterRevive,
 	})
 	engine.Start(engineCtx)
 	scheduleSvc.Start(engineCtx)
-	log.Printf("matter v2 engine started (outbox dispatch=%s watchdog=%s)", cfg.OutboxDispatchInterval, cfg.WatchdogInterval)
+	log.Printf("matter v2 engine started (outbox dispatch=%s watchdog=%s enabled=%t)", cfg.OutboxDispatchInterval, cfg.WatchdogInterval, cfg.WatchdogEnabled)
 
 	// Handlers
 	matterH := handler.NewMatterHandler(matterSvc, v2Svc, transitionSvc, notifier, notifyWorker)

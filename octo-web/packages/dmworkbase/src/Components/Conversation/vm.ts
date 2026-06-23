@@ -22,6 +22,13 @@ import { applyMsgLevelExternalFieldsWithFallback } from "../../Service/Convert";
 import { wrapSendContentForInjection } from "./sendContentProxy";
 import { isMessageSelectable } from "../../Service/messageSelection";
 
+function ensureSdkChannel(channel: Channel): Channel {
+    if (channel && typeof (channel as any).getChannelKey === "function") {
+        return channel
+    }
+    return new Channel(channel.channelID, channel.channelType)
+}
+
 export interface FoldSessionParticipant {
     uid: string
     name: string
@@ -136,7 +143,7 @@ export default class ConversationVM extends ProviderListener {
 
     constructor(channel: Channel, initLocateMessageSeq?: number) {
         super()
-        this.channel = channel
+        this.channel = ensureSdkChannel(channel)
         if (initLocateMessageSeq == 0) {
             this.initLocateMessageSeq = undefined
         } else {
@@ -145,7 +152,7 @@ export default class ConversationVM extends ProviderListener {
         this.subscribersReady = new Promise<void>(resolve => {
             this._subscribersReadyResolve = resolve
         })
-        if (channel.channelType === ChannelTypePerson) {
+        if (this.channel.channelType === ChannelTypePerson) {
             this._resolveSubscribersReady()
         }
     }
@@ -2148,7 +2155,8 @@ export default class ConversationVM extends ProviderListener {
     }
     // 放入到队列内
     addSendMessageToQueue(message: MessageWrap) {
-        const channelKey = message.channel.getChannelKey()
+        const channel = ensureSdkChannel(message.channel)
+        const channelKey = channel.getChannelKey()
         let sendingMessages = ConversationVM.sendQueue.get(channelKey)
         if (!sendingMessages) {
             sendingMessages = new Array<MessageWrap>()

@@ -20,6 +20,7 @@ type EngineConfig struct {
 	RedeliverAfter   time.Duration // delivered-but-unconsumed re-ring
 	MaxRetries       uint          // outbox attempts before dead+escalate
 	WatchdogInterval time.Duration // watchdog scan cadence
+	WatchdogEnabled  bool          // whether watchdog revive/block transitions run
 	ReviveSilence    time.Duration // 复活档: parent silent this long → re-ring
 	LeafSLA          time.Duration // 复活档: leaf default SLA
 	BlockAfterRevive time.Duration // 受阻档: still silent this long after revive
@@ -31,6 +32,7 @@ func DefaultEngineConfig() EngineConfig {
 		RedeliverAfter:   10 * time.Minute,
 		MaxRetries:       5,
 		WatchdogInterval: 60 * time.Second,
+		WatchdogEnabled:  true,
 		ReviveSilence:    5 * time.Minute,
 		LeafSLA:          60 * time.Minute,
 		BlockAfterRevive: 15 * time.Minute,
@@ -57,7 +59,11 @@ func NewEngine(outbox *repository.OutboxRepo, matterRepo *repository.MatterRepo,
 // Start launches both loops until ctx is cancelled.
 func (e *Engine) Start(ctx context.Context) {
 	go e.loop(ctx, e.cfg.DispatchInterval, e.dispatchOnce, "outbox-dispatch")
-	go e.loop(ctx, e.cfg.WatchdogInterval, e.watchdogOnce, "watchdog")
+	if e.cfg.WatchdogEnabled {
+		go e.loop(ctx, e.cfg.WatchdogInterval, e.watchdogOnce, "watchdog")
+	} else {
+		log.Printf("[engine] watchdog loop disabled")
+	}
 }
 
 func (e *Engine) loop(ctx context.Context, every time.Duration, fn func(context.Context), name string) {

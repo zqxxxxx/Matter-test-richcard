@@ -1,9 +1,21 @@
-import { describe, it, expect, beforeEach } from "vitest"
+import { describe, it, expect, beforeEach, vi } from "vitest"
 import axios from "axios"
 import { Channel, ChannelTypePerson } from "wukongimjssdk"
 import APIClient from "../APIClient"
 import { precheckUploadCredentials } from "../UploadCredentials"
 import { i18n } from "../../i18n"
+
+vi.mock("../../i18n", () => ({
+    t: (key: string) =>
+        ({
+            "base.uploadCredentials.missingFields": "响应缺少凭证字段",
+            "base.uploadCredentials.failed": "获取上传凭证失败",
+            "base.conversation.upload.failed": "上传失败",
+        })[key] || key,
+    i18n: {
+        setLocale: () => undefined,
+    },
+}))
 
 /**
  * GH Mininglamp-OSS/octo-web#119 / #135 — preflight credentials helper.

@@ -1,4 +1,4 @@
-import { ChatPage, DocumentsPage, DocumentsWorkspace, EndpointCategory, WKApp, Menus, shouldSkipChannelForSpace, shouldSkipPersonConversationForSpace, t } from '@octo/base';
+import { ChatPage, DocumentsPage, DocumentsWorkspace, EndpointCategory, WKApp, Menus, shouldSkipChannelForSpace, shouldSkipPersonConversationForSpace, t, ensureDocumentWorkspaceLocation } from '@octo/base';
 import { ContactsList } from '@octo/contacts';
 import React, { useEffect } from 'react';
 // lucide icons replaced with filled SVGs per Figma
@@ -18,7 +18,7 @@ let _menusRegistered = false;
 let _remoteConfigListenerSetup = false;
 
 function normalizeInitialRoutePath(pathname: string) {
-  if (pathname === "/documents/workspace") return "/documents";
+  if (pathname.replace(/\/+$/, "") === "/documents/workspace") return "/documents";
   return pathname || "/";
 }
 
@@ -145,6 +145,7 @@ async function registerMenus() {
     const m = new Menus("documents", "/documents", t("app.nav.documents"), <DocumentsIcon />, <DocumentsIcon />)
     m.onPress = () => {
       WKApp.routeLeft.popToRoot()
+      ensureDocumentWorkspaceLocation()
       const page = WKApp.route.get("/documents/workspace")
       if (page && React.isValidElement(page)) {
         WKApp.routeRight.replaceToRoot(page)

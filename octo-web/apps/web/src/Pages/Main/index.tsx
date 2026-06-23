@@ -90,10 +90,18 @@ export class MainPage extends Component<{}, MainPageState> {
         }).catch((e) => { console.error('[NavRail] Failed to load spaces:', e); });
     }
 
-    private openInitialDeepLinkIfNeeded = () => {
+    private openInitialDeepLinkIfNeeded = (vm: MainVM) => {
         if (this.initialDeepLinkHandled) return;
-        if (window.location.pathname !== "/documents/workspace") return;
+        if (window.location.pathname.replace(/\/+$/, "") !== "/documents/workspace") return;
         this.initialDeepLinkHandled = true;
+        const documentsMenu = vm.menusList.find(
+            (menus) => menus.id === "documents" || menus.routePath === "/documents",
+        );
+        if (documentsMenu) {
+            vm.currentMenus = documentsMenu;
+            WKApp.currentMenuId = documentsMenu.id;
+            WKApp.route.currentPath = "/documents";
+        }
         requestAnimationFrame(() => {
             const page = WKApp.route.get("/documents/workspace");
             if (page && React.isValidElement(page)) {
@@ -258,7 +266,7 @@ export class MainPage extends Component<{}, MainPageState> {
                                 WKApp.routeRight.setReplaceToRoot = (view) => { context.replaceToRoot(view); };
                                 WKApp.routeRight.setPop = () => { context.pop(); };
                                 WKApp.routeRight.setPopToRoot = () => { context.popToRoot(); };
-                                this.openInitialDeepLinkIfNeeded();
+                                this.openInitialDeepLinkIfNeeded(vm);
                             }}
                             onLeftContext={(context) => {
                                 WKApp.routeLeft.setPush = (view) => { context.push(view); };

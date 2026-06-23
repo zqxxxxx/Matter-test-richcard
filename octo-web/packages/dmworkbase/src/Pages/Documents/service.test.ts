@@ -3,6 +3,7 @@ import {
   ApiDocumentRepository,
   createDocumentSummary,
   documentRepository,
+  resolveBoundStorageSpaceName,
   resolveDefaultArchiveSpaceName,
 } from "./service";
 import type { DocumentState } from "./types";
@@ -31,6 +32,26 @@ function stateFixture(): DocumentState {
         downloads: 2,
         previewable: true,
         flow: ["来自产品方案讨论群", "归档到产品部公共空间"],
+        sourceRef: {
+          channelId: "grp_product_docs",
+          channelType: 2,
+          channelName: "产品方案讨论群",
+          messageId: "2406171002",
+          messageSeq: 91002,
+          senderUid: "pm_chen",
+          senderName: "陈一",
+          sentAt: "2026-06-17 09:00",
+        },
+        permissions: {
+          canPreview: true,
+          canDownload: true,
+          canArchive: false,
+          canDelete: true,
+          canRestore: false,
+          canManage: true,
+          summary: "上传者/拥有者",
+          reasons: ["上传者/拥有者"],
+        },
       },
       {
         id: "asset-conversation",
@@ -53,6 +74,16 @@ function stateFixture(): DocumentState {
         downloads: 0,
         previewable: true,
         flow: ["来自华东项目交付群"],
+        permissions: {
+          canPreview: true,
+          canDownload: true,
+          canArchive: true,
+          canDelete: false,
+          canRestore: false,
+          canManage: false,
+          summary: "来源会话成员可访问",
+          reasons: ["来源会话成员可访问"],
+        },
       },
       {
         id: "asset-deleted",
@@ -75,6 +106,16 @@ function stateFixture(): DocumentState {
         downloads: 1,
         previewable: true,
         flow: ["来自行政制度发布群", "移动到回收站"],
+        permissions: {
+          canPreview: false,
+          canDownload: false,
+          canArchive: false,
+          canDelete: false,
+          canRestore: true,
+          canManage: true,
+          summary: "空间管理员",
+          reasons: ["空间管理员"],
+        },
       },
     ],
     spaces: [
@@ -84,8 +125,31 @@ function stateFixture(): DocumentState {
         owner: "陈一",
         fileCount: 1,
         memberCount: 3,
-        members: ["陈一", "刘青", "周岚"],
-        boundConversations: ["产品方案讨论群"],
+        members: [
+          {
+            uid: "pm_chen",
+            name: "陈一",
+            role: "owner",
+            source: "创建人",
+            joinedAt: "2026-06-17 09:00",
+          },
+          {
+            uid: "u2",
+            name: "刘青",
+            role: "editor",
+            source: "手动添加",
+            joinedAt: "2026-06-17 09:00",
+          },
+        ],
+        boundConversations: [
+          {
+            id: "bind-product",
+            channelId: "grp_product_docs",
+            channelType: 2,
+            name: "产品方案讨论群",
+            createdBy: "pm_chen",
+          },
+        ],
         pinnedFileIds: [],
         description: "产品资料沉淀空间",
       },
@@ -95,8 +159,24 @@ function stateFixture(): DocumentState {
         owner: "刘青",
         fileCount: 0,
         memberCount: 2,
-        members: ["陈一", "刘青"],
-        boundConversations: ["华东项目交付群"],
+        members: [
+          {
+            uid: "u2",
+            name: "刘青",
+            role: "owner",
+            source: "创建人",
+            joinedAt: "2026-06-17 09:00",
+          },
+        ],
+        boundConversations: [
+          {
+            id: "bind-delivery",
+            channelId: "grp_delivery_docs",
+            channelType: 2,
+            name: "华东项目交付群",
+            createdBy: "u2",
+          },
+        ],
         pinnedFileIds: [],
         description: "客户交付材料沉淀空间",
       },
@@ -133,6 +213,22 @@ describe("resolveDefaultArchiveSpaceName", () => {
   });
 });
 
+describe("resolveBoundStorageSpaceName", () => {
+  it("returns the exact bound storage space for a group channel", () => {
+    const fixture = stateFixture();
+
+    expect(
+      resolveBoundStorageSpaceName(fixture, "grp_product_docs", 2)
+    ).toBe("产品部公共空间");
+  });
+
+  it("keeps unbound group files out of space auto-archive", () => {
+    const fixture = stateFixture();
+
+    expect(resolveBoundStorageSpaceName(fixture, "grp_unknown", 2)).toBe("");
+  });
+});
+
 describe("ApiDocumentRepository", () => {
   it("loads document state from the backend document API", async () => {
     const fixture = stateFixture();
@@ -146,6 +242,34 @@ describe("ApiDocumentRepository", () => {
 
     expect(apiClient.get).toHaveBeenCalledWith("documents/state");
     expect(state).toEqual(fixture);
+  });
+
+  it("normalizes nullable backend arrays before exposing document state", async () => {
+    const fixture = stateFixture();
+    const apiState = {
+      ...fixture,
+      audits: null,
+      spaces: [
+        {
+          ...fixture.spaces[0],
+          members: null,
+          boundConversations: null,
+          pinnedFileIds: null,
+        },
+      ],
+    } as any;
+    const apiClient = {
+      get: vi.fn().mockResolvedValue(apiState),
+      post: vi.fn(),
+    };
+    const repo = new ApiDocumentRepository(apiClient);
+
+    const state = await repo.load();
+
+    expect(state.audits).toEqual([]);
+    expect(state.spaces[0].members).toEqual([]);
+    expect(state.spaces[0].boundConversations).toEqual([]);
+    expect(state.spaces[0].pinnedFileIds).toEqual([]);
   });
 
   it("archives files by resolving the selected document space name", async () => {
@@ -216,6 +340,7 @@ describe("ApiDocumentRepository", () => {
     const repo = new ApiDocumentRepository(apiClient);
 
     await repo.bindConversationToSpace("space-product", "产品方案讨论群", "陈一");
+    await repo.unbindConversationFromSpace("space-product", "bind-product");
 
     expect(apiClient.post).toHaveBeenCalledWith(
       "documents/spaces/space-product/bind-conversation",
@@ -224,6 +349,153 @@ describe("ApiDocumentRepository", () => {
         source_channel_id: "产品方案讨论群",
         source_channel_type: 2,
         source_name: "产品方案讨论群",
+      }
+    );
+    expect(apiClient.post).toHaveBeenCalledWith(
+      "documents/spaces/space-product/bindings/bind-product/remove"
+    );
+  });
+
+  it("binds a real group channel and queries binding candidates", async () => {
+    const fixture = stateFixture();
+    const apiClient = {
+      get: vi.fn().mockResolvedValue([
+        {
+          channelId: "grp_product_docs",
+          channelType: 2,
+          name: "产品方案讨论群",
+          alreadyBoundToCurrentSpace: true,
+        },
+      ]),
+      post: vi.fn().mockResolvedValue(fixture),
+    };
+    const repo = new ApiDocumentRepository(apiClient);
+
+    await repo.bindConversationToSpace("space-product", {
+      channelId: "grp_product_docs",
+      channelType: 2,
+      name: "产品方案讨论群",
+    });
+    const candidates = await repo.searchBindingConversations(
+      "space-product",
+      "产品"
+    );
+
+    expect(apiClient.post).toHaveBeenCalledWith(
+      "documents/spaces/space-product/bind-conversation",
+      {
+        document_space_id: "space-product",
+        source_channel_id: "grp_product_docs",
+        source_channel_type: 2,
+        source_name: "产品方案讨论群",
+      }
+    );
+    expect(apiClient.get).toHaveBeenCalledWith(
+      "documents/spaces/space-product/bindings/search",
+      { param: { keyword: "产品" } }
+    );
+    expect(candidates[0].channelId).toBe("grp_product_docs");
+  });
+
+  it("auto-archives only when a group has a bound storage space", async () => {
+    const fixture = stateFixture();
+    const apiClient = {
+      get: vi.fn().mockResolvedValue(fixture),
+      post: vi.fn().mockResolvedValue(fixture),
+    };
+    const repo = new ApiDocumentRepository(apiClient);
+
+    await repo.load();
+    await repo.autoArchiveMessageFile({
+      id: "msg-product-1",
+      name: "新需求.docx",
+      extension: ".docx",
+      size: 1024,
+      sourceName: "产品方案讨论群",
+      sourceChannelId: "grp_product_docs",
+      sourceChannelType: 2,
+      sourceType: "群聊",
+      uploader: "陈一",
+      storagePath: "common/documents/new.docx",
+    });
+    const unbound = await repo.autoArchiveMessageFile({
+      id: "msg-unknown-1",
+      name: "未绑定群文件.docx",
+      extension: ".docx",
+      size: 1024,
+      sourceName: "未绑定群",
+      sourceChannelId: "grp_unknown",
+      sourceChannelType: 2,
+      sourceType: "群聊",
+      uploader: "陈一",
+    });
+
+    expect(apiClient.post).toHaveBeenCalledWith("documents/archive", {
+      asset_id: "msg-product-1",
+      document_space_id: "space-product",
+      name: "新需求.docx",
+      extension: ".docx",
+      size: 1024,
+      storage_path: "common/documents/new.docx",
+      source_name: "产品方案讨论群",
+      source_channel_id: "grp_product_docs",
+      source_channel_type: 2,
+      source_message_id: "msg-product-1",
+      source_type: "群聊",
+      uploader_name: "陈一",
+    });
+    expect(unbound).toBeNull();
+  });
+
+  it("does not auto-archive bound group files before upload has a storage path", async () => {
+    const fixture = stateFixture();
+    const apiClient = {
+      get: vi.fn().mockResolvedValue(fixture),
+      post: vi.fn().mockResolvedValue(fixture),
+    };
+    const repo = new ApiDocumentRepository(apiClient);
+
+    await repo.load();
+    const result = await repo.autoArchiveMessageFile({
+      id: "msg-product-uploading",
+      name: "上传中.md",
+      extension: ".md",
+      size: 1024,
+      sourceName: "产品方案讨论群",
+      sourceChannelId: "grp_product_docs",
+      sourceChannelType: 2,
+      sourceType: "群聊",
+      uploader: "陈一",
+      storagePath: "",
+    });
+
+    expect(result).toBeNull();
+    expect(apiClient.post).not.toHaveBeenCalled();
+  });
+
+  it("queries the group document storage space for channel settings", async () => {
+    const apiClient = {
+      get: vi.fn().mockResolvedValue({
+        spaceId: "space-product",
+        spaceName: "产品部公共空间",
+      }),
+      post: vi.fn(),
+    };
+    const repo = new ApiDocumentRepository(apiClient);
+
+    await expect(
+      repo.getChannelStorageSpace("grp_product_docs", 2)
+    ).resolves.toEqual({
+      spaceId: "space-product",
+      spaceName: "产品部公共空间",
+    });
+    expect(apiClient.get).toHaveBeenCalledWith(
+      "documents/channel-storage-space",
+      {
+        param: {
+          source_channel_id: "grp_product_docs",
+          source_channel_type: 2,
+        },
       }
     );
   });
@@ -242,6 +514,84 @@ describe("ApiDocumentRepository", () => {
         asset_id: "asset-space",
       },
     });
+  });
+
+  it("renames and moves files through document APIs", async () => {
+    const fixture = stateFixture();
+    const movedFixture: DocumentState = {
+      ...fixture,
+      files: fixture.files.map((file) =>
+        file.id === "asset-space"
+          ? { ...file, spaceName: "华东交付空间" }
+          : file
+      ),
+    };
+    const apiClient = {
+      get: vi
+        .fn()
+        .mockResolvedValueOnce(fixture)
+        .mockResolvedValueOnce(movedFixture),
+      post: vi.fn().mockResolvedValue(fixture),
+    };
+    const repo = new ApiDocumentRepository(apiClient);
+
+    await repo.load();
+    await repo.renameFile("asset-space", "新名称.pdf");
+    const moved = await repo.moveFile("asset-space", "华东交付空间");
+
+    expect(apiClient.post).toHaveBeenCalledWith("documents/asset-space/rename", {
+      name: "新名称.pdf",
+    });
+    expect(apiClient.post).toHaveBeenCalledWith("documents/asset-space/move", {
+      document_space_id: "space-delivery",
+    });
+    expect(apiClient.get).toHaveBeenLastCalledWith("documents/state");
+    expect(moved.files.find((file) => file.id === "asset-space")?.spaceName).toBe(
+      "华东交付空间"
+    );
+  });
+
+  it("manages spaces and members through document APIs", async () => {
+    const fixture = stateFixture();
+    const apiClient = {
+      get: vi.fn().mockResolvedValue(fixture),
+      post: vi.fn().mockResolvedValue(fixture),
+    };
+    const repo = new ApiDocumentRepository(apiClient);
+
+    await repo.createSpace("新空间", "说明");
+    await repo.updateSpace("space-product", "产品资料库", "新说明");
+    await repo.saveSpaceMember("space-product", {
+      uid: "u3",
+      name: "王珂",
+      role: "viewer",
+    });
+    await repo.searchSpaceMembers("space-product", "王");
+    await repo.removeSpaceMember("space-product", "u3");
+    await repo.disableSpace("space-product");
+
+    expect(apiClient.post).toHaveBeenCalledWith("documents/spaces", {
+      name: "新空间",
+      description: "说明",
+    });
+    expect(apiClient.post).toHaveBeenCalledWith("documents/spaces/space-product", {
+      name: "产品资料库",
+      description: "新说明",
+    });
+    expect(apiClient.post).toHaveBeenCalledWith(
+      "documents/spaces/space-product/members",
+      { uid: "u3", name: "王珂", role: "viewer" }
+    );
+    expect(apiClient.get).toHaveBeenCalledWith(
+      "documents/spaces/space-product/members/search",
+      { param: { keyword: "王" } }
+    );
+    expect(apiClient.post).toHaveBeenCalledWith(
+      "documents/spaces/space-product/members/u3/remove"
+    );
+    expect(apiClient.post).toHaveBeenCalledWith(
+      "documents/spaces/space-product/disable"
+    );
   });
 
   it("does not fall back to mock data when the backend API fails", async () => {

@@ -98,6 +98,8 @@ export interface ThreadPanelProps {
     channelId: string;
     channelType: number;
   }) => void;
+  /** 将当前预览文件归档到文档中心 */
+  onArchiveFile?: (file: FilePreviewInfo) => void;
   /** 切换预览文件的回调（从文件列表选择其他文件时触发） */
   onFilePreviewChange?: (file: FilePreviewInfo) => void;
   /**
@@ -1112,6 +1114,7 @@ export default class ThreadPanel extends Component<
           viewMode={fileViewMode}
           onViewModeChange={handleViewModeChange}
           onReply={handleReply}
+          onArchive={() => this.props.onArchiveFile?.(filePreview)}
           showTocButton={showTocButton}
           isTocOpen={isTocOpen}
           onTocToggle={() => this.setState({ isTocOpen: !isTocOpen })}

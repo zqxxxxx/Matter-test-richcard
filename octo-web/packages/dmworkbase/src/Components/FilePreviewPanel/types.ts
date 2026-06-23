@@ -2,6 +2,8 @@ import { ComponentType } from "react";
 
 /** 文件预览信息 */
 export interface FilePreviewInfo {
+  /** 文档资产 ID，用于在同一预览容器内区分不同文件 */
+  assetId?: string;
   url: string;
   name: string;
   extension: string;

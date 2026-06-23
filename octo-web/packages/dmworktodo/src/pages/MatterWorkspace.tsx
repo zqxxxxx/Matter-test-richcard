@@ -1,6 +1,9 @@
 import React, { useEffect, useState } from "react";
 import ReactDOM from "react-dom";
 import { WKApp, t as translate } from "@octo/base";
+import { syncMatterWorkspaceAuth } from "./matterWorkspaceAuth";
+
+export { syncMatterWorkspaceAuth } from "./matterWorkspaceAuth";
 
 /**
  * matter-v2: the Matter workspace now lives in the octo-matter service
@@ -34,7 +37,12 @@ const MatterWorkspace: React.FC = () => {
   }, []);
 
   try {
-    if (spaceId) localStorage.setItem("currentSpaceId", spaceId);
+    syncMatterWorkspaceAuth({
+      token: WKApp.loginInfo.token,
+      uid: WKApp.loginInfo.uid,
+      name: WKApp.loginInfo.name,
+      spaceId,
+    });
   } catch {
     /* storage unavailable → the embedded app shows its connect panel */
   }

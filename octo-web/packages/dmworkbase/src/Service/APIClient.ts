@@ -25,6 +25,10 @@ export function extractErrorMsg(err: unknown): string {
     return "";
 }
 
+function isAbsoluteHTTPURL(url?: string): boolean {
+    return /^https?:\/\//i.test(url || "");
+}
+
 export class APIClientConfig {
     private _apiURL: string =""
     private _token:string = ""
@@ -60,6 +64,13 @@ export default class APIClient {
         const self = this
         axios.interceptors.request.use(function (config) {
             config.headers = config.headers || {};
+            // Presigned object-storage URLs are absolute URLs and must not
+            // inherit Octo API headers such as token or X-Space-Id. Those
+            // headers break browser CORS preflight and are not part of the
+            // storage signature.
+            if (isAbsoluteHTTPURL(config.url)) {
+                return config;
+            }
             config.headers["Accept-Language"] = buildAcceptLanguage();
             let token:string | undefined
             if(self.config.tokenCallback) {

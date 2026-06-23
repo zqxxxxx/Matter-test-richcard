@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback, memo } from "react";
-import { ArrowLeft, List } from "lucide-react";
+import { Archive, ArrowLeft, List } from "lucide-react";
 import {
   IconLaunch,
   IconMessage,
@@ -56,6 +56,8 @@ export interface FilePreviewHeaderProps {
   showOpenExternal?: boolean;
   /** 回复消息回调 */
   onReply?: () => void;
+  /** 归档到文档中心回调 */
+  onArchive?: () => void;
   /** 当前视图模式 */
   viewMode?: "preview" | "source";
   /** 切换视图模式回调 */
@@ -171,6 +173,7 @@ const FilePreviewHeader: React.FC<FilePreviewHeaderProps> = ({
   onOpenExternal,
   showOpenExternal = false,
   onReply,
+  onArchive,
   viewMode = "preview",
   onViewModeChange,
   showViewToggle = false,
@@ -461,6 +464,17 @@ const FilePreviewHeader: React.FC<FilePreviewHeaderProps> = ({
             title={t("base.filePreview.reply")}
           >
             <IconMessage />
+          </button>
+        )}
+
+        {/* 归档到文档 */}
+        {onArchive && (
+          <button
+            className="wk-file-preview-header__btn"
+            onClick={onArchive}
+            title="归档到文档"
+          >
+            <Archive size={16} />
           </button>
         )}
 

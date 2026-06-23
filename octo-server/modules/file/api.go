@@ -84,7 +84,7 @@ func writeLocalFileCORSHeaders(c *wkhttp.Context) {
 	}
 	c.Header("Access-Control-Allow-Origin", origin)
 	c.Header("Access-Control-Allow-Methods", "GET, HEAD, PUT, OPTIONS")
-	c.Header("Access-Control-Allow-Headers", "Content-Type, Content-Length, Range")
+	c.Header("Access-Control-Allow-Headers", "Content-Type, Content-Length, Content-Disposition, Range")
 	c.Header("Access-Control-Expose-Headers", "Content-Length, Content-Type, Content-Disposition, Accept-Ranges")
 	c.Header("Vary", "Origin")
 }
@@ -196,13 +196,25 @@ func localSignedRequestFromQuery(c *wkhttp.Context, method string) (localFileSig
 	if disposition != "" && disposition != "inline" && disposition != "attachment" {
 		return localFileSignedRequest{}, errors.New("文件展示方式无效")
 	}
+	contentDisposition := c.Query("contentDisposition")
+	if encoded := strings.TrimSpace(c.Query("contentDispositionB64")); encoded != "" {
+		decoded, decodeErr := base64.RawURLEncoding.DecodeString(encoded)
+		if decodeErr != nil {
+			return localFileSignedRequest{}, errors.New("文件下载名称参数无效")
+		}
+		contentDisposition = string(decoded)
+	}
+	filename := c.Query("filename")
+	if filename != "" {
+		filename = sanitizeFilename(filename)
+	}
 	return localFileSignedRequest{
 		Method:             method,
 		Path:               sanitized,
-		Filename:           sanitizeFilename(c.Query("filename")),
+		Filename:           filename,
 		Disposition:        disposition,
 		ContentType:        c.Query("contentType"),
-		ContentDisposition: c.Query("contentDisposition"),
+		ContentDisposition: contentDisposition,
 		FileSize:           fileSize,
 		ExpiresAt:          expiresAt,
 	}, nil
@@ -639,15 +651,10 @@ func (f *File) getUploadCredentials(c *wkhttp.Context) {
 		return
 	}
 
-	if ext != "" {
-		inferred := mime.TypeByExtension(ext)
-		if inferred != "" {
-			contentType = inferred
-		}
-	}
 	if contentType == "" {
 		contentType = "application/octet-stream"
 	}
+	contentType = inferContentType(contentType, ext)
 
 	// When both path and filename are provided, path determines the objectKey
 	// while filename is used for Content-Disposition (friendly download name).

@@ -140,6 +140,30 @@ export default defineConfig(({ mode }) => {
         // Matters service API — must be before the general /api/ rule.
         // When target is the main gateway (VITE_API_URL is set), keep /matter/*;
         // when using the local dev fallback or a direct Matter URL, strip /matter.
+        "/matter/ui": {
+          target:
+            env.VITE_MATTER_API_URL ||
+            env.VITE_TODO_API_URL ||
+            (apiUrl ? apiOrigin : "http://localhost:8080"),
+          changeOrigin: true,
+          secure: false,
+          rewrite:
+            env.VITE_MATTER_API_URL || env.VITE_TODO_API_URL || !apiUrl
+            ? (path: string) => path.replace(/^\/matter/, "")
+            : undefined,
+        },
+        "/matter/health": {
+          target:
+            env.VITE_MATTER_API_URL ||
+            env.VITE_TODO_API_URL ||
+            (apiUrl ? apiOrigin : "http://localhost:8080"),
+          changeOrigin: true,
+          secure: false,
+          rewrite:
+            env.VITE_MATTER_API_URL || env.VITE_TODO_API_URL || !apiUrl
+            ? (path: string) => path.replace(/^\/matter/, "")
+            : undefined,
+        },
         "/matter/api/v1": {
           target:
             env.VITE_MATTER_API_URL ||

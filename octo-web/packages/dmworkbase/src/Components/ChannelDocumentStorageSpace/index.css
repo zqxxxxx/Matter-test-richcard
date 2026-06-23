@@ -1,0 +1,34 @@
+.wk-channel-doc-storage-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.wk-channel-doc-storage-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  color: #1f2329;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.wk-channel-doc-storage-form .semi-select {
+  width: 100%;
+}
+
+.wk-channel-doc-storage-hint,
+.wk-channel-doc-storage-empty {
+  margin: 0;
+  color: #646a73;
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.wk-channel-doc-storage-empty {
+  color: #8f959e;
+}
+
+.wk-channel-doc-storage-view {
+  align-self: flex-start;
+}

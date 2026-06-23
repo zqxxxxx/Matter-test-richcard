@@ -9,11 +9,12 @@ import TabAll from "./tab-all";
 import TabContacts from "./tab-contacts";
 import TabGroup from "./tab-group";
 import TabFile from "./tab-file";
+import TabDocument from "./tab-document";
 import { Channel } from "wukongimjssdk";
 
 interface GlobalSearchProps {
     channel?: Channel; // 查询指定频道的聊天记录
-    // item点击事件，传递item和type，type为contacts、group、message,file
+    // item点击事件，传递item和type，type为contacts、group、message,file,document
     onClick?: (item: any, type: string) => void;
 }
 
@@ -76,6 +77,12 @@ export default class GlobalSearch extends Component<GlobalSearchProps> {
                     keyword={vm.keyword}
                     loadMore={() => vm.loadMore()}
                     onClick={onClickOf("file")}
+                />
+            </div>
+            <div style={panelStyle("documents")}>
+                <TabDocument
+                    documents={vm.searchResult?.documents}
+                    onClick={onClickOf("document")}
                 />
             </div>
         </>

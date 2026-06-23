@@ -1,6 +1,8 @@
 package document
 
 import (
+	"strconv"
+
 	"github.com/Mininglamp-OSS/octo-lib/config"
 	"github.com/Mininglamp-OSS/octo-lib/pkg/log"
 	"github.com/Mininglamp-OSS/octo-lib/pkg/wkhttp"
@@ -30,13 +32,110 @@ func (d *Document) Route(r *wkhttp.WKHttp) {
 		auth.GET("/state", d.state)
 		auth.POST("/upload", d.upload)
 		auth.POST("/archive", d.archive)
+		auth.POST("/spaces", d.createSpace)
+		auth.POST("/spaces/:space_id", d.updateSpace)
+		auth.POST("/spaces/:space_id/disable", d.disableSpace)
 		auth.POST("/spaces/:space_id/bind-conversation", d.bindConversation)
+		auth.GET("/spaces/:space_id/bindings/search", d.searchSpaceBindings)
+		auth.POST("/spaces/:space_id/bindings/:binding_id/remove", d.unbindConversation)
+		auth.GET("/spaces/:space_id/members/search", d.searchSpaceMembers)
+		auth.POST("/spaces/:space_id/members", d.saveSpaceMember)
+		auth.POST("/spaces/:space_id/members/:member_uid/remove", d.removeSpaceMember)
+		auth.POST("/:asset_id/rename", d.renameAsset)
+		auth.POST("/:asset_id/move", d.moveAsset)
 		auth.POST("/:asset_id/preview", d.preview)
 		auth.POST("/:asset_id/download", d.download)
 		auth.POST("/:asset_id/trash", d.trash)
 		auth.POST("/:asset_id/restore", d.restore)
+		auth.POST("/:asset_id/permanent-delete", d.permanentDelete)
+		auth.POST("/trash/empty", d.emptyTrash)
+		auth.GET("/channel-storage-space", d.channelStorageSpace)
 		auth.GET("/source/check", d.checkSource)
 	}
+}
+
+func (d *Document) createSpace(c *wkhttp.Context) {
+	var req SaveSpaceReq
+	if err := c.BindJSON(&req); err != nil {
+		c.ResponseError(err)
+		return
+	}
+	state, err := d.service.CreateSpace(c.GetLoginUID(), tenantSpaceID(c), req)
+	d.respondState(c, state, err)
+}
+
+func (d *Document) updateSpace(c *wkhttp.Context) {
+	var req SaveSpaceReq
+	if err := c.BindJSON(&req); err != nil {
+		c.ResponseError(err)
+		return
+	}
+	state, err := d.service.UpdateSpace(c.GetLoginUID(), tenantSpaceID(c), c.Param("space_id"), req)
+	d.respondState(c, state, err)
+}
+
+func (d *Document) disableSpace(c *wkhttp.Context) {
+	state, err := d.service.DisableSpace(c.GetLoginUID(), tenantSpaceID(c), c.Param("space_id"))
+	d.respondState(c, state, err)
+}
+
+func (d *Document) saveSpaceMember(c *wkhttp.Context) {
+	var req SaveSpaceMemberReq
+	if err := c.BindJSON(&req); err != nil {
+		c.ResponseError(err)
+		return
+	}
+	state, err := d.service.UpsertSpaceMember(c.GetLoginUID(), tenantSpaceID(c), c.Param("space_id"), req)
+	d.respondState(c, state, err)
+}
+
+func (d *Document) searchSpaceMembers(c *wkhttp.Context) {
+	candidates, err := d.service.SearchSpaceMemberCandidates(
+		c.GetLoginUID(),
+		tenantSpaceID(c),
+		c.Param("space_id"),
+		c.Query("keyword"),
+	)
+	if err != nil {
+		c.ResponseError(err)
+		return
+	}
+	c.Response(candidates)
+}
+
+func (d *Document) removeSpaceMember(c *wkhttp.Context) {
+	state, err := d.service.RemoveSpaceMember(c.GetLoginUID(), tenantSpaceID(c), c.Param("space_id"), c.Param("member_uid"))
+	d.respondState(c, state, err)
+}
+
+func (d *Document) renameAsset(c *wkhttp.Context) {
+	var req RenameAssetReq
+	if err := c.BindJSON(&req); err != nil {
+		c.ResponseError(err)
+		return
+	}
+	state, err := d.service.RenameAsset(c.GetLoginUID(), tenantSpaceID(c), c.Param("asset_id"), req)
+	d.respondState(c, state, err)
+}
+
+func (d *Document) moveAsset(c *wkhttp.Context) {
+	var req MoveAssetReq
+	if err := c.BindJSON(&req); err != nil {
+		c.ResponseError(err)
+		return
+	}
+	state, err := d.service.MoveAsset(c.GetLoginUID(), tenantSpaceID(c), c.Param("asset_id"), req)
+	d.respondState(c, state, err)
+}
+
+func (d *Document) permanentDelete(c *wkhttp.Context) {
+	state, err := d.service.PermanentDelete(c.GetLoginUID(), tenantSpaceID(c), c.Param("asset_id"))
+	d.respondState(c, state, err)
+}
+
+func (d *Document) emptyTrash(c *wkhttp.Context) {
+	state, err := d.service.EmptyTrash(c.GetLoginUID(), tenantSpaceID(c))
+	d.respondState(c, state, err)
 }
 
 func (d *Document) bindConversation(c *wkhttp.Context) {
@@ -50,6 +149,40 @@ func (d *Document) bindConversation(c *wkhttp.Context) {
 	}
 	state, err := d.service.BindConversation(c.GetLoginUID(), tenantSpaceID(c), req)
 	d.respondState(c, state, err)
+}
+
+func (d *Document) unbindConversation(c *wkhttp.Context) {
+	state, err := d.service.UnbindConversation(c.GetLoginUID(), tenantSpaceID(c), c.Param("space_id"), c.Param("binding_id"))
+	d.respondState(c, state, err)
+}
+
+func (d *Document) searchSpaceBindings(c *wkhttp.Context) {
+	candidates, err := d.service.SearchBindingConversations(
+		c.GetLoginUID(),
+		tenantSpaceID(c),
+		c.Param("space_id"),
+		c.Query("keyword"),
+	)
+	if err != nil {
+		c.ResponseError(err)
+		return
+	}
+	c.Response(candidates)
+}
+
+func (d *Document) channelStorageSpace(c *wkhttp.Context) {
+	sourceChannelType, _ := strconv.Atoi(c.Query("source_channel_type"))
+	resp, err := d.service.ChannelStorageSpace(
+		c.GetLoginUID(),
+		tenantSpaceID(c),
+		c.Query("source_channel_id"),
+		uint8(sourceChannelType),
+	)
+	if err != nil {
+		c.ResponseError(err)
+		return
+	}
+	c.Response(resp)
 }
 
 func (d *Document) state(c *wkhttp.Context) {

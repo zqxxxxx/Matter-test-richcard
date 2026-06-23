@@ -1,6 +1,11 @@
 import { WKApp, Menus, ProviderListener, startVersionCheck, t } from "@octo/base";
 import { Toast } from "@douyinfe/semi-ui";
 
+function resolveMenuRoutePath(path?: string) {
+  if (path?.replace(/\/+$/, "") === "/documents/workspace") return "/documents";
+  return path;
+}
+
 export default class MainVM extends ProviderListener {
   private _currentMenus?: Menus;
   private _settingSelected!: boolean;
@@ -58,9 +63,10 @@ export default class MainVM extends ProviderListener {
 
   didMount(): void {
     let found = false;
-    if (WKApp.route.currentPath) {
+    const menuRoutePath = resolveMenuRoutePath(WKApp.route.currentPath);
+    if (menuRoutePath) {
       for (const menus of this.menusList) {
-        if (menus.routePath === WKApp.route.currentPath) {
+        if (menus.routePath === menuRoutePath) {
           this.currentMenus = menus;
           found = true;
           break;

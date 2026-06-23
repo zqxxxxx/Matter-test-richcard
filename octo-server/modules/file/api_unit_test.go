@@ -198,6 +198,7 @@ type mockService struct {
 	composeErr         error
 	lastObjectPath     string
 	lastGetObjectPath  string
+	lastContentType    string
 	lastContentDisp    string
 	lastFileSize       int64
 	presignedGetErr    error
@@ -226,6 +227,7 @@ func (m *mockService) GetFile(path string) (io.ReadCloser, string, error) {
 
 func (m *mockService) PresignedPutURL(objectPath string, contentType string, contentDisposition string, fileSize int64, expires time.Duration) (string, string, error) {
 	m.lastObjectPath = objectPath
+	m.lastContentType = contentType
 	m.lastContentDisp = contentDisposition
 	m.lastFileSize = fileSize
 	return "https://example.com/upload?" + objectPath, "https://example.com/download/" + objectPath, nil
@@ -536,6 +538,34 @@ func TestGetUploadCredentials_FallbackWithoutFilename(t *testing.T) {
 	_, hasCD := resp["contentDisposition"]
 	assert.False(t, hasCD, "response should not contain contentDisposition without filename")
 	assert.Equal(t, "", mockSvc.lastContentDisp)
+}
+
+func TestGetUploadCredentials_ResponseContentTypeMatchesSignedContentType(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	mockSvc := &mockService{}
+	f := &File{
+		Log:     log.NewTLog("FileTest"),
+		service: mockSvc,
+	}
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	q := url.Values{}
+	q.Set("type", "chat")
+	q.Set("path", "/2/grp_product_docs/test.md")
+	q.Set("filename", "test.md")
+	q.Set("contentType", "text/markdown")
+	q.Set("fileSize", "16")
+	c.Request, _ = http.NewRequest(http.MethodGet, "/v1/file/upload/credentials?"+q.Encode(), nil)
+	wkCtx := &wkhttp.Context{Context: c}
+	f.getUploadCredentials(wkCtx)
+
+	require.Equal(t, http.StatusOK, w.Code, "response body: %s", w.Body.String())
+	var resp map[string]interface{}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+	require.Equal(t, mockSvc.lastContentType, resp["contentType"])
+	require.Equal(t, "text/markdown; charset=utf-8", resp["contentType"])
 }
 
 func TestBuildContentDisposition_UsesInline(t *testing.T) {

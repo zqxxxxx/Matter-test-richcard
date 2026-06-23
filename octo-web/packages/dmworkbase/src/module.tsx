@@ -90,6 +90,7 @@ import { patchSdkDecodeForExternalFields } from "./Service/Convert";
 import { isMessageSelectable } from "./Service/messageSelection";
 import ConversationVM from "./Components/Conversation/vm";
 import { ChannelAvatar } from "./Components/ChannelAvatar";
+import ChannelDocumentStorageSpace from "./Components/ChannelDocumentStorageSpace";
 import { ScreenshotCell, ScreenshotContent } from "./Messages/Screenshot";
 import FileToolbar from "./Components/FileToolbar";
 import { ProhibitwordsService } from "./Service/ProhibitwordsService";
@@ -179,6 +180,13 @@ function mergeSubscriberIntoCache(channel: Channel, subscriber: Subscriber) {
     nextSubscribers
   );
   channelManager.notifySubscribeChangeListeners(channel);
+}
+
+function ensureSdkChannel(channel: Channel): Channel {
+  if (channel && typeof (channel as any).getChannelKey === "function") {
+    return channel;
+  }
+  return new Channel(channel.channelID, channel.channelType);
 }
 
 function warmRevokeTargetRole(channel: Channel, uid: string) {
@@ -881,7 +889,7 @@ export default class BaseModule implements IModule {
                     ? "单聊"
                     : message.channel.channelType === ChannelTypeGroup
                       ? "群聊"
-                      : "应用";
+                      : "群聊";
 
                 await documentRepository.archiveMessageFile(
                   {
@@ -1511,7 +1519,7 @@ export default class BaseModule implements IModule {
   registerChannelSettings() {
     WKApp.shared.channelSettingRegister("channel.subscribers", (context) => {
       const data = context.routeData() as ChannelSettingRouteData;
-      const channel = data.channel;
+      const channel = ensureSdkChannel(data.channel);
 
       // 客服频道和子区不显示成员管理
       if (
@@ -1637,7 +1645,7 @@ export default class BaseModule implements IModule {
       (context) => {
         const data = context.routeData() as ChannelSettingRouteData;
         const channelInfo = data.channelInfo;
-        const channel = data.channel;
+        const channel = ensureSdkChannel(data.channel);
         if (channel.channelType !== ChannelTypeGroup) {
           return undefined;
         }
@@ -1730,6 +1738,16 @@ export default class BaseModule implements IModule {
                   })
                 );
               },
+            },
+          })
+        );
+        rows.push(
+          new Row({
+            cell: ChannelDocumentStorageSpace,
+            properties: {
+              channel,
+              channelName: channelInfo?.title || channel.channelID,
+              canManageStorageSpace: data.isManagerOrCreatorOfMe,
             },
           })
         );

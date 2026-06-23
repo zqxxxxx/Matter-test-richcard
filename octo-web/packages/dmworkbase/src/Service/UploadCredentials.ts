@@ -10,6 +10,15 @@ interface UploadCredentials {
     contentDisposition?: string
 }
 
+function shouldSendContentDisposition(uploadUrl: string): boolean {
+    try {
+        const parsed = new URL(uploadUrl, window.location.href)
+        return parsed.pathname !== "/v1/file/local"
+    } catch {
+        return true
+    }
+}
+
 /**
  * 上传前预检 file/upload/credentials。
  *
@@ -106,7 +115,7 @@ export async function uploadChatMedia(
     const fileSizeMB = file.size / (1024 * 1024)
     const timeoutMs = Math.max(2 * 60 * 1000, fileSizeMB * 10 * 1000)
     const headers: Record<string, string> = { "Content-Type": credentials.contentType }
-    if (credentials.contentDisposition) {
+    if (credentials.contentDisposition && shouldSendContentDisposition(credentials.uploadUrl)) {
         headers["Content-Disposition"] = credentials.contentDisposition
     }
 

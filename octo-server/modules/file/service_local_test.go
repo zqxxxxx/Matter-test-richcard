@@ -105,3 +105,47 @@ func TestFile_LocalSignedRouteServesContentAndRejectsTampering(t *testing.T) {
 	r.ServeHTTP(rec, req)
 	require.Equal(t, http.StatusForbidden, rec.Code)
 }
+
+func TestFile_LocalSignedRouteAcceptsPresignedPutRoundtrip(t *testing.T) {
+	ctx := newLocalFileTestContext(t)
+	f := New(ctx)
+	svc, ok := f.service.(*Service).uploadService.(*LocalFileService)
+	require.True(t, ok)
+
+	payload := "hello signed put"
+	contentType := "text/markdown; charset=utf-8"
+	contentDisposition := `inline; filename="notes.md"; filename*=UTF-8''notes.md`
+	signed, _, err := svc.PresignedPutURL(
+		"chat/2/test-local-put.md",
+		contentType,
+		contentDisposition,
+		int64(len(payload)),
+		30*time.Minute,
+	)
+	require.NoError(t, err)
+	parsed, err := url.Parse(signed)
+	require.NoError(t, err)
+	require.Empty(t, parsed.Query().Get("contentDisposition"))
+	require.NotEmpty(t, parsed.Query().Get("contentDispositionB64"))
+
+	r := wkhttp.New()
+	f.Route(r)
+
+	req := httptest.NewRequest(http.MethodPut, parsed.RequestURI(), strings.NewReader(payload))
+	req.Header.Set("Content-Type", contentType)
+	req.Header.Set("Content-Disposition", contentDisposition)
+	req.Header.Set("Origin", "http://localhost:3001")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	require.Equal(t, "http://localhost:3001", rec.Header().Get("Access-Control-Allow-Origin"))
+
+	rc, storedContentType, err := svc.GetFile("chat/2/test-local-put.md")
+	require.NoError(t, err)
+	defer rc.Close()
+	body, err := io.ReadAll(rc)
+	require.NoError(t, err)
+	require.Equal(t, payload, string(body))
+	require.Equal(t, contentType, storedContentType)
+}

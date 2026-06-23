@@ -107,6 +107,35 @@ describe('MediaMessageUploadTask', () => {
       expect((task.message.content as any).url).toBe(creds.downloadUrl)
       expect((task.message.content as any).remoteUrl).toBe(creds.downloadUrl)
     })
+
+    it('keeps the stable object key on content.storagePath after upload succeeds', async () => {
+      const creds = makeCredentials({ key: 'chat/2/grp_product_docs/file.md' })
+      mockApiGet.mockResolvedValue(creds)
+      vi.mocked(axios.put).mockResolvedValue({ status: 200, data: {} })
+
+      const task = createTask()
+      await task.start()
+
+      expect((task.message.content as any).storagePath).toBe('chat/2/grp_product_docs/file.md')
+    })
+
+    it('dispatches media-upload-success after upload succeeds', async () => {
+      const creds = makeCredentials()
+      mockApiGet.mockResolvedValue(creds)
+      vi.mocked(axios.put).mockResolvedValue({ status: 200, data: {} })
+      const windowTarget = new EventTarget()
+      vi.stubGlobal('window', windowTarget)
+      const listener = vi.fn()
+      window.addEventListener('octo:media-upload-success', listener)
+
+      const task = createTask()
+      await task.start()
+
+      expect(listener).toHaveBeenCalledOnce()
+      expect(listener.mock.calls[0][0].detail.message).toBe(task.message)
+      window.removeEventListener('octo:media-upload-success', listener)
+      vi.unstubAllGlobals()
+    })
   })
 
   describe('start() — getUploadCredentials returns undefined', () => {
@@ -268,6 +297,22 @@ describe('MediaMessageUploadTask', () => {
       const putCall = vi.mocked(axios.put).mock.calls[0]
       const headers = putCall[2]?.headers as Record<string, string>
       expect(headers['Content-Disposition']).toBe('attachment; filename="photo.jpg"')
+    })
+
+    it('omits Content-Disposition for local signed upload URLs', async () => {
+      const creds = makeCredentials({
+        uploadUrl: 'http://127.0.0.1:8090/v1/file/local?sig=abc',
+        contentDisposition: 'attachment; filename="photo.jpg"',
+      })
+      mockApiGet.mockResolvedValue(creds)
+      vi.mocked(axios.put).mockResolvedValue({ status: 200, data: {} })
+
+      const task = createTask()
+      await task.start()
+
+      const putCall = vi.mocked(axios.put).mock.calls[0]
+      const headers = putCall[2]?.headers as Record<string, string>
+      expect(headers['Content-Disposition']).toBeUndefined()
     })
 
     it('omits Content-Disposition when not in credentials', async () => {

@@ -15,6 +15,8 @@ import { ShowConversationOptions } from "../../EndpointCommon";
 import { Space, SpaceService } from "../../Service/SpaceService";
 import { isSafeUrl } from "../../Utils/security";
 import { downloadFile } from "../../Utils/download";
+import { navigateWorkspace } from "../Documents";
+import { buildDocumentSearchNavigation } from "../../Components/GlobalSearch/documentNavigation";
 
 
 const TOP_CONVERSATION_SCORE_BOOST = 1000000000000;
@@ -675,5 +677,10 @@ export async function handleGlobalSearchClick(item: any, type: string,hideModal?
         if (isSafeUrl(downloadURL)) {
             await downloadFile(downloadURL, payload.name || "file");
         }
+    } else if (type === "document") {
+        const target = buildDocumentSearchNavigation(item);
+        if (!target) return;
+        hideModal?.();
+        navigateWorkspace(target);
     }
 }

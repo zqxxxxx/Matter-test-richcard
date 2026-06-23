@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 import {
     isSuccessfulSendAck,
+    mediaSendWaitResult,
     messageStatusWaitResult,
     taskStatusWaitResult,
 } from "../sendWaitResult"
@@ -23,5 +24,35 @@ describe("send wait result helpers", () => {
         expect(taskStatusWaitResult("success", "success", "fail")).toBe(true)
         expect(taskStatusWaitResult("fail", "success", "fail")).toBe(false)
         expect(taskStatusWaitResult("processing", "success", "fail")).toBeUndefined()
+    })
+
+    it("treats cancelled upload task as explicit media send failure", () => {
+        expect(
+            mediaSendWaitResult({
+                ackSucceeded: true,
+                uploadSucceeded: false,
+                messageStatus: "wait",
+                taskStatus: "cancel",
+                normalMessageStatus: "normal",
+                failedMessageStatus: "fail",
+                successfulTaskStatus: "success",
+                failedTaskStatuses: ["fail", "cancel"],
+            }),
+        ).toBe(false)
+    })
+
+    it("accepts media send when upload succeeded and the message is already normal", () => {
+        expect(
+            mediaSendWaitResult({
+                ackSucceeded: false,
+                uploadSucceeded: true,
+                messageStatus: "normal",
+                taskStatus: "success",
+                normalMessageStatus: "normal",
+                failedMessageStatus: "fail",
+                successfulTaskStatus: "success",
+                failedTaskStatuses: ["fail", "cancel"],
+            }),
+        ).toBe(true)
     })
 })

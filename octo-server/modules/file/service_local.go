@@ -4,6 +4,7 @@ import (
 	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -178,7 +179,7 @@ func (s *LocalFileService) signedURL(req localFileSignedRequest) (string, error)
 		values.Set("contentType", req.ContentType)
 	}
 	if req.ContentDisposition != "" {
-		values.Set("contentDisposition", req.ContentDisposition)
+		values.Set("contentDispositionB64", base64.RawURLEncoding.EncodeToString([]byte(req.ContentDisposition)))
 	}
 	if req.FileSize > 0 {
 		values.Set("fileSize", strconv.FormatInt(req.FileSize, 10))

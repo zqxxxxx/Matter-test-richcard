@@ -39,6 +39,10 @@ export default class RouteManager {
   }
 
   push(path: string, param?: any) {
+    if (path.replace(/\/+$/, "") === "/documents/workspace") {
+      this.currentPath = "/documents"
+      return
+    }
     this.currentPath = path
     const component = EndpointManager.shared.invoke(`${EndpointID.routePrefix}${path}`, param)
     if (component) {

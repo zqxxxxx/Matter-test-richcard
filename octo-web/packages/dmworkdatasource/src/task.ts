@@ -12,6 +12,15 @@ interface UploadCredentials {
     expiredTime: number
 }
 
+function shouldSendContentDisposition(uploadUrl: string): boolean {
+    try {
+        const parsed = new URL(uploadUrl, typeof window !== "undefined" ? window.location.href : "http://localhost")
+        return parsed.pathname !== "/v1/file/local"
+    } catch {
+        return true
+    }
+}
+
 export class MediaMessageUploadTask extends MessageTask {
     private _progress?:number
     private controller: AbortController | undefined
@@ -58,7 +67,7 @@ export class MediaMessageUploadTask extends MessageTask {
         const fileSizeMB = file.size / (1024 * 1024);
         const timeoutMs = Math.max(2 * 60 * 1000, fileSizeMB * 10 * 1000);
         const headers: Record<string, string> = { "Content-Type": credentials.contentType }
-        if (credentials.contentDisposition) {
+        if (credentials.contentDisposition && shouldSendContentDisposition(credentials.uploadUrl)) {
             headers["Content-Disposition"] = credentials.contentDisposition
         }
         const resp = await axios.put(credentials.uploadUrl, file, {
@@ -80,10 +89,16 @@ export class MediaMessageUploadTask extends MessageTask {
         })
         if(resp && resp.status >= 200 && resp.status < 300) {
             const mediaContent = this.message.content as MediaMessageContent
+            ;(mediaContent as MediaMessageContent & { storagePath?: string }).storagePath = credentials.key
             mediaContent.url = credentials.downloadUrl
             mediaContent.remoteUrl = credentials.downloadUrl
             this.status = TaskStatus.success
             this.update()
+            if (typeof window !== "undefined") {
+                window.dispatchEvent(new CustomEvent("octo:media-upload-success", {
+                    detail: { message: this.message },
+                }))
+            }
         } else if(resp) {
             this.status = TaskStatus.fail
             this.update()

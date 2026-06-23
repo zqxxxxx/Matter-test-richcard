@@ -5,6 +5,8 @@ import (
 
 	"github.com/Mininglamp-OSS/octo-lib/common"
 	"github.com/Mininglamp-OSS/octo-lib/config"
+	"github.com/Mininglamp-OSS/octo-server/modules/document"
+	dbbase "github.com/Mininglamp-OSS/octo-server/pkg/db"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -31,6 +33,38 @@ func TestShouldIncludeGroupForSpace(t *testing.T) {
 			assert.Equal(t, tt.want, got)
 		})
 	}
+}
+
+func TestBuildDocumentSearchRespHighlightsNameAndCarriesSourceTrace(t *testing.T) {
+	createdAt := dbbase.Time{}
+	asset := &document.DocumentAssetModel{
+		AssetID:           "doc-1",
+		Name:              "Q3 客户现场实施计划.pdf",
+		Kind:              document.KindPDF,
+		Extension:         ".pdf",
+		Size:              2048,
+		SourceType:        document.SourceTypeGroup,
+		SourceName:        "华东项目交付群",
+		SourceChannelID:   "group-east",
+		SourceChannelType: common.ChannelTypeGroup.Uint8(),
+		SourceMessageID:   "2406171002",
+		UploaderName:      "周岚",
+		Status:            document.StatusConversation,
+	}
+	asset.CreatedAt = createdAt
+
+	resp := buildDocumentSearchResp(asset, "华东交付部空间", 91002, "客户")
+
+	assert.Equal(t, "doc-1", resp.ID)
+	assert.Equal(t, "Q3 <mark>客户</mark>现场实施计划.pdf", resp.Name)
+	assert.Equal(t, document.SourceTypeGroup, resp.SourceType)
+	assert.Equal(t, "华东项目交付群", resp.SourceName)
+	assert.Equal(t, "group-east", resp.SourceChannelID)
+	assert.Equal(t, common.ChannelTypeGroup.Uint8(), resp.SourceChannelType)
+	assert.Equal(t, "2406171002", resp.SourceMessageID)
+	assert.Equal(t, uint32(91002), resp.SourceMessageSeq)
+	assert.Equal(t, "华东交付部空间", resp.SpaceName)
+	assert.Equal(t, "周岚", resp.Uploader)
 }
 
 func TestCollectChannelIDs_ThreadMessage(t *testing.T) {

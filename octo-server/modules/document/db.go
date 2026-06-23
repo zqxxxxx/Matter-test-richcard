@@ -1,6 +1,8 @@
 package document
 
 import (
+	"fmt"
+	"strings"
 	"time"
 
 	"github.com/Mininglamp-OSS/octo-lib/config"
@@ -24,6 +26,15 @@ func (d *documentDB) ListSpaces(uid, tenantSpaceID string) ([]*DocumentSpaceMode
 	var spaces []*DocumentSpaceModel
 	_, err := d.session.Select("*").From("document_space").
 		Where("tenant_space_id=? and status=1", tenantSpaceID).
+		OrderDesc("created_at").
+		Load(&spaces)
+	return spaces, err
+}
+
+func (d *documentDB) ListAllSpaces(uid, tenantSpaceID string) ([]*DocumentSpaceModel, error) {
+	var spaces []*DocumentSpaceModel
+	_, err := d.session.Select("*").From("document_space").
+		Where("tenant_space_id=?", tenantSpaceID).
 		OrderDesc("created_at").
 		Load(&spaces)
 	return spaces, err
@@ -62,6 +73,23 @@ func (d *documentDB) GetSpace(spaceID, uid, tenantSpaceID string) (*DocumentSpac
 	return space, err
 }
 
+func (d *documentDB) SaveSpace(space *DocumentSpaceModel) error {
+	_, err := d.session.InsertInto("document_space").Columns(util.AttrToUnderscore(space)...).Record(space).Exec()
+	return err
+}
+
+func (d *documentDB) UpdateSpace(space *DocumentSpaceModel) error {
+	_, err := d.session.Update("document_space").
+		Set("name", space.Name).
+		Set("description", space.Description).
+		Set("owner_uid", space.OwnerUID).
+		Set("status", space.Status).
+		Set("updated_at", time.Now()).
+		Where("space_id=? and tenant_space_id=?", space.SpaceID, space.TenantSpaceID).
+		Exec()
+	return err
+}
+
 func (d *documentDB) ListSpaceBindings(uid, tenantSpaceID string) ([]*DocumentSpaceBindingModel, error) {
 	var bindings []*DocumentSpaceBindingModel
 	_, err := d.session.Select("*").From("document_space_binding").
@@ -72,6 +100,18 @@ func (d *documentDB) ListSpaceBindings(uid, tenantSpaceID string) ([]*DocumentSp
 }
 
 func (d *documentDB) SaveSpaceBinding(binding *DocumentSpaceBindingModel) error {
+	if _, err := d.session.Update("document_space_binding").
+		Set("status", 0).
+		Set("updated_at", time.Now()).
+		Where("tenant_space_id=? and source_channel_id=? and source_channel_type=? and document_space_id<>?",
+			binding.TenantSpaceID,
+			binding.SourceChannelID,
+			binding.SourceChannelType,
+			binding.DocumentSpaceID,
+		).
+		Exec(); err != nil {
+		return err
+	}
 	_, err := d.session.InsertBySql(
 		`INSERT INTO document_space_binding
 			(binding_id, document_space_id, source_channel_id, source_channel_type, source_name, created_by, tenant_space_id, status, created_at, updated_at)
@@ -89,9 +129,115 @@ func (d *documentDB) SaveSpaceBinding(binding *DocumentSpaceBindingModel) error 
 		binding.CreatedBy,
 		binding.TenantSpaceID,
 		binding.Status,
-		binding.CreatedAt,
-		binding.UpdatedAt,
+		binding.CreatedAt.String(),
+		binding.UpdatedAt.String(),
 	).Exec()
+	return err
+}
+
+func (d *documentDB) RemoveSpaceBinding(bindingID, tenantSpaceID string) error {
+	_, err := d.session.Update("document_space_binding").
+		Set("status", 0).
+		Set("updated_at", time.Now()).
+		Where("binding_id=? and tenant_space_id=?", bindingID, tenantSpaceID).
+		Exec()
+	return err
+}
+
+func (d *documentDB) ListSpaceMembers(uid, tenantSpaceID string) ([]*DocumentSpaceMemberModel, error) {
+	var members []*DocumentSpaceMemberModel
+	_, err := d.session.Select("*").From("document_space_member").
+		Where("tenant_space_id=? and status=1", tenantSpaceID).
+		OrderDesc("created_at").
+		Load(&members)
+	return members, err
+}
+
+func (d *documentDB) SearchUsers(keyword string, limit int) ([]*DocumentUserCandidateModel, error) {
+	keyword = strings.TrimSpace(keyword)
+	if keyword == "" {
+		return []*DocumentUserCandidateModel{}, nil
+	}
+	if limit <= 0 || limit > 20 {
+		limit = 20
+	}
+	like := "%" + keyword + "%"
+	var users []*DocumentUserCandidateModel
+	_, err := d.session.Select(
+		"uid",
+		"IFNULL(name,'') as name",
+		"IFNULL(username,'') as username",
+		"IFNULL(email,'') as email",
+		"IFNULL(phone,'') as phone",
+	).From("`user`").
+		Where("status=1 and IFNULL(robot,0)=0 and (uid like ? or name like ? or username like ? or email like ? or phone like ?)", like, like, like, like, like).
+		OrderAsc("name").
+		OrderAsc("username").
+		Limit(uint64(limit)).
+		Load(&users)
+	return users, err
+}
+
+func (d *documentDB) SearchGroups(uid, tenantSpaceID, keyword string, limit int) ([]*DocumentGroupCandidateModel, error) {
+	keyword = strings.TrimSpace(keyword)
+	if keyword == "" {
+		return []*DocumentGroupCandidateModel{}, nil
+	}
+	if limit <= 0 || limit > 20 {
+		limit = 20
+	}
+	like := "%" + keyword + "%"
+	var groups []*DocumentGroupCandidateModel
+	_, err := d.session.SelectBySql(
+		`SELECT g.group_no, IFNULL(g.name, '') AS name, IFNULL(g.space_id, '') AS space_id
+		 FROM group_member gm
+		 INNER JOIN `+"`group`"+` g ON g.group_no=gm.group_no AND g.status=1
+		 WHERE gm.uid=? AND gm.is_deleted=0 AND gm.status=1
+		   AND (g.space_id=? OR IFNULL(g.space_id, '')='' OR IFNULL(gm.source_space_id, '')=?)
+		   AND (g.group_no LIKE ? OR g.name LIKE ?)
+		 ORDER BY g.updated_at DESC
+		 LIMIT ?`,
+		uid,
+		tenantSpaceID,
+		tenantSpaceID,
+		like,
+		like,
+		limit,
+	).Load(&groups)
+	return groups, err
+}
+
+func (d *documentDB) SaveSpaceMember(member *DocumentSpaceMemberModel) error {
+	_, err := d.session.InsertBySql(
+		`INSERT INTO document_space_member
+			(member_id, document_space_id, uid, name, role, source, created_by, tenant_space_id, status, created_at, updated_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		 ON DUPLICATE KEY UPDATE
+			name=VALUES(name),
+			role=VALUES(role),
+			status=VALUES(status),
+			updated_at=VALUES(updated_at)`,
+		member.MemberID,
+		member.DocumentSpaceID,
+		member.UID,
+		member.Name,
+		member.Role,
+		member.Source,
+		member.CreatedBy,
+		member.TenantSpaceID,
+		member.Status,
+		member.CreatedAt.String(),
+		member.UpdatedAt.String(),
+	).Exec()
+	return err
+}
+
+func (d *documentDB) RemoveSpaceMember(spaceID, memberUID, tenantSpaceID string) error {
+	_, err := d.session.Update("document_space_member").
+		Set("status", 0).
+		Set("updated_at", time.Now()).
+		Where("document_space_id=? and uid=? and tenant_space_id=?", spaceID, memberUID, tenantSpaceID).
+		Exec()
 	return err
 }
 
@@ -102,6 +248,9 @@ func (d *documentDB) ListAssets(uid, tenantSpaceID string) ([]*DocumentAssetMode
 		OrderDesc("last_access_at").
 		OrderDesc("created_at").
 		Load(&assets)
+	if err == nil {
+		d.populateSourceMessageSeqs(assets)
+	}
 	return assets, err
 }
 
@@ -110,7 +259,52 @@ func (d *documentDB) GetAsset(assetID, uid, tenantSpaceID string) (*DocumentAsse
 	_, err := d.session.Select("*").From("document_asset").
 		Where("asset_id=? and tenant_space_id=?", assetID, tenantSpaceID).
 		Load(&asset)
+	if err == nil && asset != nil {
+		d.populateSourceMessageSeqs([]*DocumentAssetModel{asset})
+	}
 	return asset, err
+}
+
+type documentMessageSeqRow struct {
+	MessageID   string `db:"message_id"`
+	ClientMsgNo string `db:"client_msg_no"`
+	MessageSeq  uint32 `db:"message_seq"`
+}
+
+func (d *documentDB) populateSourceMessageSeqs(assets []*DocumentAssetModel) {
+	messageIDs := make([]string, 0, len(assets))
+	for _, asset := range assets {
+		if asset.SourceMessageID != "" {
+			messageIDs = append(messageIDs, asset.SourceMessageID)
+		}
+	}
+	if len(messageIDs) == 0 {
+		return
+	}
+
+	seqs := make(map[string]uint32)
+	for _, table := range []string{"message", "message1", "message2", "message3", "message4"} {
+		rows := make([]*documentMessageSeqRow, 0)
+		_, err := d.session.SelectBySql(
+			fmt.Sprintf("SELECT message_id, client_msg_no, message_seq FROM `%s` WHERE message_id IN ? OR client_msg_no IN ?", table),
+			messageIDs,
+			messageIDs,
+		).Load(&rows)
+		if err != nil {
+			continue
+		}
+		for _, row := range rows {
+			if row.MessageID != "" {
+				seqs[row.MessageID] = row.MessageSeq
+			}
+			if row.ClientMsgNo != "" {
+				seqs[row.ClientMsgNo] = row.MessageSeq
+			}
+		}
+	}
+	for _, asset := range assets {
+		asset.SourceMessageSeq = seqs[asset.SourceMessageID]
+	}
 }
 
 func (d *documentDB) SaveAsset(asset *DocumentAssetModel) error {
@@ -165,6 +359,9 @@ func (d *documentDB) UpdateAsset(asset *DocumentAssetModel) error {
 		lastAccessAt = asset.LastAccessAt.String()
 	}
 	_, err := d.session.Update("document_asset").
+		Set("name", asset.Name).
+		Set("kind", asset.Kind).
+		Set("extension", asset.Extension).
 		Set("document_space_id", asset.DocumentSpaceID).
 		Set("original_space_id", asset.OriginalSpaceID).
 		Set("visibility", asset.Visibility).
@@ -173,6 +370,13 @@ func (d *documentDB) UpdateAsset(asset *DocumentAssetModel) error {
 		Set("last_access_at", lastAccessAt).
 		Set("updated_at", time.Now()).
 		Where("asset_id=? and tenant_space_id=?", asset.AssetID, asset.TenantSpaceID).
+		Exec()
+	return err
+}
+
+func (d *documentDB) DeleteAsset(assetID, tenantSpaceID string) error {
+	_, err := d.session.DeleteFrom("document_asset").
+		Where("asset_id=? and tenant_space_id=?", assetID, tenantSpaceID).
 		Exec()
 	return err
 }

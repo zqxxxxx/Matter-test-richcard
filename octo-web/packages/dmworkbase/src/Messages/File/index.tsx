@@ -14,8 +14,16 @@ import { getFileMessageUI } from "../../bridge/message/useFileMessageUI";
 import { isMessageSelectable } from "../../Service/messageSelection";
 import { isSafeUrl } from "../../Utils/security";
 import { I18nContext } from "../../i18n";
+import { getPresignedDownloadUrl, getPresignedPreviewUrl } from "../../Utils/download";
+import {
+  resolveFileDownloadUrl,
+  resolveFilePreviewUrl,
+  type ResolveFileUrlDeps,
+} from "./previewUrl";
+import { autoArchiveSentGroupFileMessage } from "../../Pages/Documents/autoArchive";
 
 export { FileContent } from "./FileContent";
+export { resolveFileDownloadUrl, resolveFilePreviewUrl } from "./previewUrl";
 
 export function formatFileSize(bytes: number): string {
   if (bytes <= 0) return "0 B";
@@ -311,6 +319,16 @@ export function resolveSafeFileUrl(content: FileContent): string {
   return isSafeUrl(fileUrl) ? fileUrl : "";
 }
 
+function fileUrlDeps(): ResolveFileUrlDeps {
+  return {
+    getFileURL: (path) => WKApp.dataSource.commonDataSource.getFileURL(path),
+    getPresignedPreviewUrl,
+    getPresignedDownloadUrl,
+    isSafeUrl,
+    origin: window.location.origin,
+  };
+}
+
 function isPreviewable(extension: string, name?: string): boolean {
   const ext = getExtension(extension, name);
   return [
@@ -355,11 +373,23 @@ export class FileCell extends MessageCell<any, FileCellState> {
 
   private _taskListener = (task: Task) => {
     const { message } = this.props;
-    if (task.id !== message.clientMsgNo) return;
+    const taskMessage = (task as any).message;
+    if (
+      task.id !== message.clientMsgNo &&
+      taskMessage?.clientMsgNo !== message.clientMsgNo
+    ) {
+      return;
+    }
     this.setState({
       uploadProgress: task.progress(),
       uploadStatus: task.status,
     });
+    if (task.status === TaskStatus.success) {
+      void autoArchiveSentGroupFileMessage(
+        taskMessage || message,
+        (taskMessage?.content || message.content) as FileContent
+      );
+    }
   };
 
   constructor(props: any) {
@@ -378,23 +408,25 @@ export class FileCell extends MessageCell<any, FileCellState> {
     super.componentDidMount();
     const { message } = this.props;
     const content = message.content as FileContent;
-    // 小文件不显示进度，跳过订阅
-    if (content.size >= SMALL_FILE_THRESHOLD) {
-      // taskManager 通过 addListener 订阅；初始 task 状态通过首次回调获取
-      WKSDK.shared().taskManager.addListener(this._taskListener);
-      // 存 task 引用供重试使用（addTask 时 task 已调 start，此处仅读取）
-      const allListeners = (WKSDK.shared().taskManager as any).taskMap as
-        | Map<string, Task>
-        | undefined;
-      const found = allListeners?.get(message.clientMsgNo) as
-        | RestartableTask
-        | undefined;
-      if (found) {
-        this._task = found;
-        this.setState({
-          uploadProgress: found.progress(),
-          uploadStatus: found.status,
-        });
+    this.syncBoundGroupDocumentSpace();
+    // All files subscribe to task status so successful uploads can be
+    // auto-archived into the bound group document space. Small files still
+    // skip the visible progress bar via render logic.
+    WKSDK.shared().taskManager.addListener(this._taskListener);
+    const allListeners = (WKSDK.shared().taskManager as any).taskMap as
+      | Map<string, Task>
+      | undefined;
+    const found = allListeners?.get(message.clientMsgNo) as
+      | RestartableTask
+      | undefined;
+    if (found) {
+      this._task = found;
+      this.setState({
+        uploadProgress: found.progress(),
+        uploadStatus: found.status,
+      });
+      if (found.status === TaskStatus.success) {
+        this.syncBoundGroupDocumentSpace();
       }
     }
   }
@@ -402,6 +434,18 @@ export class FileCell extends MessageCell<any, FileCellState> {
   componentWillUnmount() {
     super.componentWillUnmount();
     WKSDK.shared().taskManager.removeListener(this._taskListener);
+  }
+
+  componentDidUpdate(prevProps: any) {
+    if (prevProps.message !== this.props.message) {
+      this.syncBoundGroupDocumentSpace();
+    }
+  }
+
+  private syncBoundGroupDocumentSpace() {
+    const { message } = this.props;
+    const content = message.content as FileContent;
+    void autoArchiveSentGroupFileMessage(message, content);
   }
 
   getFileURL(content: FileContent): string {
@@ -420,19 +464,20 @@ export class FileCell extends MessageCell<any, FileCellState> {
   handleDownload = async () => {
     const { message } = this.props;
     const content = message.content as FileContent;
-    const url = this.getFileURL(content);
-    if (!url || !isSafeUrl(url)) return;
+    const url = await resolveFileDownloadUrl(content, fileUrlDeps());
+    if (!url) return;
 
     await downloadFile(url, content.name || "file");
   };
 
-  handlePreview = () => {
+  handlePreview = async () => {
     const { message } = this.props;
     const content = message.content as FileContent;
 
-    const url = this.getFileURL(content);
+    const url = await resolveFilePreviewUrl(content, fileUrlDeps());
 
-    if (!url || !isSafeUrl(url)) {
+    if (!url) {
+      Toast.warning(this.context.t("base.messageFile.previewFailed"));
       return;
     }
 

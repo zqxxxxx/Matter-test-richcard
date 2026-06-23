@@ -213,6 +213,8 @@ matter; undeliverable rows go `dead` and escalate to the creator.
 
 ## Watchdog
 
+- `MATTER_WATCHDOG_ENABLED=false` disables automatic revive/block transitions
+  for acceptance or demo environments. Production defaults to enabled.
 - Revive tier (default every 60s): parents `in_progress` whose non-cancelled
   children are all handed back but no parent transition for
   `MATTER_WATCHDOG_REVIVE_MINUTES` (default 5) → re-ring leader. Leaves

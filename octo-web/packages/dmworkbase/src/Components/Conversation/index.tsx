@@ -14,7 +14,6 @@ import {
   MessageContentType,
   MediaMessageContent,
   TaskStatus,
-  MessageTask,
   MessageStatus,
 } from "wukongimjssdk";
 import React, { Component, HTMLProps } from "react";
@@ -69,8 +68,10 @@ import {
   formatFileSize,
   getFileIconInfo,
   getExtension,
-  resolveSafeFileUrl,
+  resolveFileDownloadUrl,
+  resolveFilePreviewUrl,
 } from "../../Messages/File";
+import { autoArchiveSentGroupFileMessage } from "../../Pages/Documents/autoArchive";
 import { ImageContent } from "../../Messages/Image";
 import {
   RichTextBlock,
@@ -81,13 +82,18 @@ import {
 } from "../../Messages/RichText/RichTextContent";
 import { formatMessageTimestamp } from "../../Utils/time";
 import { isSafeUrl } from "../../Utils/security";
-import { downloadFile } from "../../Utils/download";
+import {
+  downloadFile,
+  getPresignedDownloadUrl,
+  getPresignedPreviewUrl,
+} from "../../Utils/download";
 import Lightbox from "yet-another-react-lightbox";
 import Download from "yet-another-react-lightbox/plugins/download";
 import { buildChatContext, ChatContextChannelInfo } from "./chatContext";
 import { shouldClearDraftAfterSend } from "../../Utils/draftLifecycle";
 import {
   isSuccessfulSendAck,
+  mediaSendWaitResult,
   messageStatusWaitResult,
   taskStatusWaitResult,
 } from "../../Utils/sendWaitResult";
@@ -252,6 +258,13 @@ function offsetMentionEntities(
     }));
 }
 
+function ensureSdkChannel(channel: Channel): Channel {
+  if (channel && typeof (channel as any).getChannelKey === "function") {
+    return channel;
+  }
+  return new Channel(channel.channelID, channel.channelType);
+}
+
 /**
  * 从 WuKongIM Message 对象解析发送人的展示名。
  *
@@ -396,6 +409,7 @@ export class Conversation
     channelId: string;
     channelType: number;
   }) => void;
+  private _mediaUploadSuccessHandler?: (event: Event) => void;
   private _guardId: symbol = Symbol("pendingAttachmentGuard");
   private draftSaveGeneration = 0;
   private latestSavedDraft = "";
@@ -617,6 +631,7 @@ export class Conversation
     let clientSeq: number | null = null;
     let ackSucceeded = false;
     let uploadSucceeded = false;
+    let message: Message | undefined;
 
     const { promise, resolve } = (() => {
       let res: (sent: boolean) => void;
@@ -638,7 +653,29 @@ export class Conversation
       resolve(sent);
     };
 
-    const timer = setTimeout(() => done(false), TIMEOUT);
+    const getUploadTask = () => {
+      if (!message) return undefined;
+      const taskMap = (WKSDK.shared().taskManager as any).taskMap as
+        | Map<string, { status: TaskStatus }>
+        | undefined;
+      return taskMap?.get(message.clientMsgNo);
+    };
+
+    const resolveFromCurrentState = () =>
+      mediaSendWaitResult({
+        ackSucceeded,
+        uploadSucceeded,
+        messageStatus: message?.status,
+        taskStatus: getUploadTask()?.status,
+        normalMessageStatus: MessageStatus.Normal,
+        failedMessageStatus: MessageStatus.Fail,
+        successfulTaskStatus: TaskStatus.success,
+        failedTaskStatuses: [TaskStatus.fail, TaskStatus.cancel],
+      });
+
+    const timer = setTimeout(() => {
+      done(resolveFromCurrentState() ?? false);
+    }, TIMEOUT);
 
     // ── 所有 listener 在 sendMessage 之前注册，避免快速完成时错过事件 ──
 
@@ -651,16 +688,23 @@ export class Conversation
 
     const taskListener = (task: any) => {
       if (settled) return;
+      const taskMessage = task?.message as Message | undefined;
       if (
-        task instanceof MessageTask &&
+        taskMessage &&
         clientSeq !== null &&
-        task.message.clientSeq === clientSeq &&
-        (task.status === TaskStatus.success || task.status === TaskStatus.fail)
+        taskMessage.clientSeq === clientSeq &&
+        (task.status === TaskStatus.success ||
+          task.status === TaskStatus.fail ||
+          task.status === TaskStatus.cancel)
       ) {
-        if (task.status === TaskStatus.fail) {
+        if (task.status === TaskStatus.fail || task.status === TaskStatus.cancel) {
           done(false);
           return;
         }
+        void autoArchiveSentGroupFileMessage(
+          taskMessage,
+          taskMessage.content as FileContent
+        );
         markUploadSuccess();
       }
     };
@@ -687,21 +731,20 @@ export class Conversation
     WKSDK.shared().chatManager.addMessageStatusListener(ackListener);
 
     // 发送消息（内部会 addTask → task.start()，所有 listener 已就绪）
-    let message: Message;
     try {
       message = await this.sendMessage(content, channel);
     } catch (err) {
       done(false);
       throw err;
     }
+    if (content instanceof FileContent) {
+      this.scheduleGroupFileAutoArchive(message, content);
+    }
     clientSeq = message.clientSeq;
 
     // sendMessage 返回后主动检查
     if (!settled) {
-      const taskMap = (WKSDK.shared().taskManager as any).taskMap as
-        | Map<string, { status: TaskStatus }>
-        | undefined;
-      const task = taskMap?.get(message.clientMsgNo);
+      const task = getUploadTask();
       const taskResult = taskStatusWaitResult(
         task?.status,
         TaskStatus.success,
@@ -741,9 +784,42 @@ export class Conversation
         ackSucceeded = true;
         if (uploadSucceeded) done(true);
       }
+      const currentResult = resolveFromCurrentState();
+      if (!settled && currentResult !== undefined) {
+        done(currentResult);
+      }
     }
 
-    return promise;
+    const sent = await promise;
+    if (sent && message && content instanceof FileContent) {
+      void autoArchiveSentGroupFileMessage(message, content);
+    }
+    return sent;
+  }
+
+  private scheduleGroupFileAutoArchive(message: Message, content: FileContent) {
+    const startedAt = Date.now();
+    const timeoutMs = 30_000;
+    const poll = () => {
+      const task = ((WKSDK.shared().taskManager as any).taskMap as
+        | Map<string, { status: TaskStatus }>
+        | undefined)?.get(message.clientMsgNo);
+      const failed =
+        message.status === MessageStatus.Fail ||
+        task?.status === TaskStatus.fail ||
+        task?.status === TaskStatus.cancel;
+      if (failed) {
+        return;
+      }
+      if (content.url || content.remoteUrl) {
+        void autoArchiveSentGroupFileMessage(message, content);
+        return;
+      }
+      if (Date.now() - startedAt < timeoutMs) {
+        window.setTimeout(poll, 300);
+      }
+    };
+    window.setTimeout(poll, 0);
   }
 
   /**
@@ -1318,6 +1394,24 @@ export class Conversation
     };
     WKApp.mittBus.on("wk:exit-multiple-mode", this._exitMultipleModeHandler);
 
+    this._mediaUploadSuccessHandler = (event: Event) => {
+      const message = (event as CustomEvent<{ message?: Message }>).detail
+        ?.message;
+      if (
+        !message ||
+        message.channel.channelID !== channel.channelID ||
+        message.channel.channelType !== channel.channelType ||
+        !(message.content instanceof FileContent)
+      ) {
+        return;
+      }
+      void autoArchiveSentGroupFileMessage(message, message.content);
+    };
+    window.addEventListener(
+      "octo:media-upload-success",
+      this._mediaUploadSuccessHandler
+    );
+
     window.addEventListener("beforeunload", this._beforeUnloadHandler);
 
     this.vm.onFirstMessagesLoaded = () => {
@@ -1340,6 +1434,13 @@ export class Conversation
     if (this._exitMultipleModeHandler) {
       WKApp.mittBus.off("wk:exit-multiple-mode", this._exitMultipleModeHandler);
       this._exitMultipleModeHandler = undefined;
+    }
+    if (this._mediaUploadSuccessHandler) {
+      window.removeEventListener(
+        "octo:media-upload-success",
+        this._mediaUploadSuccessHandler
+      );
+      this._mediaUploadSuccessHandler = undefined;
     }
     window.removeEventListener("beforeunload", this._beforeUnloadHandler);
     // 注销附件守卫：只清除自己注册的，防止新实例 guard 被旧实例 unmount 覆盖
@@ -1652,8 +1753,14 @@ export class Conversation
         <div
           className="wk-fold-file"
           title={t("base.messageFile.preview")}
-          onClick={() => {
-            const fileUrl = resolveSafeFileUrl(content);
+          onClick={async () => {
+            const fileUrl = await resolveFilePreviewUrl(content, {
+              getFileURL: (path) => WKApp.dataSource.commonDataSource.getFileURL(path),
+              getPresignedPreviewUrl,
+              getPresignedDownloadUrl,
+              isSafeUrl,
+              origin: window.location.origin,
+            });
             if (!fileUrl) return;
             WKApp.mittBus.emit("wk:file-preview", {
               url: fileUrl,
@@ -1688,7 +1795,13 @@ export class Conversation
             title={t("base.conversation.file.download")}
             onClick={async (e) => {
               e.stopPropagation();
-              const fileUrl = resolveSafeFileUrl(content);
+              const fileUrl = await resolveFileDownloadUrl(content, {
+                getFileURL: (path) => WKApp.dataSource.commonDataSource.getFileURL(path),
+                getPresignedPreviewUrl,
+                getPresignedDownloadUrl,
+                isSafeUrl,
+                origin: window.location.origin,
+              });
               if (!fileUrl) return;
               await downloadFile(fileUrl, content.name || "file");
             }}
@@ -2377,7 +2490,8 @@ export class Conversation
   }
 
   render() {
-    const { chatBg, channel, initLocateMessageSeq } = this.props;
+    const { chatBg, initLocateMessageSeq } = this.props;
+    const channel = ensureSdkChannel(this.props.channel);
 
     const channelInfo = WKSDK.shared().channelManager.getChannelInfo(channel);
 

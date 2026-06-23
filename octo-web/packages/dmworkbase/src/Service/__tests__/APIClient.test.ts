@@ -84,4 +84,18 @@ describe("APIClient request interceptor — X-Space-Id (GH #1038)", () => {
         expect(captured.headers["token"]).toBe("tkn_abc123")
         expect(captured.headers["X-Space-Id"]).toBe("space-gamma")
     })
+
+    it("绝对 URL 不注入 Octo 业务头，避免预签名上传 CORS 预检失败", async () => {
+        client.config.tokenCallback = () => "tkn_abc123"
+        client.config.spaceIdCallback = () => "space-gamma"
+
+        await axios.put("http://127.0.0.1:8090/v1/file/local?sig=test", "demo", {
+            headers: { "Content-Type": "text/plain" },
+        })
+
+        expect(captured.headers["token"]).toBeUndefined()
+        expect(captured.headers["X-Space-Id"]).toBeUndefined()
+        expect(captured.headers["Accept-Language"]).toBeUndefined()
+        expect(captured.headers["Content-Type"]).toBe("text/plain")
+    })
 })

@@ -50,26 +50,6 @@ WKApp.apiClient.config.spaceIdCallback = () => {
 WKApp.config.appVersion = import.meta.env.VITE_VERSION || pkgVersion
 WKApp.config.appName = "Octo"
 
-function seedLocalDevLogin() {
-  if (!import.meta.env.DEV) return;
-  if (!["localhost", "127.0.0.1"].includes(window.location.hostname)) return;
-
-  const sid = new URLSearchParams(window.location.search).get("sid") || "";
-  if (!sid) return;
-  if (!localStorage.getItem(`token${sid}`)) {
-    localStorage.setItem(`token${sid}`, "mock-token");
-    localStorage.setItem(`app_id${sid}`, "octo-web");
-  }
-  if (localStorage.getItem(`token${sid}`) === "mock-token") {
-    localStorage.setItem(`uid${sid}`, "pm_chen");
-    localStorage.setItem(`name${sid}`, "陈一");
-  }
-  if (!localStorage.getItem("currentSpaceId") || localStorage.getItem("currentSpaceId") === "mock-space") {
-    localStorage.setItem("currentSpaceId", "space-demo-octo");
-  }
-}
-
-seedLocalDevLogin()
 WKApp.loginInfo.load() // 加载登录信息
 i18n.registerNamespace("app", {
   "zh-CN": appZhCN,

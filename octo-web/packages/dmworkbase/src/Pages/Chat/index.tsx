@@ -12,9 +12,9 @@ import ChatConversationList, {
 import Provider from "../../Service/Provider";
 import { ErrorBoundary } from "../../Components/ErrorBoundary";
 
-import { Spin, Popover } from "@douyinfe/semi-ui";
+import { Spin, Popover, Toast } from "@douyinfe/semi-ui";
 import WKButton from "../../Components/WKButton";
-import WKModal from "../../Components/WKModal";
+import WKModal, { wkConfirm } from "../../Components/WKModal";
 import { Columns2 } from "lucide-react";
 import ThreadIcon from "../../Components/Icons/ThreadIcon";
 import { ChatVM, handleGlobalSearchClick } from "./vm";
@@ -52,6 +52,7 @@ import {
 import FilePreviewPanel, {
   FilePreviewInfo,
 } from "../../Components/FilePreviewPanel";
+import { documentRepository } from "../Documents/service";
 import { FollowSidebarProvider, useFollowSidebarContext } from "../../Hooks/useFollowSidebar";
 import { SidebarTargetType } from "../../Service/SidebarService";
 import { I18nContext, t } from "../../i18n";
@@ -216,6 +217,14 @@ export interface ChatContentPageState {
   /** 总结面板初始视图 */
   summaryPanelView: 'history' | 'new';
 }
+
+function ensureSdkChannel(channel: Channel): Channel {
+  if (channel && typeof (channel as any).getChannelKey === "function") {
+    return channel;
+  }
+  return new Channel(channel.channelID, channel.channelType);
+}
+
 export class ChatContentPage extends Component<
   ChatContentPageProps,
   ChatContentPageState
@@ -335,6 +344,88 @@ export class ChatContentPage extends Component<
       previewReturnMatterId: null,
       previewHadThreadShell: false,
       ...(shouldResetThread ? { showThreadPanel: false, activeThread: null } : {}),
+    });
+  };
+
+  private _archivePreviewFile = async (file: FilePreviewInfo) => {
+    const documentState = await documentRepository.load();
+    let selectedSpaceName = documentState.spaces[0]?.name || "";
+
+    wkConfirm({
+      title: "归档到文档",
+      okText: "归档",
+      cancelText: t("base.common.cancel"),
+      content: (
+        <div>
+          <div
+            style={{
+              marginBottom: "8px",
+              fontSize: "14px",
+              color: "var(--wk-text-secondary)",
+            }}
+          >
+            {file.name || "未命名文件"}
+          </div>
+          <select
+            defaultValue={selectedSpaceName}
+            onChange={(event) => {
+              selectedSpaceName = event.currentTarget.value;
+            }}
+            style={{
+              width: "100%",
+              padding: "10px 12px",
+              background: "var(--wk-bg-base)",
+              border: "1px solid var(--wk-border-default)",
+              borderRadius: "6px",
+              color: "var(--wk-text-primary)",
+              outline: "none",
+            }}
+          >
+            {documentState.spaces.map((space) => (
+              <option key={space.id} value={space.name}>
+                {space.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      ),
+      onOk: async () => {
+        if (!selectedSpaceName) {
+          Toast.warning("请选择归档空间");
+          return;
+        }
+
+        const sourceChannelId = file.sourceChannelId || this.props.channel.channelID;
+        const sourceChannelType =
+          file.sourceChannelType ?? this.props.channel.channelType;
+        const channelInfo = WKSDK.shared().channelManager.getChannelInfo(
+          new Channel(sourceChannelId, sourceChannelType)
+        );
+        const senderInfo = file.fromUID
+          ? WKSDK.shared().channelManager.getChannelInfo(
+              new Channel(file.fromUID, ChannelTypePerson)
+            )
+          : undefined;
+        const actor = WKApp.loginInfo.name || WKApp.loginInfo.uid || "我";
+
+        await documentRepository.archiveMessageFile(
+          {
+            id: `MSG-${file.messageId || `${sourceChannelId}-${file.name}`}`,
+            name: file.name || "未命名文件",
+            extension: file.extension || "",
+            size: file.size || 0,
+            sourceName: channelInfo?.title || sourceChannelId,
+            sourceChannelId,
+            sourceChannelType,
+            sourceType:
+              sourceChannelType === ChannelTypePerson ? "单聊" : "群聊",
+            uploader: senderInfo?.title || file.fromUID || actor,
+          },
+          selectedSpaceName,
+          actor
+        );
+        Toast.success(`已归档到 ${selectedSpaceName}`);
+      },
     });
   };
 
@@ -715,7 +806,8 @@ export class ChatContentPage extends Component<
   }
 
   render(): React.ReactNode {
-    const { channel, initLocateMessageSeq } = this.props;
+    const { initLocateMessageSeq } = this.props;
+    const channel = ensureSdkChannel(this.props.channel);
     const {
       showChannelSetting,
       selectionMode,
@@ -1022,7 +1114,7 @@ export class ChatContentPage extends Component<
         {/* 统一侧边面板：子区 + 文件预览共用一个壳子（仅群聊） */}
         {!isThreadChannel &&
           channel.channelType === ChannelTypeGroup &&
-          WKApp.remoteConfig.threadOn &&
+          (WKApp.remoteConfig.threadOn || previewFile) &&
           (showThreadPanel || previewFile) && (
             <ThreadPanel
               groupNo={channel.channelID}
@@ -1057,6 +1149,7 @@ export class ChatContentPage extends Component<
                 // 触发回复功能，保持文件预览面板打开
                 this.conversationContext?.replyToFileMessage?.(info);
               }}
+              onArchiveFile={this._archivePreviewFile}
               onFilePreviewChange={(file) => {
                 // 切换预览的文件
                 this.setState({
@@ -1080,6 +1173,7 @@ export class ChatContentPage extends Component<
                 // 触发回复功能，保持文件预览面板打开
                 this.conversationContext?.replyToFileMessage?.(info);
               }}
+              onArchiveFile={this._archivePreviewFile}
               onFilePreviewChange={(file) => {
                 // 切换预览的文件
                 this.setState({

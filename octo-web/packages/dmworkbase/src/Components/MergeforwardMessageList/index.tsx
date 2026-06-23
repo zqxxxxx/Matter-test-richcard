@@ -12,13 +12,18 @@ import { Component, ReactNode } from "react";
 import { Toast } from "@douyinfe/semi-ui";
 import { ImageContent } from "../../Messages/Image";
 import { FileContent } from "../../Messages/File/FileContent";
+import { resolveFilePreviewUrl } from "../../Messages/File";
 import { MessageContentTypeConst } from "../../Service/Const";
 import MergeforwardContent from "../../Messages/Mergeforward";
 import { dateFormat, getTimeStringAutoShort2 } from "../../Utils/time";
 import WKAvatar, { isBot } from "../WKAvatar";
 import AiBadge from "../AiBadge";
 import WKApp from "../../App";
-import { downloadFile } from "../../Utils/download";
+import {
+  downloadFile,
+  getPresignedDownloadUrl,
+  getPresignedPreviewUrl,
+} from "../../Utils/download";
 import { isSafeUrl } from "../../Utils/security";
 import { getExtension } from "../FilePreviewPanel/types";
 import MarkdownContent from "../../Messages/Text/MarkdownContent";
@@ -344,14 +349,21 @@ export default class MergeforwardMessageList extends Component<
           className={`wk-mergeforward-file${
             canPreview ? " wk-mergeforward-file--clickable" : ""
           }`}
-          onClick={() => {
-            if (!canPreview) return;
+          onClick={async () => {
             // 与 Messages/File:handlePreview 行为一致 (fix #125)。
             // 合并转发的 inner message 没有 channel/messageSeq 上下文,
             // 因此 sourceChannelId/sourceChannelType/messageSeq 不传 —
             // 预览面板的"回复"能力在这里不适用是预期行为。
+            const previewUrl = await resolveFilePreviewUrl(fileContent, {
+              getFileURL: (path) => WKApp.dataSource.commonDataSource.getFileURL(path),
+              getPresignedPreviewUrl,
+              getPresignedDownloadUrl,
+              isSafeUrl,
+              origin: window.location.origin,
+            });
+            if (!previewUrl) return;
             const previewData = {
-              url,
+              url: previewUrl,
               name: fileName,
               extension: getExtension(fileContent.extension, fileContent.name),
               size: fileContent.size,

@@ -258,6 +258,14 @@ describe("ConversationVM message ordering", () => {
         expect(ConversationVM.sendQueue.get(channel.getChannelKey())?.map((m: any) => m.clientMsgNo)).toEqual(["active"])
     })
 
+    it("adds local sending messages without assigning to the readonly MessageWrap channel getter", () => {
+        const vm = new ConversationVM(channel)
+        const pending = wrap({ clientSeq: 9, clientMsgNo: "pending", timestamp: 300, status: MessageStatus.Wait })
+
+        expect(() => vm.addSendMessageToQueue(pending as any)).not.toThrow()
+        expect(ConversationVM.sendQueue.get(channel.getChannelKey())).toEqual([pending])
+    })
+
     it("scrolls to the expanded row when locating a message inside a fold session", () => {
         const vm = new ConversationVM(channel)
         const message = wrap({ clientMsgNo: "msg-10", messageSeq: 10, timestamp: 100 })
