@@ -11,38 +11,22 @@
 }
 
 .wk-msg-text-content--with-link-preview {
-  width: min(520px, calc(100vw - 168px));
+  width: min(420px, calc(100vw - 168px));
   max-width: 100%;
   box-sizing: border-box;
-  padding: 12px;
-  border-radius: 8px;
-  background: #d6ecff;
-  color: var(--wk-text-primary, #1f2329);
-}
-
-.wk-msg-text-content--with-link-preview a {
-  color: #1f6fe5;
-  font-size: 18px;
-  font-weight: 500;
-  line-height: 25px;
-  text-decoration: none;
-}
-
-.wk-msg-text-content--with-link-preview a:hover {
-  text-decoration: underline;
 }
 
 .wk-msg-link-preview {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 60px;
+  grid-template-columns: minmax(0, 1fr) 48px;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   width: 100%;
-  min-height: 82px;
+  min-height: 72px;
   margin-top: 8px;
-  padding: 14px;
-  border: 0;
-  border-radius: 6px;
+  padding: 12px;
+  border: 1px solid #e5e6eb;
+  border-radius: 8px;
   background: #fff;
   color: inherit;
   text-align: left;
@@ -53,19 +37,20 @@
 
 .wk-msg-link-preview:hover {
   background: #f9fafb;
+  border-color: #d8dadf;
 }
 
 .wk-msg-link-preview-copy {
   display: grid;
-  gap: 6px;
+  gap: 4px;
   min-width: 0;
 }
 
 .wk-msg-link-preview-title {
   color: #1f2329;
-  font-size: 17px;
-  font-weight: 700;
-  line-height: 24px;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 21px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -74,9 +59,9 @@
 .wk-msg-link-preview-desc {
   display: -webkit-box;
   color: #646a73;
-  font-size: 15px;
-  font-weight: 600;
-  line-height: 22px;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 19px;
   overflow: hidden;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
@@ -84,8 +69,8 @@
 
 .wk-msg-link-preview-thumb,
 .wk-msg-link-preview-favicon {
-  width: 60px;
-  height: 60px;
+  width: 48px;
+  height: 48px;
   border-radius: 6px;
   flex: 0 0 auto;
 }
@@ -99,9 +84,9 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: #eef4ff;
-  color: #1f63d8;
-  font-size: 22px;
+  background: #f2f3f5;
+  color: #4e5969;
+  font-size: 18px;
   font-weight: 700;
 }
 
