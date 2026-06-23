@@ -5,7 +5,6 @@ RUN npm install -g pnpm@10
 RUN pnpm config set registry https://registry.npmmirror.com
 RUN git config --global url."https://github.com/".insteadOf "git+ssh://git@github.com/" && git config --global url."https://github.com/".insteadOf "ssh://git@github.com/"
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json ./
-COPY apps/extension/package.json apps/extension/package.json
 COPY apps/web/package.json apps/web/package.json
 COPY packages/dmworkappbot/package.json packages/dmworkappbot/package.json
 COPY packages/dmworkbase/package.json packages/dmworkbase/package.json
