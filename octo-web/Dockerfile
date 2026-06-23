@@ -1,8 +1,21 @@
 FROM node:22.16.0-bookworm AS builder
 WORKDIR /app
 RUN npm install -g pnpm@10
-COPY . .
 RUN git config --global url."https://github.com/".insteadOf "git+ssh://git@github.com/" && git config --global url."https://github.com/".insteadOf "ssh://git@github.com/"
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json ./
+COPY apps/extension/package.json apps/extension/package.json
+COPY apps/web/package.json apps/web/package.json
+COPY packages/dmworkappbot/package.json packages/dmworkappbot/package.json
+COPY packages/dmworkbase/package.json packages/dmworkbase/package.json
+COPY packages/dmworkcontacts/package.json packages/dmworkcontacts/package.json
+COPY packages/dmworkdatasource/package.json packages/dmworkdatasource/package.json
+COPY packages/dmworklogin/package.json packages/dmworklogin/package.json
+COPY packages/dmworksummary/package.json packages/dmworksummary/package.json
+COPY packages/dmworktodo/package.json packages/dmworktodo/package.json
+COPY packages/eslint-config-custom/package.json packages/eslint-config-custom/package.json
+COPY packages/tsconfig/package.json packages/tsconfig/package.json
+RUN pnpm install --frozen-lockfile
+COPY . .
 RUN pnpm install --frozen-lockfile && pnpm turbo run build --filter=@octo/web
 
 FROM nginx:alpine
