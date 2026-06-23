@@ -66,7 +66,7 @@ export default function TextContent({
 
   // 普通文本：复用现有 MarkdownContent 组件
   return (
-    <div className="wk-msg-text-content">
+    <div className={`wk-msg-text-content${linkPreview ? " wk-msg-text-content--with-link-preview" : ""}`}>
       <MarkdownContent
         content={content}
         isSend={false} // 不再区分发送方/接收方
