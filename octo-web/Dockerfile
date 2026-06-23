@@ -1,6 +1,8 @@
+# syntax=docker/dockerfile:1.7
 FROM node:22.16.0-bookworm AS builder
 WORKDIR /app
 RUN npm install -g pnpm@10
+RUN pnpm config set registry https://registry.npmmirror.com
 RUN git config --global url."https://github.com/".insteadOf "git+ssh://git@github.com/" && git config --global url."https://github.com/".insteadOf "ssh://git@github.com/"
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json ./
 COPY apps/extension/package.json apps/extension/package.json
@@ -14,9 +16,9 @@ COPY packages/dmworksummary/package.json packages/dmworksummary/package.json
 COPY packages/dmworktodo/package.json packages/dmworktodo/package.json
 COPY packages/eslint-config-custom/package.json packages/eslint-config-custom/package.json
 COPY packages/tsconfig/package.json packages/tsconfig/package.json
-RUN pnpm install --frozen-lockfile
+RUN --mount=type=cache,id=octo-web-pnpm-store,target=/root/.local/share/pnpm/store pnpm install --frozen-lockfile --prefer-offline
 COPY . .
-RUN pnpm install --frozen-lockfile && pnpm turbo run build --filter=@octo/web
+RUN --mount=type=cache,id=octo-web-pnpm-store,target=/root/.local/share/pnpm/store pnpm install --frozen-lockfile --prefer-offline && pnpm turbo run build --filter=@octo/web
 
 FROM nginx:alpine
 COPY --from=builder /app/docker-entrypoint.sh /docker-entrypoint2.sh 
