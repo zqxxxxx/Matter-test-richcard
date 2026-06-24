@@ -110,7 +110,7 @@ vi.mock("../../../Service/Provider", () => ({
 vi.mock("react-scroll", () => ({ animateScroll: { scrollToBottom: () => {} }, scroller: { scrollTo: () => {} } }))
 vi.mock("../../../Service/Const", () => ({
     EndpointID: {},
-    MessageContentTypeConst: { time: 1001, historySplit: 1002, rtcData: 1003 },
+    MessageContentTypeConst: { time: 1001, historySplit: 1002, rtcData: 1003, typing: 1004, businessCard: 1005 },
     OrderFactor: 10000,
     ChannelTypeCommunityTopic: 6,
 }))
@@ -151,6 +151,7 @@ function wrap(overrides: Record<string, any>) {
         status: overrides.status ?? MessageStatus.Normal,
         fromUID: overrides.fromUID || "me",
         remoteExtra: {},
+        content: overrides.content ?? {},
     }
     const result: any = {
         message,
@@ -163,6 +164,8 @@ function wrap(overrides: Record<string, any>) {
         get fromUID() { return message.fromUID },
         get channel() { return message.channel },
         get contentType() { return message.contentType },
+        get content() { return message.content },
+        set content(value: any) { message.content = value },
         get status() { return message.status },
         set status(value: number) { message.status = value },
         get revoke() { return message.remoteExtra.revoke },
@@ -203,6 +206,66 @@ describe("ConversationVM message ordering", () => {
             "seq2",
             "stale",
         ])
+    })
+
+    it("aggregates same Matter status cards into the latest render message", () => {
+        const vm = new ConversationVM(channel)
+        const first = wrap({
+            clientMsgNo: "matter-1-a",
+            messageSeq: 1,
+            timestamp: 100,
+            contentType: 1005,
+            content: {
+                cardType: "matter_status",
+                entityId: "matter-1",
+                title: "客户合同审批进入法务复核",
+                body: "合同 v3 已提交法务复核。",
+                status: "in_progress",
+                actor: "Brooks",
+                time: "10:12",
+                metrics: [{ label: "进度", value: "2 / 4" }],
+                extra: { statusText: "法务同学正在处理" },
+            },
+        })
+        const second = wrap({
+            clientMsgNo: "matter-1-b",
+            messageSeq: 2,
+            timestamp: 120,
+            contentType: 1005,
+            content: {
+                cardType: "matter_status",
+                entityId: "matter-1",
+                title: "风险说明已回传，等待 PM 确认",
+                body: "法务已给出红线条款说明。",
+                status: "review",
+                actor: "Brooks",
+                time: "10:30",
+                metrics: [{ label: "进度", value: "3 / 4" }],
+                extra: { statusText: "东西回来了，等你确认" },
+            },
+        })
+        const otherMatter = wrap({
+            clientMsgNo: "matter-2",
+            messageSeq: 3,
+            timestamp: 130,
+            contentType: 1005,
+            content: {
+                cardType: "matter_status",
+                entityId: "matter-2",
+                title: "另一事项",
+            },
+        })
+
+        const renderItems = vm.buildRenderItems([first, second, otherMatter]);
+
+        expect(renderItems).toHaveLength(2)
+        expect(renderItems[0]).toMatchObject({ type: "message", message: second })
+        expect((second.content as any).extra.updateCount).toBe(2)
+        expect((second.content as any).extra.statusHistory).toMatchObject([
+            { title: "客户合同审批进入法务复核", status: "in_progress", metrics: [{ label: "进度", value: "2 / 4" }] },
+            { title: "风险说明已回传，等待 PM 确认", status: "review", metrics: [{ label: "进度", value: "3 / 4" }] },
+        ])
+        expect(renderItems[1]).toMatchObject({ type: "message", message: otherMatter })
     })
 
     it("fills a finite temporary order even when the current max message has invalid order", () => {

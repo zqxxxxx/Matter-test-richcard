@@ -33,9 +33,9 @@ export function buildSummaryFeedbackCard(
         id: `summary-${detail.task_id}`,
         cardType: "summary_feedback",
         title: detail.title,
-        subtitle: detail.summary_mode === SummaryMode.BY_PERSON ? "成员总结反馈" : "群总结反馈",
+        subtitle: detail.summary_mode === SummaryMode.BY_PERSON ? "成员总结" : "群总结",
         body,
-        status: "done",
+        status: "pending_confirm",
         source: "智能总结",
         actor: options.actor,
         time: options.time,
@@ -49,10 +49,10 @@ export function buildSummaryFeedbackCard(
             ...(participantCount > 0 ? [{ label: "参与人", value: `${participantCount} 人` }] : []),
         ],
         actions: [
-            { label: "查看总结", type: "open_summary", kind: "primary" },
-            { label: "进入群总结", type: "open_summary_workspace", kind: "secondary" },
+            { label: "进入群总结", type: "open_summary_workspace", kind: "primary" },
             { label: "认可", type: "summary_accept", kind: "secondary" },
             { label: "需要调整", type: "summary_reject", kind: "secondary" },
+            { label: "预览", type: "open_summary", kind: "ghost" },
         ],
     };
 }

@@ -73,7 +73,7 @@ function readMatterCardId(message: MessageWrap): string | undefined {
     if (message.contentType !== MessageContentTypeConst.businessCard) return undefined
     const content = message.content as Partial<BusinessCardContent> & { cardType?: string; entityId?: string; extra?: Record<string, any> }
     if (content.cardType !== "matter_status") return undefined
-    const id = content.entityId || content.extra?.matterId || content.extra?.id
+    const id = content.entityId || content.extra?.matterId || content.extra?.matterNo || content.extra?.id
     return typeof id === "string" && id.length > 0 ? id : undefined
 }
 
@@ -84,6 +84,9 @@ function buildMatterCardHistoryItem(message: MessageWrap) {
         status?: string
         actor?: string
         time?: string
+        priority?: string
+        subtitle?: string
+        metrics?: Array<{ label: string; value: string }>
         extra?: Record<string, any>
     }
     return {
@@ -92,6 +95,10 @@ function buildMatterCardHistoryItem(message: MessageWrap) {
         status: content.status || "",
         statusText: content.extra?.statusText || content.status || "",
         title: content.title || content.body || "",
+        subtitle: content.subtitle || "",
+        body: content.body || "",
+        priority: content.priority || "",
+        metrics: content.metrics || [],
         actor: content.actor || "",
         time: content.time || (message.timestamp ? moment.unix(message.timestamp).format("M/D HH:mm") : ""),
         updatedAt: content.extra?.updatedAt || "",
@@ -121,6 +128,7 @@ function aggregateMatterStatusMessages(messages: MessageWrap[]): MessageWrap[] {
             ...(latestContent.extra || {}),
             updateCount: history.length,
             statusHistory: history,
+            stackedMessageClientMsgNos: group.map((message) => message.clientMsgNo).filter(Boolean),
         }
         if (typeof latestContent.applyPayload === "function") {
             latestContent.applyPayload({ extra } as Partial<BusinessCardContent>)
@@ -398,6 +406,7 @@ export default class ConversationVM extends ProviderListener {
             }
         }
 
+        const aggregatedSourceMessages = aggregateMatterStatusMessages(sourceMessages)
         let pendingSessionMessages = new Array<MessageWrap>()
 
         const flushPendingSession = (isActive: boolean) => {
@@ -452,7 +461,7 @@ export default class ConversationVM extends ProviderListener {
             pendingSessionMessages = []
         }
 
-        for (const message of sourceMessages) {
+        for (const message of aggregatedSourceMessages) {
             if (this.isBotMessage(message)) {
                 if (pendingSessionMessages.length > 0) {
                     const previousMessage = pendingSessionMessages[pendingSessionMessages.length - 1]

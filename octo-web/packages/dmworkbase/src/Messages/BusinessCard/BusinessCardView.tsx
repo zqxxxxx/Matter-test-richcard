@@ -6,6 +6,8 @@ const statusCopy: Record<string, string> = {
   in_progress: "进行中",
   review: "等你看",
   done: "已完成",
+  pending_confirm: "待确认",
+  confirmed: "已确认",
   blocked: "受阻",
   cancelled: "已取消",
   archived: "已归档",
@@ -23,8 +25,12 @@ const cardTypeShortCopy: Record<string, string> = {
   external_link: "链",
 };
 
-const statusTone: Record<string, "success" | "warn" | "error" | "info" | "review"> = {
+type CardTone = "success" | "warn" | "error" | "info" | "review" | "summary-pending" | "summary-confirmed";
+
+const statusTone: Record<string, CardTone> = {
   done: "success",
+  confirmed: "summary-confirmed",
+  pending_confirm: "summary-pending",
   blocked: "warn",
   review: "review",
   archived: "success",
@@ -36,17 +42,12 @@ function getActionClassName(action: BusinessCardAction) {
   return `wk-business-card-action wk-business-card-action--${action.kind ?? "secondary"}`;
 }
 
-function insertAfterAction(actions: BusinessCardAction[], afterType: string, action: BusinessCardAction) {
-  const insertIndex = actions.findIndex((item) => item.type === afterType);
-  if (insertIndex < 0) return [...actions, action];
-  return [...actions.slice(0, insertIndex + 1), action, ...actions.slice(insertIndex + 1)];
-}
-
 export function getBusinessCardActions(card: BusinessCardPayload): BusinessCardAction[] {
   const actions = card.actions ?? [];
   const hasAction = (type: string) => actions.some((action) => action.type === type);
+  const cardType = getCardType(card);
 
-  if (card.cardType === "matter_status") {
+  if (cardType === "matter_status") {
     const normalized = actions.map((action) => {
       if (action.type === "open_matter_workspace") {
         return { ...action, label: "进入 Matter", kind: "primary" as const };
@@ -86,11 +87,50 @@ export function getBusinessCardActions(card: BusinessCardPayload): BusinessCardA
     });
   }
 
-  if (card.cardType === "summary_feedback" && !hasAction("open_summary_workspace")) {
-    return insertAfterAction(actions, "open_summary", {
-      label: "进入群总结",
-      type: "open_summary_workspace",
-      kind: "secondary",
+  if (cardType === "summary_feedback") {
+    const confirmed = isSummaryConfirmed(card);
+    const normalized = actions
+      .map((action) => {
+        if (action.type === "open_summary_workspace") {
+          return { ...action, label: "进入群总结", kind: "primary" as const };
+        }
+        if (action.type === "open_summary") {
+          return { ...action, label: "预览", kind: "ghost" as const };
+        }
+        return action;
+      })
+      .filter((action) => {
+        if (!confirmed) return true;
+        return action.type !== "summary_accept" && action.type !== "summary_reject";
+      });
+    const withPreview = hasAction("open_summary")
+      ? normalized
+      : [
+          ...normalized,
+          {
+            label: "预览",
+            type: "open_summary",
+            kind: "ghost" as const,
+          },
+        ];
+    const withWorkspace = hasAction("open_summary_workspace")
+      ? withPreview
+      : [
+          {
+            label: "进入群总结",
+            type: "open_summary_workspace",
+            kind: "primary" as const,
+          },
+          ...withPreview,
+        ];
+    return withWorkspace.sort((left, right) => {
+      const rank = (action: BusinessCardAction) => {
+        if (action.type === "open_summary_workspace") return 0;
+        if (action.type === "summary_accept" || action.type === "summary_reject") return 1;
+        if (action.type === "open_summary") return 2;
+        return 1;
+      };
+      return rank(left) - rank(right);
     });
   }
 
@@ -102,13 +142,14 @@ function getPrimaryActions(actions: BusinessCardAction[]) {
 }
 
 function getPreviewAction(actions: BusinessCardAction[], cardType: string) {
-  if (cardType !== "matter_status") return undefined;
-  return actions.find((action) => action.type === "open_matter");
+  if (cardType === "matter_status") return actions.find((action) => action.type === "open_matter");
+  if (cardType === "summary_feedback") return actions.find((action) => action.type === "open_summary");
+  return undefined;
 }
 
 function getTimelineActionLabel(count: number, expanded: boolean) {
   if (count <= 1) return expanded ? "收起" : "展开";
-  return expanded ? "收起更新" : `展开 ${count} 条更新`;
+  return expanded ? "收起更新" : `展开 ${count}`;
 }
 
 function getStatusHistory(card: BusinessCardPayload) {
@@ -121,11 +162,25 @@ function getStatusHistory(card: BusinessCardPayload) {
         id: String(item.id ?? item.messageId ?? item.status ?? item.time ?? index),
         status: String(item.statusText ?? item.status ?? ""),
         title: String(item.title ?? item.body ?? item.description ?? ""),
+        subtitle: String(item.subtitle ?? ""),
+        body: String(item.body ?? item.description ?? ""),
+        priority: String(item.priority ?? ""),
+        metrics: Array.isArray(item.metrics) ? item.metrics : [],
         time: String(item.time ?? item.updatedAt ?? ""),
         actor: String(item.actor ?? ""),
       };
     })
-    .filter((item): item is { id: string; status: string; title: string; time: string; actor: string } => !!item?.title || !!item?.status)
+    .filter((item): item is {
+      id: string;
+      status: string;
+      title: string;
+      subtitle: string;
+      body: string;
+      priority: string;
+      metrics: Array<{ label: string; value: string }>;
+      time: string;
+      actor: string;
+    } => !!item?.title || !!item?.status)
     .slice(-6);
 }
 
@@ -210,28 +265,20 @@ function getMatterAgent(card: BusinessCardPayload) {
   };
 }
 
-function getMatterTrail(card: BusinessCardPayload) {
-  const trail = card.extra?.trail;
-  if (!Array.isArray(trail)) return [];
-  return trail
-    .map((item) => {
-      if (typeof item === "string") return { label: "", title: item };
-      if (!item || typeof item !== "object") return null;
-      return {
-        label: String(item.label ?? item.phase ?? ""),
-        title: String(item.title ?? item.text ?? item.content ?? ""),
-      };
-    })
-    .filter((item): item is { label: string; title: string } => !!item?.title)
-    .slice(0, 4);
-}
-
-function getMatterOutputChips(card: BusinessCardPayload) {
-  return asTextArray(card.extra?.outputs || card.extra?.outputChips || card.extra?.artifacts).slice(0, 3);
-}
-
 function getCardType(card: BusinessCardPayload) {
   return String(card.cardType || (card as any).card_type || "").trim();
+}
+
+function isSummaryConfirmed(card: BusinessCardPayload) {
+  return card.status === "confirmed" || card.status === "accepted" || card.extra?.confirmed === true || !!card.extra?.confirmedAt;
+}
+
+function getSummaryStatusLabel(card: BusinessCardPayload) {
+  return isSummaryConfirmed(card) ? "已确认" : "待确认";
+}
+
+function getSummaryTone(card: BusinessCardPayload): CardTone {
+  return isSummaryConfirmed(card) ? "summary-confirmed" : "summary-pending";
 }
 
 function isExternalLinkCard(card: BusinessCardPayload) {
@@ -334,27 +381,37 @@ export function BusinessCardView({ card, actionLoadingType, onAction }: Business
   const statusLabel = card.status ? statusCopy[card.status] ?? card.status : "";
   const typeLabel = cardTypeCopy[cardType] ?? "业务卡片";
   const shortTypeLabel = cardTypeShortCopy[cardType] ?? "卡";
-  const tone = statusTone[card.status ?? ""] ?? "info";
+  const isMatterCard = cardType === "matter_status";
+  const isSummaryCard = cardType === "summary_feedback";
+  const summaryStatusLabel = isSummaryCard ? getSummaryStatusLabel(card) : "";
+  const tone = isSummaryCard ? getSummaryTone(card) : statusTone[card.status ?? ""] ?? "info";
   const progressPercent = getProgressPercent(card);
   const sourceText = getSourceText(card);
   const actions = getBusinessCardActions(card);
   const primaryActions = getPrimaryActions(actions);
   const previewAction = getPreviewAction(actions, cardType);
-  const isMatterCard = cardType === "matter_status";
   const matterStatusText = isMatterCard ? getMatterStatusText(card) : undefined;
   const matterAgent = isMatterCard ? getMatterAgent(card) : undefined;
-  const matterTrail = isMatterCard ? getMatterTrail(card) : [];
-  const matterOutputs = isMatterCard ? getMatterOutputChips(card) : [];
   const statusHistory = isMatterCard ? getStatusHistory(card) : [];
   const updateCount = Number(card.extra?.updateCount || statusHistory.length || 0);
-  const hasMatterExpandedContent = isMatterCard && (!!sourceText || matterTrail.length > 0 || matterOutputs.length > 0 || statusHistory.length > 1);
+  const visibleUpdateCount = Math.max(updateCount, statusHistory.length);
+  const hasMatterExpandedContent = isMatterCard && visibleUpdateCount > 1 && statusHistory.length > 1;
+  const shouldShowCardStack = !expanded && isMatterCard && visibleUpdateCount > 1;
+  const latestHistoryItem = statusHistory.length > 0 ? statusHistory[statusHistory.length - 1] : undefined;
   const handlePreview = () => {
     if (previewAction) onAction?.(previewAction);
   };
 
   return (
     <article
-      className={`wk-business-card wk-business-card--${cardType} wk-business-card--tone-${tone}${previewAction ? " wk-business-card--previewable" : ""}`}
+      className={[
+        "wk-business-card",
+        `wk-business-card--${cardType}`,
+        `wk-business-card--tone-${tone}`,
+        previewAction ? "wk-business-card--previewable" : "",
+        shouldShowCardStack ? "wk-business-card--stacked" : "",
+        expanded ? "wk-business-card--expanded" : "",
+      ].filter(Boolean).join(" ")}
       aria-label={typeLabel}
       role={previewAction ? "button" : undefined}
       tabIndex={previewAction ? 0 : undefined}
@@ -367,6 +424,12 @@ export function BusinessCardView({ card, actionLoadingType, onAction }: Business
         }
       }}
     >
+      {shouldShowCardStack && (
+        <div className="wk-business-card-stack-layers" aria-hidden="true">
+          <span className="wk-business-card-stack-layer wk-business-card-stack-layer--middle" />
+          <span className="wk-business-card-stack-layer wk-business-card-stack-layer--back" />
+        </div>
+      )}
       <div className="wk-business-card-main">
         <header className="wk-business-card-head">
           <span className="wk-business-card-type-mark" aria-hidden="true">{shortTypeLabel}</span>
@@ -381,7 +444,11 @@ export function BusinessCardView({ card, actionLoadingType, onAction }: Business
           </div>
           <div className="wk-business-card-badges">
             {card.priority && <span className="wk-business-card-badge wk-business-card-badge--priority">{card.priority}</span>}
-            {statusLabel && <span className={`wk-business-card-badge wk-business-card-badge--${tone}`}>{statusLabel}</span>}
+            {(summaryStatusLabel || statusLabel) && (
+              <span className={`wk-business-card-badge wk-business-card-badge--${tone}`}>
+                {summaryStatusLabel || statusLabel}
+              </span>
+            )}
           </div>
         </header>
 
@@ -410,44 +477,46 @@ export function BusinessCardView({ card, actionLoadingType, onAction }: Business
             <span className="wk-business-card-agent-name">{matterAgent.name}</span>
             <span className="wk-business-card-agent-meta">· {matterAgent.role}</span>
             {matterAgent.participantText && <span className="wk-business-card-agent-meta">· {matterAgent.participantText}</span>}
-            {updateCount > 1 && <span className="wk-business-card-agent-meta">· 已更新 {updateCount} 次</span>}
+            {visibleUpdateCount > 1 && <span className="wk-business-card-agent-meta">· 已更新 {visibleUpdateCount} 次</span>}
             {matterAgent.pills.map((pill) => (
               <span className="wk-business-card-agent-pill" key={pill}>{pill}</span>
             ))}
           </div>
         )}
 
-        {sourceText && (!isMatterCard || expanded) && <div className="wk-business-card-source">{sourceText}</div>}
+        {sourceText && !isMatterCard && <div className="wk-business-card-source">{sourceText}</div>}
 
-        {isMatterCard && expanded && !!matterOutputs.length && (
-          <div className="wk-business-card-chips" aria-label="Matter 产出">
-            {matterOutputs.map((item) => <span key={item}>{item}</span>)}
+        {isMatterCard && !expanded && visibleUpdateCount > 1 && (
+          <div className="wk-business-card-stack-note">
+            <span>同一 Matter 已合并 {visibleUpdateCount} 次状态更新</span>
+            {latestHistoryItem?.time && <span>{latestHistoryItem.time}</span>}
           </div>
         )}
 
-        {isMatterCard && expanded && !!matterTrail.length && (
-          <div className="wk-business-card-trail" aria-label="Matter 编排记录">
-            {matterTrail.map((item, index) => (
-              <div className="wk-business-card-trail-step" key={`${item.label}-${item.title}-${index}`}>
-                {item.label && <span>{item.label}</span>}
-                <strong>{item.title}</strong>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {isMatterCard && expanded && statusHistory.length > 1 && (
-          <div className="wk-business-card-updates" aria-label="Matter 状态更新">
-            {statusHistory.map((item, index) => (
-              <div className="wk-business-card-update" key={`${item.id}-${index}`}>
-                <span className="wk-business-card-update-dot" aria-hidden="true" />
-                <div className="wk-business-card-update-copy">
-                  <strong>{item.status || "状态更新"}</strong>
-                  <span>{[item.actor, item.time].filter(Boolean).join(" · ")}</span>
-                  {item.title && <p>{item.title}</p>}
+        {hasMatterExpandedContent && (
+          <div className={`wk-business-card-history${expanded ? " wk-business-card-history--open" : ""}`} aria-label="Matter 历史状态" aria-hidden={!expanded}>
+            <div className="wk-business-card-history-inner">
+              {statusHistory.map((item, index) => (
+                <div className={`wk-business-card-history-card${index === statusHistory.length - 1 ? " wk-business-card-history-card--latest" : ""}`} key={`${item.id}-${index}`}>
+                  <div className="wk-business-card-history-head">
+                    <span>{item.status || "状态更新"}</span>
+                    <time>{[item.actor, item.time, index === statusHistory.length - 1 ? "最新" : ""].filter(Boolean).join(" · ")}</time>
+                  </div>
+                  <strong>{item.title}</strong>
+                  {item.body && item.body !== item.title && <p>{item.body}</p>}
+                  {!!item.metrics?.length && (
+                    <dl>
+                      {item.metrics.slice(0, 3).map((metric) => (
+                        <div key={`${item.id}-${metric.label}-${metric.value}`}>
+                          <dt>{metric.label}</dt>
+                          <dd>{metric.value}</dd>
+                        </div>
+                      ))}
+                    </dl>
+                  )}
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         )}
 
@@ -479,7 +548,7 @@ export function BusinessCardView({ card, actionLoadingType, onAction }: Business
                   setExpanded((value) => !value);
                 }}
               >
-                {getTimelineActionLabel(Math.max(updateCount, statusHistory.length), expanded)}
+                {getTimelineActionLabel(visibleUpdateCount, expanded)}
               </button>
             )}
             {previewAction && (

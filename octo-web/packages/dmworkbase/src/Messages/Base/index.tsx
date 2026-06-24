@@ -135,6 +135,9 @@ export default class MessageBase extends Component<MessageBaseProps, any> {
 
   forceStandalone() {
     const { context, message } = this.props;
+    if (message.contentType === MessageContentTypeConst.businessCard) {
+      return true;
+    }
     return context.forceStandaloneMessage?.(message.message) || false;
   }
 
