@@ -22,6 +22,11 @@ import { getStatusLabel } from "../utils/summaryHelpers";
 import SummaryCard from "../components/SummaryCard";
 import SummaryCreatePage from "./SummaryCreatePage";
 import SummaryDetailPage from "./SummaryDetailPage";
+import {
+    consumePendingSummaryWorkspaceOpen,
+    SUMMARY_WORKSPACE_OPEN_EVENT,
+    type SummaryWorkspaceOpenPayload,
+} from "../utils/summaryWorkspaceNavigation";
 
 interface SummaryListPageState {
     items: SummaryListItem[];
@@ -32,6 +37,7 @@ interface SummaryListPageState {
     error: string | null;
     statusFilter: TaskStatusType | undefined;
     keyword: string;
+    activeTaskId: number | null;
 }
 
 const getStatusOptions = () => [
@@ -57,6 +63,7 @@ export default class SummaryListPage extends Component<{}, SummaryListPageState>
         error: null,
         statusFilter: undefined,
         keyword: "",
+        activeTaskId: consumePendingSummaryWorkspaceOpen()?.taskId ?? null,
     };
 
     private searchTimer: ReturnType<typeof setTimeout> | null = null;
@@ -73,10 +80,23 @@ export default class SummaryListPage extends Component<{}, SummaryListPageState>
         }
     };
 
+    private handleSummaryWorkspaceOpen_ = ({ taskId }: SummaryWorkspaceOpenPayload) => {
+        this.setState(
+            {
+                activeTaskId: taskId,
+                page: 1,
+                statusFilter: undefined,
+                keyword: "",
+            },
+            () => this.loadData(),
+        );
+    };
+
     componentDidMount() {
         this.loadData();
         WKApp.mittBus.on("summary-space-changed", this.handleSpaceChanged_);
         WKApp.mittBus.on("wk:nav-menu-activated", this.handleNavMenuActivated_);
+        WKApp.mittBus.on(SUMMARY_WORKSPACE_OPEN_EVENT, this.handleSummaryWorkspaceOpen_);
         window.addEventListener("summary-task-regenerated", this.handleTaskRegenerated_);
     }
 
@@ -86,6 +106,7 @@ export default class SummaryListPage extends Component<{}, SummaryListPageState>
         this.stopBatchPoll();
         WKApp.mittBus.off("summary-space-changed", this.handleSpaceChanged_);
         WKApp.mittBus.off("wk:nav-menu-activated", this.handleNavMenuActivated_);
+        WKApp.mittBus.off(SUMMARY_WORKSPACE_OPEN_EVENT, this.handleSummaryWorkspaceOpen_);
         window.removeEventListener("summary-task-regenerated", this.handleTaskRegenerated_);
     }
 
@@ -103,6 +124,7 @@ export default class SummaryListPage extends Component<{}, SummaryListPageState>
             this.setState({ items: resp.items, total: resp.total, loading: false }, () => {
                 this.maybeStartBatchPoll();
                 this.emitBadgeUpdate();
+                this.scrollActiveTaskIntoView();
             });
         } catch (err: any) {
             this.setState({ error: err.message || t("summary.common.loadingFailed"), loading: false });
@@ -225,9 +247,21 @@ export default class SummaryListPage extends Component<{}, SummaryListPageState>
     };
 
     handleCardClick = (taskId: number) => {
+        this.setState({ activeTaskId: taskId }, () => this.scrollActiveTaskIntoView());
         WKApp.routeRight.popToRoot();
         WKApp.routeRight.push(<SummaryDetailPage taskId={taskId} />);
     };
+
+    private scrollActiveTaskIntoView() {
+        const { activeTaskId } = this.state;
+        if (!activeTaskId) return;
+        window.requestAnimationFrame(() => {
+            const target = document.querySelector(
+                `[data-summary-task-id="${activeTaskId}"]`,
+            ) as HTMLElement | null;
+            target?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+        });
+    }
 
     handleRespond = async (taskId: number, action: "accept" | "reject") => {
         try {
@@ -337,6 +371,7 @@ export default class SummaryListPage extends Component<{}, SummaryListPageState>
                                     onClick={this.handleCardClick}
                                     onDelete={this.handleDelete}
                                     onRespond={this.handleRespond}
+                                    active={item.task_id === this.state.activeTaskId}
                                 />
                             ))}
                         </div>

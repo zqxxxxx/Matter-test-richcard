@@ -147,6 +147,12 @@
     transform: translateY(-1px);
 }
 
+.summary-card-active {
+    border-color: rgba(22, 100, 255, 0.34);
+    background: rgba(22, 100, 255, 0.035);
+    box-shadow: inset 3px 0 0 rgba(22, 100, 255, 0.62);
+}
+
 .summary-card-header {
     display: flex;
     align-items: center;
@@ -339,6 +345,10 @@
 }
 
 .summary-detail-return-chat {
+    position: fixed;
+    top: 14px;
+    left: calc(var(--wk-width-layout-tab, 56px) + 16px);
+    z-index: 901;
     flex-shrink: 0;
     height: 32px;
     padding: 0 12px;
@@ -366,6 +376,11 @@
 .summary-detail-return-chat:focus-visible {
     outline: 2px solid var(--semi-color-primary);
     outline-offset: 2px;
+}
+
+.wk-summary-panel-detail .summary-detail-return-chat {
+    position: static;
+    box-shadow: none;
 }
 
 .summary-detail-title {

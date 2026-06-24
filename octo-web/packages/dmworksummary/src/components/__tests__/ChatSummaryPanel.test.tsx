@@ -122,6 +122,34 @@ describe('ChatSummaryPanel', () => {
         expect(screen.getByTestId('summary-history')).toBeInTheDocument();
     });
 
+    it('reopens detail when the same summary preview request is triggered again', () => {
+        const { rerender } = render(
+            <ChatSummaryPanel
+                visible
+                channel={channel}
+                initialTaskId={42}
+                openRequestKey={1}
+                onClose={onClose}
+            />,
+        );
+        expect(screen.getByTestId('summary-detail').dataset.taskId).toBe('42');
+
+        fireEvent.click(screen.getByText('返回'));
+        expect(screen.queryByTestId('summary-detail')).not.toBeInTheDocument();
+
+        rerender(
+            <ChatSummaryPanel
+                visible
+                channel={channel}
+                initialTaskId={42}
+                openRequestKey={2}
+                onClose={onClose}
+            />,
+        );
+
+        expect(screen.getByTestId('summary-detail').dataset.taskId).toBe('42');
+    });
+
     it('closes the panel via the close button in list view', () => {
         render(<ChatSummaryPanel visible channel={channel} onClose={onClose} />);
         fireEvent.click(screen.getByTestId('close-icon').closest('button')!);

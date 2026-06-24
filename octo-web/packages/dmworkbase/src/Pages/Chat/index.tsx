@@ -216,9 +216,11 @@ export interface ChatContentPageState {
   /** 智能总结面板是否显示 */
   showSummaryPanel: boolean;
   /** 总结面板初始视图 */
-  summaryPanelView: 'history' | 'new';
+  summaryPanelView: 'history' | 'new' | 'detail';
   /** 当前需要在总结面板中打开的总结任务 */
   activeSummaryTaskId: number | null;
+  /** 总结卡片预览打开请求序号：同一条总结重复点击也要回到详情 */
+  summaryPanelOpenRequestKey: number;
 }
 export class ChatContentPage extends Component<
   ChatContentPageProps,
@@ -249,6 +251,7 @@ export class ChatContentPage extends Component<
       showSummaryPanel: false,
       summaryPanelView: 'new',
       activeSummaryTaskId: null,
+      summaryPanelOpenRequestKey: 0,
     };
   }
 
@@ -463,6 +466,10 @@ export class ChatContentPage extends Component<
           showSummaryPanel: opening,
           summaryPanelView: opening ? data.summaryPanelView : prevState.summaryPanelView,
           activeSummaryTaskId: opening ? data.taskId ?? null : prevState.activeSummaryTaskId,
+          summaryPanelOpenRequestKey:
+            opening && data.taskId != null
+              ? prevState.summaryPanelOpenRequestKey + 1
+              : prevState.summaryPanelOpenRequestKey,
           showMatterPanel: opening ? false : prevState.showMatterPanel,
           showMatterDetailPanel: opening ? false : prevState.showMatterDetailPanel,
           showThreadPanel: opening ? false : prevState.showThreadPanel,
@@ -614,7 +621,7 @@ export class ChatContentPage extends Component<
   private _onToggleSummaryPanel?: (data: {
     channelId: string;
     channelType: number;
-    summaryPanelView: 'history' | 'new';
+    summaryPanelView: 'history' | 'new' | 'detail';
     taskId?: number;
     forceOpen?: boolean;
   }) => void;
@@ -741,6 +748,7 @@ export class ChatContentPage extends Component<
       showSummaryPanel,
       summaryPanelView,
       activeSummaryTaskId,
+      summaryPanelOpenRequestKey,
     } = this.state;
     // 子区页面不显示讨论串按钮
     const isThreadChannel = channel.channelType === ChannelTypeCommunityTopic;
@@ -1149,6 +1157,7 @@ export class ChatContentPage extends Component<
               channel,
               () => this.setState({ showSummaryPanel: false }),
               activeSummaryTaskId ?? undefined,
+              summaryPanelOpenRequestKey,
             )}
           </div>
         )}

@@ -90,11 +90,12 @@ export class SummaryModule implements IModule {
 
         WKApp.endpoints.registerChatSummaryPanel(
             "chatsummarypanel",
-            ({ channel, onClose, activeTaskId }) => (
+            ({ channel, onClose, activeTaskId, openRequestKey }) => (
                 <ChatSummaryPanel
                     visible={true}
                     channel={channel}
                     initialTaskId={activeTaskId}
+                    openRequestKey={openRequestKey}
                     onClose={onClose}
                 />
             ),
@@ -127,7 +128,7 @@ export class SummaryModule implements IModule {
                 WKApp.mittBus.emit("wk:toggle-summary-panel", {
                     channelId,
                     channelType,
-                    summaryPanelView: "history",
+                    summaryPanelView: "detail",
                     taskId,
                     forceOpen: true,
                 });

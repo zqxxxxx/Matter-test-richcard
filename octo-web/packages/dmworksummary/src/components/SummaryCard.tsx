@@ -13,9 +13,10 @@ interface SummaryCardProps {
     onClick: (taskId: number) => void;
     onDelete: (taskId: number) => void;
     onRespond?: (taskId: number, action: "accept" | "reject") => void;
+    active?: boolean;
 }
 
-const SummaryCard: React.FC<SummaryCardProps> = ({ task, onClick, onDelete, onRespond }) => {
+const SummaryCard: React.FC<SummaryCardProps> = ({ task, onClick, onDelete, onRespond, active = false }) => {
     const { t } = useI18n();
     const currentUid = WKApp.loginInfo.uid;
     const myParticipant = task.participants?.find((p) => p.user_id === currentUid);
@@ -27,7 +28,11 @@ const SummaryCard: React.FC<SummaryCardProps> = ({ task, onClick, onDelete, onRe
     const isScheduledTask = (task.schedule_id != null && task.schedule_id > 0) || task.trigger_type === TriggerType.SCHEDULED;
 
     return (
-        <div className="summary-card" onClick={() => onClick(task.task_id)}>
+        <div
+            className={`summary-card${active ? " summary-card-active" : ""}`}
+            data-summary-task-id={task.task_id}
+            onClick={() => onClick(task.task_id)}
+        >
             <div className="summary-card-header">
                 <OverflowTooltip className="summary-card-title" title={task.title || task.task_no}>
                     {task.title || task.task_no}

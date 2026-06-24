@@ -14,6 +14,7 @@ interface ChatSummaryPanelProps {
     visible: boolean;
     channel: { channelID: string; channelType: number };
     initialTaskId?: number;
+    openRequestKey?: number;
     onClose: () => void;
 }
 
@@ -70,7 +71,10 @@ export default class ChatSummaryPanel extends Component<
             );
             return;
         }
-        if (prevProps.initialTaskId !== this.props.initialTaskId) {
+        if (
+            prevProps.initialTaskId !== this.props.initialTaskId ||
+            prevProps.openRequestKey !== this.props.openRequestKey
+        ) {
             this.setState(
                 this.props.initialTaskId
                     ? { view: 'detail', selectedTaskId: this.props.initialTaskId }

@@ -354,11 +354,13 @@ export class EndpointCommon {
     channel: Channel,
     onClose: () => void,
     activeTaskId?: number,
+    openRequestKey?: number,
   ): JSX.Element | undefined {
     return EndpointManager.shared.invoke(EndpointCategory.chatSummaryPanel, {
       channel,
       onClose,
       activeTaskId,
+      openRequestKey,
     });
   }
 
