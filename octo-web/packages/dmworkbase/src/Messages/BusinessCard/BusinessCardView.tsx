@@ -8,6 +8,8 @@ const statusCopy: Record<string, string> = {
   done: "已完成",
   pending_confirm: "待确认",
   confirmed: "已确认",
+  revised: "已修订",
+  failed: "失败",
   blocked: "受阻",
   cancelled: "已取消",
   archived: "已归档",
@@ -31,6 +33,8 @@ const statusTone: Record<string, CardTone> = {
   done: "success",
   confirmed: "summary-confirmed",
   pending_confirm: "summary-pending",
+  revised: "summary-pending",
+  failed: "warn",
   blocked: "warn",
   review: "review",
   archived: "success",
@@ -168,6 +172,7 @@ function getStatusHistory(card: BusinessCardPayload) {
         metrics: Array.isArray(item.metrics) ? item.metrics : [],
         time: String(item.time ?? item.updatedAt ?? ""),
         actor: String(item.actor ?? ""),
+        sourceText: String(item.sourceText ?? item.source ?? ""),
       };
     })
     .filter((item): item is {
@@ -180,6 +185,7 @@ function getStatusHistory(card: BusinessCardPayload) {
       metrics: Array<{ label: string; value: string }>;
       time: string;
       actor: string;
+      sourceText: string;
     } => !!item?.title || !!item?.status)
     .slice(-6);
 }
@@ -274,10 +280,14 @@ function isSummaryConfirmed(card: BusinessCardPayload) {
 }
 
 function getSummaryStatusLabel(card: BusinessCardPayload) {
+  if (card.status === "failed") return "失败";
+  if (card.status === "revised") return "已修订";
   return isSummaryConfirmed(card) ? "已确认" : "待确认";
 }
 
 function getSummaryTone(card: BusinessCardPayload): CardTone {
+  if (card.status === "failed") return "warn";
+  if (card.status === "revised") return "summary-pending";
   return isSummaryConfirmed(card) ? "summary-confirmed" : "summary-pending";
 }
 
@@ -504,6 +514,7 @@ export function BusinessCardView({ card, actionLoadingType, onAction }: Business
                   </div>
                   <strong>{item.title}</strong>
                   {item.body && item.body !== item.title && <p>{item.body}</p>}
+                  {item.sourceText && <span className="wk-business-card-history-source">来源：{item.sourceText}</span>}
                   {!!item.metrics?.length && (
                     <dl>
                       {item.metrics.slice(0, 3).map((metric) => (

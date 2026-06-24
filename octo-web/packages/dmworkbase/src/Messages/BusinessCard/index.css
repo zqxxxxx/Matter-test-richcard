@@ -621,6 +621,14 @@
   line-height: 18px;
 }
 
+.wk-business-card-history-source {
+  display: block;
+  margin-top: 2px;
+  color: var(--wk-text-tertiary, #8f959e);
+  font-size: 12px;
+  line-height: 18px;
+}
+
 .wk-business-card-history-card dl {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -777,6 +785,8 @@
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
+  position: relative;
+  z-index: 4;
   padding-top: 10px;
   border-top: 1px solid rgba(0, 0, 0, 0.06);
 }

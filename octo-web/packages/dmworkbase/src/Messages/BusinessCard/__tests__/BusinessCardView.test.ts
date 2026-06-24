@@ -174,6 +174,31 @@ describe("BusinessCardView actions", () => {
     expect(html).not.toContain("wk-business-card--stacked");
   });
 
+  it("renders revised and failed summary statuses with restrained tones", () => {
+    const revisedCard: BusinessCardPayload = {
+      id: "summary-revised",
+      cardType: "summary_feedback",
+      title: "6月23日业务推进总结",
+      status: "revised",
+    };
+    const failedCard: BusinessCardPayload = {
+      id: "summary-failed",
+      cardType: "summary_feedback",
+      title: "6月23日业务推进总结",
+      status: "failed",
+    };
+
+    const revisedHtml = renderToStaticMarkup(React.createElement(BusinessCardView, { card: revisedCard }));
+    const failedHtml = renderToStaticMarkup(React.createElement(BusinessCardView, { card: failedCard }));
+
+    expect(revisedHtml).toContain("已修订");
+    expect(revisedHtml).toContain("wk-business-card--tone-summary-pending");
+    expect(failedHtml).toContain("失败");
+    expect(failedHtml).toContain("wk-business-card--tone-warn");
+    expect(revisedHtml).not.toContain("wk-business-card--stacked");
+    expect(failedHtml).not.toContain("wk-business-card--stacked");
+  });
+
   it("renders matter review cards with the richer Matter field hierarchy", () => {
     const card: BusinessCardPayload = {
       id: "matter-review",
@@ -205,8 +230,8 @@ describe("BusinessCardView actions", () => {
         outputs: ["风险说明", "审批结论"],
         updateCount: 2,
         statusHistory: [
-          { id: "history-1", statusText: "法务同学正在处理", title: "合同进入法务复核", actor: "Brooks", time: "10:12" },
-          { id: "history-2", statusText: "东西回来了，等你确认", title: "风险说明已回传", actor: "Brooks", time: "10:30" },
+          { id: "history-1", statusText: "法务同学正在处理", title: "合同进入法务复核", actor: "Brooks", time: "10:12", sourceText: "客户要求补充风险条款" },
+          { id: "history-2", statusText: "东西回来了，等你确认", title: "风险说明已回传", actor: "Brooks", time: "10:30", sourceText: "法务提交风险说明" },
         ],
       },
     };
@@ -224,6 +249,8 @@ describe("BusinessCardView actions", () => {
     expect(html).toContain("wk-business-card-history");
     expect(html).toContain("合同进入法务复核");
     expect(html).toContain("风险说明已回传");
+    expect(html).toContain("来源：客户要求补充风险条款");
+    expect(html).toContain("来源：法务提交风险说明");
     expect(html).toContain("展开 2");
   });
 });

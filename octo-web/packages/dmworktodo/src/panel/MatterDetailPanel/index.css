@@ -64,6 +64,14 @@
   line-height: 18px;
 }
 
+.wk-mp-header__fallback-title {
+  margin: 0;
+  color: var(--wk-text-primary, #1f2329);
+  font-size: var(--wk-text-size-md, 14px);
+  font-weight: var(--wk-font-medium, 500);
+  line-height: 20px;
+}
+
 .wk-mp-header__left {
   display: flex;
   flex-direction: column;

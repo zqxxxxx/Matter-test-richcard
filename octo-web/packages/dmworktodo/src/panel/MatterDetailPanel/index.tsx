@@ -534,20 +534,21 @@ export default function MatterDetailPanel({
   );
 
   const handleOpenMatterWorkspace = useCallback(() => {
-    if (!matter) return;
-    const targetChannelId = channelId || matter.source_channel_id;
-    const targetChannelType = channelId ? _channelType : matter.source_channel_type;
+    const id = matter?.id || matterId;
+    if (!id) return;
+    const targetChannelId = channelId || matter?.source_channel_id;
+    const targetChannelType = channelId ? _channelType : matter?.source_channel_type;
     openMatterWorkspace(
-      matter.id,
+      id,
       targetChannelId && targetChannelType != null
         ? {
             channelId: targetChannelId,
             channelType: targetChannelType,
-            label: matter.source_name || matter.channels?.[0]?.channel_name,
+            label: matter?.source_name || matter?.channels?.[0]?.channel_name,
           }
         : undefined,
     );
-  }, [matter, channelId, _channelType]);
+  }, [matter, matterId, channelId, _channelType]);
 
   const handleDeleteMatter = useCallback(async () => {
     if (!matter) return;
@@ -931,12 +932,60 @@ export default function MatterDetailPanel({
 
   // ── Empty / Loading / Error ──
 
-  if (!matterId || loading || error || !matter) {
+  if (!matterId) {
     return (
       <main className="wk-mp-main">
         <div className="wk-mp-main__empty">
-          {loading ? t("todo.state.loading") : error || t("todo.state.selectMatter")}
+          {t("todo.state.selectMatter")}
         </div>
+      </main>
+    );
+  }
+
+  if (loading || error || !matter) {
+    const stateText = loading ? t("todo.state.loading") : error || t("todo.state.selectMatter");
+    if (showClose) {
+      return (
+        <main className="wk-mp-main">
+          <div className="wk-mp-main__inner">
+            <header className="wk-mp-header">
+              <div className="wk-mp-header__left">
+                <div className="wk-mp-header__row1">
+                  <h2 className="wk-mp-header__fallback-title">Matter 预览</h2>
+                </div>
+                <div className="wk-mp-header__row2">
+                  <span className="wk-mp-header__preview-label">{stateText}</span>
+                </div>
+              </div>
+              <div className="wk-mp-header__actions">
+                <button
+                  type="button"
+                  className="wk-mp-header__action"
+                  onClick={handleOpenMatterWorkspace}
+                  title="进入 Matter"
+                >
+                  <PanelRightOpen size={14} />
+                  <span>进入 Matter</span>
+                </button>
+                <button
+                  type="button"
+                  className="wk-mp-header__close"
+                  onClick={onClose}
+                >
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                    <path d="M3.5 3.5L12.5 12.5M12.5 3.5L3.5 12.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                  </svg>
+                </button>
+              </div>
+            </header>
+            <div className="wk-mp-main__empty">{stateText}</div>
+          </div>
+        </main>
+      );
+    }
+    return (
+      <main className="wk-mp-main">
+        <div className="wk-mp-main__empty">{stateText}</div>
       </main>
     );
   }

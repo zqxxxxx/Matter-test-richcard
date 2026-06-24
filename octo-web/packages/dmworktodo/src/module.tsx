@@ -193,14 +193,19 @@ export default class MatterModule implements IModule {
       const action = data?.action;
       if (!card || !action || card.cardType !== "matter_status") return false;
 
-      const matterId = card.entityId;
+      const matterId =
+        card.entityId ||
+        (card.extra?.matterId as string | undefined) ||
+        (card.extra?.id as string | undefined) ||
+        (card.extra?.matterNo as string | undefined);
       if (!matterId) {
         Toast.error(translate("todo.toast.operationFailed"));
         return true;
       }
 
-      const channelId = card.sourceChannelId || data?.message?.channelId;
-      const channelType = card.sourceChannelType || data?.message?.channelType;
+      const currentChannel = WKApp.shared.openChannel;
+      const channelId = card.sourceChannelId || data?.message?.channelId || currentChannel?.channelID;
+      const channelType = card.sourceChannelType ?? data?.message?.channelType ?? currentChannel?.channelType;
 
       if (action.type === "open_matter") {
         if (!channelId || channelType == null) {
@@ -222,19 +227,21 @@ export default class MatterModule implements IModule {
       }
 
       if (action.type === "complete_matter") {
+        if (!channelId || channelType == null) {
+          Toast.error(translate("todo.toast.loadFailed"));
+          return true;
+        }
         try {
           const updated = await transitionMatter(matterId, "done");
           WKApp.mittBus.emit("wk:matter-updated", { matterId });
-          if (channelId && channelType != null) {
-            await WKSDK.shared().chatManager.send(
-              new BusinessCardContent(buildMatterStatusCard(updated, {
-                sourceChannelId: channelId,
-                sourceChannelType: channelType,
-                time: new Date().toLocaleString(),
-              })),
-              new Channel(channelId, channelType),
-            );
-          }
+          await WKSDK.shared().chatManager.send(
+            new BusinessCardContent(buildMatterStatusCard(updated, {
+              sourceChannelId: channelId,
+              sourceChannelType: channelType,
+              time: new Date().toLocaleString(),
+            })),
+            new Channel(channelId, channelType),
+          );
           Toast.success(translate("todo.toast.saved"));
         } catch {
           Toast.error(translate("todo.toast.statusUpdateFailed"));

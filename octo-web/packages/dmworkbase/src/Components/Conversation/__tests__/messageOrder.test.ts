@@ -224,7 +224,7 @@ describe("ConversationVM message ordering", () => {
                 actor: "Brooks",
                 time: "10:12",
                 metrics: [{ label: "进度", value: "2 / 4" }],
-                extra: { statusText: "法务同学正在处理" },
+                extra: { statusText: "法务同学正在处理", sourceText: "客户要求补充风险条款" },
             },
         })
         const second = wrap({
@@ -241,7 +241,7 @@ describe("ConversationVM message ordering", () => {
                 actor: "Brooks",
                 time: "10:30",
                 metrics: [{ label: "进度", value: "3 / 4" }],
-                extra: { statusText: "东西回来了，等你确认" },
+                extra: { statusText: "东西回来了，等你确认", sourceText: "法务提交风险说明" },
             },
         })
         const otherMatter = wrap({
@@ -262,8 +262,8 @@ describe("ConversationVM message ordering", () => {
         expect(renderItems[0]).toMatchObject({ type: "message", message: second })
         expect((second.content as any).extra.updateCount).toBe(2)
         expect((second.content as any).extra.statusHistory).toMatchObject([
-            { title: "客户合同审批进入法务复核", status: "in_progress", metrics: [{ label: "进度", value: "2 / 4" }] },
-            { title: "风险说明已回传，等待 PM 确认", status: "review", metrics: [{ label: "进度", value: "3 / 4" }] },
+            { title: "客户合同审批进入法务复核", status: "in_progress", sourceText: "客户要求补充风险条款", metrics: [{ label: "进度", value: "2 / 4" }] },
+            { title: "风险说明已回传，等待 PM 确认", status: "review", sourceText: "法务提交风险说明", metrics: [{ label: "进度", value: "3 / 4" }] },
         ])
         expect(renderItems[1]).toMatchObject({ type: "message", message: otherMatter })
     })

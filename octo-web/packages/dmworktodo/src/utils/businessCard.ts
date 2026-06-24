@@ -54,11 +54,15 @@ function getProgressText(status: string): string {
   return "1 / 4";
 }
 
-function getActions(_status: string): BusinessCardPayload["actions"] {
-  return [
+function getActions(status: string): BusinessCardPayload["actions"] {
+  const actions: BusinessCardPayload["actions"] = [
     { label: "进入 Matter", type: "open_matter_workspace", kind: "primary" },
     { label: "预览", type: "open_matter", kind: "ghost" },
   ];
+  if (status !== "done" && status !== "archived") {
+    actions.splice(1, 0, { label: "标记完成", type: "complete_matter", kind: "secondary" });
+  }
+  return actions;
 }
 
 function getSourceText(matter: MatterDetail, sourceName?: string): string | undefined {
@@ -103,6 +107,7 @@ export function buildMatterStatusCard(
     metrics,
     actions: getActions(matter.status),
     extra: {
+      matterId: matter.id,
       matterNo,
       statusText: getStatusText(matter.status, assigneeLabel),
       sourceText,

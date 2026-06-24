@@ -102,6 +102,7 @@ function buildMatterCardHistoryItem(message: MessageWrap) {
         actor: content.actor || "",
         time: content.time || (message.timestamp ? moment.unix(message.timestamp).format("M/D HH:mm") : ""),
         updatedAt: content.extra?.updatedAt || "",
+        sourceText: content.extra?.sourceText || "",
     }
 }
 
