@@ -1065,13 +1065,13 @@ export default class SummaryDetailPage extends Component<SummaryDetailPageProps,
             <div className="summary-detail-header">
                 <div className="summary-detail-header-inner">
                     {this.props.returnToConversation && (
-                        <Button
-                            theme="borderless"
+                        <button
+                            type="button"
                             className="summary-detail-return-chat"
                             onClick={this.handleReturnToConversation}
                         >
                             ← {getSourceConversationLabel(this.props.returnToConversation)}
-                        </Button>
+                        </button>
                     )}
                     <OverflowTooltip as="h2" className="summary-detail-title" title={detail?.title || t("summary.detail.defaultTitle")}>
                         {detail?.title || t("summary.detail.defaultTitle")}

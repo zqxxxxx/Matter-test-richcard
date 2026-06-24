@@ -340,13 +340,32 @@
 
 .summary-detail-return-chat {
     flex-shrink: 0;
-    color: var(--semi-color-text-1);
+    height: 32px;
+    padding: 0 12px;
+    border: 1px solid rgba(31, 35, 41, 0.1);
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.96);
+    color: var(--wk-text-primary, #1f2329);
+    font-size: 13px;
     font-weight: 600;
+    line-height: 30px;
+    box-shadow: 0 4px 12px rgba(31, 35, 41, 0.08);
+    cursor: pointer;
+    transition:
+        background 0.15s ease,
+        border-color 0.15s ease,
+        box-shadow 0.15s ease;
 }
 
 .summary-detail-return-chat:hover {
-    background: var(--semi-color-fill-0);
-    color: var(--semi-color-text-0);
+    background: #fff;
+    border-color: rgba(31, 35, 41, 0.16);
+    box-shadow: 0 6px 16px rgba(31, 35, 41, 0.12);
+}
+
+.summary-detail-return-chat:focus-visible {
+    outline: 2px solid var(--semi-color-primary);
+    outline-offset: 2px;
 }
 
 .summary-detail-title {
