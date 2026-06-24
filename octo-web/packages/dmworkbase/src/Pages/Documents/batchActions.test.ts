@@ -169,4 +169,28 @@ describe("buildBatchActionModel", () => {
       "已选 3 个：1 个会话文件，2 个空间文件，1 个无权限"
     );
   });
+
+  it("shows restore and permanent delete for manageable trash selections", () => {
+    const model = buildBatchActionModel(
+      [
+        file("deleted-manageable", "deleted", {
+          canRestore: true,
+          canManage: true,
+        }),
+        file("deleted-readonly", "deleted"),
+      ],
+      "trash"
+    );
+
+    expect(model.actions.map((action) => action.key)).toEqual([
+      "restore",
+      "permanentDelete",
+    ]);
+    expect(model.actions).toEqual([
+      expect.objectContaining({ key: "restore", enabledCount: 1 }),
+      expect.objectContaining({ key: "permanentDelete", enabledCount: 1 }),
+    ]);
+    expect(model.skippedCount).toBe(1);
+    expect(model.summary).toBe("已选 2 个：2 个回收站文件，1 个无权限");
+  });
 });

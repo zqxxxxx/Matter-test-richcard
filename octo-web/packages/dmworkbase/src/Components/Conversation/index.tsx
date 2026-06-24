@@ -54,6 +54,7 @@ import { FlameMessageCell } from "../../Messages/Flame";
 import FoldSessionCard, { FoldSessionCardParticipant } from "./FoldSessionCard";
 import { BeatLoader } from "react-spinners";
 import { ConversationRenderItem, FoldSessionViewModel } from "./vm";
+import { getConversationRenderItemKey } from "./renderKeys";
 import {
   getFoldSessionSummaryState,
   isFoldSessionSummaryMessage,
@@ -2568,7 +2569,10 @@ export class Conversation
                       if (i === vm.renderItems.length - 1) {
                         last = true;
                       }
-                      return this.renderConversationItem(item, last);
+                      return React.cloneElement(
+                        this.renderConversationItem(item, last),
+                        { key: getConversationRenderItemKey(item, i) }
+                      );
                     })}
 
                     {/* 位置view */}

@@ -551,6 +551,25 @@ describe("ApiDocumentRepository", () => {
     );
   });
 
+  it("restores and permanently clears trash through document APIs", async () => {
+    const fixture = stateFixture();
+    const apiClient = {
+      get: vi.fn().mockResolvedValue(fixture),
+      post: vi.fn().mockResolvedValue(fixture),
+    };
+    const repo = new ApiDocumentRepository(apiClient);
+
+    await repo.restoreFile("asset-deleted", "陈一");
+    await repo.permanentDeleteFile("asset-deleted", "陈一");
+    await repo.emptyTrash("陈一");
+
+    expect(apiClient.post).toHaveBeenCalledWith("documents/asset-deleted/restore");
+    expect(apiClient.post).toHaveBeenCalledWith(
+      "documents/asset-deleted/permanent-delete"
+    );
+    expect(apiClient.post).toHaveBeenCalledWith("documents/trash/empty");
+  });
+
   it("manages spaces and members through document APIs", async () => {
     const fixture = stateFixture();
     const apiClient = {

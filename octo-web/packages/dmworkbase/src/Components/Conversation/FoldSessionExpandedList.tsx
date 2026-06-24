@@ -5,6 +5,7 @@ import { MessageWrap } from "../../Service/Model";
 import Checkbox from "../Checkbox";
 import { isMessageSelectable } from "../../Service/messageSelection";
 import { formatMessageTimestamp } from "../../Utils/time";
+import { getConversationMessageRenderKey } from "./renderKeys";
 
 interface FoldSessionExpandedListProps {
   messages: MessageWrap[];
@@ -32,14 +33,18 @@ const FoldSessionExpandedList: React.FC<FoldSessionExpandedListProps> = ({
 }) => {
   return (
     <>
-      {messages.map((message) => {
+      {messages.map((message, index) => {
         const senderName = message.from?.title || message.fromUID;
         const timeStr = formatMessageTimestamp(message.timestamp);
         const selectable = isMessageSelectable(message);
         const showMessageHead = !message.revoke;
         return (
           <div
-            key={message.clientMsgNo}
+            key={getConversationMessageRenderKey(
+              message,
+              index,
+              "fold-expanded"
+            )}
             id={getMessageElementId?.(message)}
             data-locate-message-row="true"
             data-message-seq={message.messageSeq > 0 ? message.messageSeq : undefined}

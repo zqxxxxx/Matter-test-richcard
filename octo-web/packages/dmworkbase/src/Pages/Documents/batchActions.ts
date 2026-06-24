@@ -4,7 +4,12 @@ import type {
   DocumentSpaceRole,
 } from "./types";
 
-export type BatchActionKey = "save" | "move" | "delete";
+export type BatchActionKey =
+  | "save"
+  | "move"
+  | "delete"
+  | "restore"
+  | "permanentDelete";
 export type BatchViewKey = "recent" | "conversation" | "space" | "mine" | "trash";
 
 export interface MoveSpaceOption {
@@ -93,6 +98,7 @@ export function buildBatchActionModel(
 ): BatchActionModel {
   const conversationFiles = files.filter((file) => file.status === "conversation");
   const archivedFiles = files.filter((file) => file.status === "archived");
+  const deletedFiles = files.filter((file) => file.status === "deleted");
   const archivableFiles = conversationFiles.filter(
     (file) => file.permissions.canArchive
   );
@@ -100,15 +106,24 @@ export function buildBatchActionModel(
   const deletableFiles = files.filter(
     (file) => file.status !== "deleted" && file.permissions.canDelete
   );
+  const restorableFiles = deletedFiles.filter(
+    (file) => file.permissions.canRestore
+  );
+  const permanentDeletableFiles = deletedFiles.filter(
+    (file) => file.permissions.canManage
+  );
   const actionableIds = new Set<string>([
     ...archivableFiles.map((file) => file.id),
     ...movableFiles.map((file) => file.id),
     ...deletableFiles.map((file) => file.id),
+    ...restorableFiles.map((file) => file.id),
+    ...permanentDeletableFiles.map((file) => file.id),
   ]);
   const skippedCount = files.filter((file) => !actionableIds.has(file.id)).length;
   const summaryParts = [
     `${conversationFiles.length} 个会话文件`,
     `${archivedFiles.length} 个空间文件`,
+    `${deletedFiles.length} 个回收站文件`,
   ].filter((part) => !part.startsWith("0 个"));
   if (skippedCount > 0) {
     summaryParts.push(`${skippedCount} 个无权限`);
@@ -135,6 +150,14 @@ export function buildBatchActionModel(
   } else if (view === "space") {
     pushAction("move", "移动到空间", movableFiles.length, archivedFiles.length);
     pushAction("delete", "移到回收站", deletableFiles.length, files.length);
+  } else if (view === "trash") {
+    pushAction("restore", "恢复", restorableFiles.length, deletedFiles.length);
+    pushAction(
+      "permanentDelete",
+      "永久删除",
+      permanentDeletableFiles.length,
+      deletedFiles.length
+    );
   } else if (view !== "trash") {
     if (conversationFiles.length > 0) {
       pushAction("save", "保存到空间", archivableFiles.length, conversationFiles.length);

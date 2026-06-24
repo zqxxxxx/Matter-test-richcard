@@ -220,6 +220,13 @@ function getCurrentUserId() {
   return WKApp.loginInfo.uid || WKApp.loginInfo.name || "pm_chen01";
 }
 
+function exitActiveConversationSelection() {
+  const activeContext = (WKApp.shared as any).activeConversationContext;
+  activeContext?.clearCheckedMessages?.();
+  activeContext?.setEditOn?.(false);
+  WKApp.mittBus.emit("wk:exit-multiple-mode");
+}
+
 function getViewLabel(view: DocumentView) {
   return viewOptions.find((item) => item.key === view)?.label || "文档";
 }
@@ -536,6 +543,13 @@ export function DocumentsWorkspace() {
   const [uploadError, setUploadError] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<DocumentAsset | null>(null);
   const [deletePending, setDeletePending] = useState(false);
+  const [permanentDeleteTarget, setPermanentDeleteTarget] =
+    useState<DocumentAsset | null>(null);
+  const [permanentDeletePending, setPermanentDeletePending] = useState(false);
+  const [batchPermanentDeleteVisible, setBatchPermanentDeleteVisible] =
+    useState(false);
+  const [emptyTrashVisible, setEmptyTrashVisible] = useState(false);
+  const [emptyTrashPending, setEmptyTrashPending] = useState(false);
   const [renameTarget, setRenameTarget] = useState<DocumentAsset | null>(null);
   const [renameDraft, setRenameDraft] = useState("");
   const [moveTarget, setMoveTarget] = useState<DocumentAsset | null>(null);
@@ -657,6 +671,18 @@ export function DocumentsWorkspace() {
   const batchDeletableFiles = batchSelectedFiles.filter(
     (file) => file.status !== "deleted" && file.permissions.canDelete
   );
+  const batchRestorableFiles = batchSelectedFiles.filter(
+    (file) => file.status === "deleted" && file.permissions.canRestore
+  );
+  const batchPermanentDeletableFiles = batchSelectedFiles.filter(
+    (file) => file.status === "deleted" && file.permissions.canManage
+  );
+  const manageableTrashFiles = useMemo(() => {
+    if (!state) return [];
+    return state.files.filter(
+      (file) => file.status === "deleted" && file.permissions.canManage
+    );
+  }, [state]);
   const batchSpaceOptions = useMemo<MoveSpaceOption[]>(() => {
     if (!state || !batchSpaceAction) return [];
     const baseOptions = buildMoveSpaceOptions(state.spaces, currentUserId);
@@ -1213,6 +1239,7 @@ export function DocumentsWorkspace() {
       options.initLocateMessageSeq = navigation.initLocateMessageSeq;
     }
     try {
+      exitActiveConversationSelection();
       WKApp.endpoints.showConversation(channel, options);
       Toast.success(
         navigation.initLocateMessageSeq
@@ -1309,6 +1336,27 @@ export function DocumentsWorkspace() {
     Toast.success("已恢复文件");
   }
 
+  function confirmPermanentDelete(file: DocumentAsset) {
+    setPermanentDeleteTarget(file);
+  }
+
+  async function submitPermanentDelete() {
+    if (!permanentDeleteTarget || permanentDeletePending) return;
+    setPermanentDeletePending(true);
+    try {
+      const next = await documentRepository.permanentDeleteFile(
+        permanentDeleteTarget.id,
+        currentUser
+      );
+      setState(next);
+      setSelectedId(null);
+      setPermanentDeleteTarget(null);
+      Toast.success("已永久删除文件");
+    } finally {
+      setPermanentDeletePending(false);
+    }
+  }
+
   async function archiveBatchFiles() {
     if (!batchSpaceName || batchArchiveableFiles.length === 0) return;
     let nextState: DocumentState | null = null;
@@ -1381,6 +1429,63 @@ export function DocumentsWorkspace() {
     );
   }
 
+  async function restoreBatchFiles() {
+    if (batchRestorableFiles.length === 0) return;
+    let nextState: DocumentState | null = null;
+    for (const file of batchRestorableFiles) {
+      nextState = await documentRepository.restoreFile(file.id, currentUser);
+    }
+    if (nextState) setState(nextState);
+    const skippedCount = batchSelectedFiles.length - batchRestorableFiles.length;
+    clearBatchSelected();
+    Toast.success(
+      `已恢复 ${batchRestorableFiles.length} 个文件${
+        skippedCount > 0 ? `，跳过 ${skippedCount} 个` : ""
+      }`
+    );
+  }
+
+  async function submitBatchPermanentDelete() {
+    if (batchPermanentDeletableFiles.length === 0 || permanentDeletePending) return;
+    setPermanentDeletePending(true);
+    try {
+      let nextState: DocumentState | null = null;
+      for (const file of batchPermanentDeletableFiles) {
+        nextState = await documentRepository.permanentDeleteFile(
+          file.id,
+          currentUser
+        );
+      }
+      if (nextState) setState(nextState);
+      const skippedCount =
+        batchSelectedFiles.length - batchPermanentDeletableFiles.length;
+      clearBatchSelected();
+      setBatchPermanentDeleteVisible(false);
+      Toast.success(
+        `已永久删除 ${batchPermanentDeletableFiles.length} 个文件${
+          skippedCount > 0 ? `，跳过 ${skippedCount} 个` : ""
+        }`
+      );
+    } finally {
+      setPermanentDeletePending(false);
+    }
+  }
+
+  async function submitEmptyTrash() {
+    if (manageableTrashFiles.length === 0 || emptyTrashPending) return;
+    setEmptyTrashPending(true);
+    try {
+      const next = await documentRepository.emptyTrash(currentUser);
+      setState(next);
+      setSelectedId(null);
+      setEmptyTrashVisible(false);
+      clearBatchSelected();
+      Toast.success(`已清空 ${manageableTrashFiles.length} 个回收站文件`);
+    } finally {
+      setEmptyTrashPending(false);
+    }
+  }
+
   return (
     <div className="wk-docs-workspace">
       <header className="wk-docs-workspace-header">
@@ -1417,6 +1522,17 @@ export function DocumentsWorkspace() {
                 onClick={() => navigateWorkspace({ view: "space" })}
               >
                 查看全部空间文件
+              </Button>
+            )}
+            {view === "trash" && (
+              <Button
+                theme="borderless"
+                type="danger"
+                icon={<Trash2 size={15} />}
+                disabled={manageableTrashFiles.length === 0}
+                onClick={() => setEmptyTrashVisible(true)}
+              >
+                清空回收站
               </Button>
             )}
           </div>
@@ -1493,17 +1609,35 @@ export function DocumentsWorkspace() {
                     <Archive size={15} />
                   ) : action.key === "move" ? (
                     <MoveRight size={15} />
+                  ) : action.key === "restore" ? (
+                    <RotateCcw size={15} />
                   ) : (
                     <Trash2 size={15} />
                   );
-                const onClick =
-                  action.key === "delete"
-                    ? deleteBatchFiles
-                    : () => openBatchSpaceAction(action.key);
+                const onClick = () => {
+                  if (action.key === "delete") {
+                    deleteBatchFiles();
+                    return;
+                  }
+                  if (action.key === "restore") {
+                    restoreBatchFiles();
+                    return;
+                  }
+                  if (action.key === "permanentDelete") {
+                    setBatchPermanentDeleteVisible(true);
+                    return;
+                  }
+                  openBatchSpaceAction(action.key);
+                };
                 return (
                   <Button
                     key={action.key}
-                    type={action.key === "delete" ? "danger" : "primary"}
+                    type={
+                      action.key === "delete" ||
+                      action.key === "permanentDelete"
+                        ? "danger"
+                        : "primary"
+                    }
                     theme="light"
                     icon={icon}
                     disabled={action.disabled}
@@ -1716,13 +1850,24 @@ export function DocumentsWorkspace() {
                       移到回收站
                     </Button>
                   ) : (
-                    <Button
-                      icon={<RotateCcw size={15} />}
-                      disabled={!selectedFile.permissions.canRestore}
-                      onClick={() => restoreSelectedFile(selectedFile)}
-                    >
-                      恢复
-                    </Button>
+                    <>
+                      <Button
+                        icon={<RotateCcw size={15} />}
+                        disabled={!selectedFile.permissions.canRestore}
+                        onClick={() => restoreSelectedFile(selectedFile)}
+                      >
+                        恢复
+                      </Button>
+                      <Button
+                        type="danger"
+                        theme="light"
+                        icon={<Trash2 size={15} />}
+                        disabled={!selectedFile.permissions.canManage}
+                        onClick={() => confirmPermanentDelete(selectedFile)}
+                      >
+                        永久删除
+                      </Button>
+                    </>
                   )}
                 </div>
               </section>
@@ -2202,6 +2347,61 @@ export function DocumentsWorkspace() {
         }}
       >
         <p className="wk-docs-confirm-text">文件会进入回收站，之后仍可恢复。</p>
+      </Modal>
+      <Modal
+        title={
+          permanentDeleteTarget
+            ? `永久删除「${permanentDeleteTarget.name}」？`
+            : "永久删除"
+        }
+        visible={Boolean(permanentDeleteTarget)}
+        okText="永久删除"
+        cancelText="取消"
+        okButtonProps={{ type: "danger", "aria-label": "永久删除" }}
+        cancelButtonProps={{ "aria-label": "取消" }}
+        confirmLoading={permanentDeletePending}
+        onOk={submitPermanentDelete}
+        onCancel={() => {
+          if (!permanentDeletePending) setPermanentDeleteTarget(null);
+        }}
+      >
+        <p className="wk-docs-confirm-text">
+          删除后不可恢复，请确认该文件不再需要保留。
+        </p>
+      </Modal>
+      <Modal
+        title={`永久删除 ${batchPermanentDeletableFiles.length} 个文件？`}
+        visible={batchPermanentDeleteVisible}
+        okText="永久删除"
+        cancelText="取消"
+        okButtonProps={{ type: "danger", "aria-label": "永久删除" }}
+        cancelButtonProps={{ "aria-label": "取消" }}
+        confirmLoading={permanentDeletePending}
+        onOk={submitBatchPermanentDelete}
+        onCancel={() => {
+          if (!permanentDeletePending) setBatchPermanentDeleteVisible(false);
+        }}
+      >
+        <p className="wk-docs-confirm-text">
+          将只处理你有管理权限的回收站文件，删除后不可恢复。
+        </p>
+      </Modal>
+      <Modal
+        title={`清空 ${manageableTrashFiles.length} 个回收站文件？`}
+        visible={emptyTrashVisible}
+        okText="清空回收站"
+        cancelText="取消"
+        okButtonProps={{ type: "danger", "aria-label": "清空回收站" }}
+        cancelButtonProps={{ "aria-label": "取消" }}
+        confirmLoading={emptyTrashPending}
+        onOk={submitEmptyTrash}
+        onCancel={() => {
+          if (!emptyTrashPending) setEmptyTrashVisible(false);
+        }}
+      >
+        <p className="wk-docs-confirm-text">
+          将清空你有管理权限的回收站文件，无权限文件会继续保留。
+        </p>
       </Modal>
     </div>
   );
