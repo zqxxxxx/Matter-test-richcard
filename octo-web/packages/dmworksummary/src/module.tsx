@@ -116,7 +116,21 @@ export class SummaryModule implements IModule {
             }
 
             if (action.type === "open_summary") {
-                WKApp.openSummaryDetail?.(taskId, buildSourceConversationRef(data));
+                const source = buildSourceConversationRef(data);
+                const currentChannel = WKApp.shared.openChannel;
+                const channelId = card.sourceChannelId || data?.message?.channelId || source?.channelId || currentChannel?.channelID;
+                const channelType = card.sourceChannelType ?? data?.message?.channelType ?? source?.channelType ?? currentChannel?.channelType;
+                if (!channelId || channelType == null) {
+                    Toast.error(t("summary.common.operationFailed"));
+                    return true;
+                }
+                WKApp.mittBus.emit("wk:toggle-summary-panel", {
+                    channelId,
+                    channelType,
+                    summaryPanelView: "history",
+                    taskId,
+                    forceOpen: true,
+                });
                 return true;
             }
 

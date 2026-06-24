@@ -615,6 +615,7 @@ export class ChatContentPage extends Component<
     channelId: string;
     channelType: number;
     summaryPanelView: 'history' | 'new';
+    taskId?: number;
     forceOpen?: boolean;
   }) => void;
 

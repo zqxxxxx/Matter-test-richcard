@@ -49,10 +49,10 @@ describe("buildSummaryFeedbackCard", () => {
     const card = buildSummaryFeedbackCard(detail);
 
     expect(card.actions?.map((action) => action.type)).toEqual([
-      "open_summary",
       "open_summary_workspace",
       "summary_accept",
       "summary_reject",
+      "open_summary",
     ]);
   });
 });

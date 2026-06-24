@@ -1,6 +1,6 @@
 import React from 'react';
-import { render as rtlRender, screen, fireEvent, act } from '@testing-library/react';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render as rtlRender, screen, fireEvent, act, cleanup } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import ChatSummaryStarButton from '../ChatSummaryStarButton';
 
 const mockEmit = vi.fn();
@@ -51,6 +51,10 @@ describe('ChatSummaryStarButton', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         mockIsCancel.mockReturnValue(false);
+    });
+
+    afterEach(() => {
+        cleanup();
     });
 
     it('renders with default icon color', () => {
