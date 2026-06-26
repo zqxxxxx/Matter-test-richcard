@@ -191,6 +191,30 @@ When changing behavior, run the narrowest relevant `go test` package first. Run
 broader tests when the change touches shared behavior, cross-module contracts,
 middleware, auth, rate limiting, or database migrations.
 
+## No-Regression Guardrails
+
+Before changing shared behavior, write down the change boundary:
+
+- Goal
+- Allowed scope
+- Forbidden scope
+- Potentially affected flows
+- Protection tests and regression path
+
+Treat these as high-risk changes:
+
+- Message, notification, or sync flows
+- Shared services, handlers, middleware, or utils
+- Auth, permission, space isolation, or rate limiting
+- Database models and migrations
+- Deployment, cache, or build configuration
+- Cross-module contracts used by the web client
+
+High-risk changes must run targeted tests plus related cross-flow regression.
+When test data is created, use one of these prefixes: `[SMOKE]`, `[QA]`,
+`[REGRESSION]`, or `[DO-NOT-DELETE]`. Do not create test records that look like
+real business data.
+
 ## Coding Conventions
 
 - Use English Conventional Commits when committing, such as `feat:`, `fix:`,

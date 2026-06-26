@@ -21,7 +21,7 @@ import { getPulldownRestoredScrollTop, getRestoredAnchorScrollTop } from "./hist
 import { applyMsgLevelExternalFieldsWithFallback } from "../../Service/Convert";
 import { wrapSendContentForInjection } from "./sendContentProxy";
 import { isMessageSelectable } from "../../Service/messageSelection";
-import type { BusinessCardContent } from "../../Messages/BusinessCard";
+import { aggregateBusinessCardMessages } from "./businessCardAggregation";
 
 export interface FoldSessionParticipant {
     uid: string
@@ -68,80 +68,6 @@ export interface ConversationRenderFoldSessionItem {
 export type ConversationRenderItem = ConversationRenderMessageItem | ConversationRenderFoldSessionItem
 
 const PendingMessageOrderBase = Number.MAX_SAFE_INTEGER / 2
-
-function readMatterCardId(message: MessageWrap): string | undefined {
-    if (message.contentType !== MessageContentTypeConst.businessCard) return undefined
-    const content = message.content as Partial<BusinessCardContent> & { cardType?: string; entityId?: string; extra?: Record<string, any> }
-    if (content.cardType !== "matter_status") return undefined
-    const id = content.entityId || content.extra?.matterId || content.extra?.matterNo || content.extra?.id
-    return typeof id === "string" && id.length > 0 ? id : undefined
-}
-
-function buildMatterCardHistoryItem(message: MessageWrap) {
-    const content = message.content as Partial<BusinessCardContent> & {
-        title?: string
-        body?: string
-        status?: string
-        actor?: string
-        time?: string
-        priority?: string
-        subtitle?: string
-        metrics?: Array<{ label: string; value: string }>
-        extra?: Record<string, any>
-    }
-    return {
-        id: message.clientMsgNo || String(message.messageSeq || ""),
-        messageSeq: message.messageSeq,
-        status: content.status || "",
-        statusText: content.extra?.statusText || content.status || "",
-        title: content.title || content.body || "",
-        subtitle: content.subtitle || "",
-        body: content.body || "",
-        priority: content.priority || "",
-        metrics: content.metrics || [],
-        actor: content.actor || "",
-        time: content.time || (message.timestamp ? moment.unix(message.timestamp).format("M/D HH:mm") : ""),
-        updatedAt: content.extra?.updatedAt || "",
-        sourceText: content.extra?.sourceText || "",
-    }
-}
-
-function aggregateMatterStatusMessages(messages: MessageWrap[]): MessageWrap[] {
-    const grouped = new Map<string, MessageWrap[]>()
-    for (const message of messages) {
-        const matterId = readMatterCardId(message)
-        if (!matterId) continue
-        const group = grouped.get(matterId) || []
-        group.push(message)
-        grouped.set(matterId, group)
-    }
-
-    const hidden = new Set<MessageWrap>()
-    for (const group of grouped.values()) {
-        if (group.length <= 1) continue
-        const latest = group[group.length - 1]
-        const latestContent = latest.content as Partial<BusinessCardContent> & {
-            extra?: Record<string, any>
-            applyPayload?: (payload: Partial<BusinessCardContent>) => void
-        }
-        const history = group.map(buildMatterCardHistoryItem)
-        const extra = {
-            ...(latestContent.extra || {}),
-            updateCount: history.length,
-            statusHistory: history,
-            stackedMessageClientMsgNos: group.map((message) => message.clientMsgNo).filter(Boolean),
-        }
-        if (typeof latestContent.applyPayload === "function") {
-            latestContent.applyPayload({ extra } as Partial<BusinessCardContent>)
-        } else {
-            latestContent.extra = extra
-        }
-        group.slice(0, -1).forEach((message) => hidden.add(message))
-    }
-
-    if (hidden.size === 0) return messages
-    return messages.filter((message) => !hidden.has(message))
-}
 
 export default class ConversationVM extends ProviderListener {
 
@@ -407,7 +333,7 @@ export default class ConversationVM extends ProviderListener {
             }
         }
 
-        const aggregatedSourceMessages = aggregateMatterStatusMessages(sourceMessages)
+        const aggregatedSourceMessages = aggregateBusinessCardMessages(sourceMessages)
         let pendingSessionMessages = new Array<MessageWrap>()
 
         const flushPendingSession = (isActive: boolean) => {
@@ -1841,7 +1767,7 @@ export default class ConversationVM extends ProviderListener {
         this.distinctMessages(newMessages)
         newMessages = this.filterPersonMessagesBySpace(newMessages)
         newMessages = this.deduplicateSystemTips(newMessages)
-        newMessages = aggregateMatterStatusMessages(newMessages)
+        newMessages = aggregateBusinessCardMessages(newMessages)
         newMessages = this.insertTimeOrHistorySplit(newMessages)
         for (let i = 0; i < newMessages.length; i++) {
             const message = newMessages[i]

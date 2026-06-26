@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from "react";
 import ReactDOM from "react-dom/client";
+import axios from "axios";
 import { WKApp, Menus, ChannelTypeCommunityTopic, i18n, t as translate, useI18n, BusinessCardContent, buildSourceConversationRef, registerBusinessCardActionHandler } from "@octo/base";
 import type { IModule, ConversationContext } from "@octo/base";
 import WKSDK, { Channel, ChannelTypeGroup } from "wukongimjssdk";
+import type { MatterDetail } from "./bridge/types";
 // matter-v2: route content swapped to the embedded workspace served by
 // octo-matter; the legacy TodoPage panel is retired (chat integrations stay).
 import MatterPage from "./pages/MatterWorkspace";
@@ -44,6 +46,34 @@ export type OpenCreateTaskPayload = {
 /** 解析 @[uid:name] 格式，返回纯文本 title 和 uid 列表 */
 function parseMentionText(raw: string): { title: string; uids: string[] } {
   return parseMentions(raw);
+}
+
+async function sendMatterCardToSource(
+  matter: MatterDetail,
+  fallback?: { channelId?: string; channelType?: number; name?: string },
+) {
+  const channelId = matter.source_channel_id || fallback?.channelId;
+  const channelType = matter.source_channel_type ?? fallback?.channelType;
+  if (!channelId || channelType == null) return;
+  const token = WKApp.loginInfo.token;
+  if (!token) return;
+  await axios.post("/v1/message/send", {
+    token,
+    receive_channel_id: channelId,
+    receive_channel_type: channelType,
+    payload: new BusinessCardContent(buildMatterStatusCard(matter, {
+      sourceChannelId: channelId,
+      sourceChannelType: channelType,
+      sourceName: matter.source_name || fallback?.name,
+      time: new Date().toLocaleString(),
+    })).encodeJSON(),
+    is_verify: 1,
+  }, {
+    headers: {
+      token,
+      ...(WKApp.shared.currentSpaceId ? { "X-Space-Id": WKApp.shared.currentSpaceId } : {}),
+    },
+  });
 }
 
 /** Guard against double-init (HMR in dev or future module lifecycle changes). */
@@ -881,6 +911,8 @@ function GlobalSmartCreateModal() {
               Toast.error(t("todo.toast.assigneeUpdateFailed"));
               throw new Error("assignee reconciliation failed");
             }
+            const updatedDetail = await getMatter(matterId);
+            await sendMatterCardToSource(updatedDetail, channel);
             // Matter 已完整保存 — 立即清除 orphan 追踪，防止并发新 session
             // 在 submittingRef=false 和 onConfirmSuccess 之间的微任务窗口误删
             extractedMatterIdRef.current = null;

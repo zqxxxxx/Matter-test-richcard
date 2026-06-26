@@ -95,15 +95,19 @@ export function getBusinessCardActions(card: BusinessCardPayload): BusinessCardA
     const confirmed = isSummaryConfirmed(card);
     const normalized = actions
       .map((action) => {
-        if (action.type === "open_summary_workspace") {
-          return { ...action, label: "进入群总结", kind: "primary" as const };
-        }
         if (action.type === "open_summary") {
           return { ...action, label: "预览", kind: "ghost" as const };
+        }
+        if (action.type === "summary_accept") {
+          return { ...action, label: "认可", kind: "primary" as const };
+        }
+        if (action.type === "summary_reject") {
+          return { ...action, label: "继续优化", kind: "secondary" as const };
         }
         return action;
       })
       .filter((action) => {
+        if (action.type === "open_summary_workspace") return false;
         if (!confirmed) return true;
         return action.type !== "summary_accept" && action.type !== "summary_reject";
       });
@@ -117,22 +121,12 @@ export function getBusinessCardActions(card: BusinessCardPayload): BusinessCardA
             kind: "ghost" as const,
           },
         ];
-    const withWorkspace = hasAction("open_summary_workspace")
-      ? withPreview
-      : [
-          {
-            label: "进入群总结",
-            type: "open_summary_workspace",
-            kind: "primary" as const,
-          },
-          ...withPreview,
-        ];
-    return withWorkspace.sort((left, right) => {
+    return withPreview.sort((left, right) => {
       const rank = (action: BusinessCardAction) => {
-        if (action.type === "open_summary_workspace") return 0;
-        if (action.type === "summary_accept" || action.type === "summary_reject") return 1;
+        if (action.type === "summary_accept") return 0;
+        if (action.type === "summary_reject") return 1;
         if (action.type === "open_summary") return 2;
-        return 1;
+        return 3;
       };
       return rank(left) - rank(right);
     });
@@ -149,11 +143,6 @@ function getPreviewAction(actions: BusinessCardAction[], cardType: string) {
   if (cardType === "matter_status") return actions.find((action) => action.type === "open_matter");
   if (cardType === "summary_feedback") return actions.find((action) => action.type === "open_summary");
   return undefined;
-}
-
-function getTimelineActionLabel(count: number, expanded: boolean) {
-  if (count <= 1) return expanded ? "收起" : "展开";
-  return expanded ? "收起更新" : `展开 ${count}`;
 }
 
 function getStatusHistory(card: BusinessCardPayload) {
@@ -203,7 +192,9 @@ function getProgressPercent(card: BusinessCardPayload) {
 
 function getKicker(card: BusinessCardPayload) {
   if (card.cardType === "matter_status") {
-    return String(card.extra?.matterNo || card.entityId || card.source || "Matter");
+    const matterNo = String(card.extra?.matterNo || card.entityId || card.source || "Matter");
+    const sourceName = String(card.extra?.sourceName || card.extra?.source || "").trim();
+    return [matterNo, sourceName].filter(Boolean).join(" · ");
   }
   if (card.cardType === "summary_feedback") {
     const msgCount = card.metrics?.find((item) => /消息/.test(item.label))?.value;
@@ -289,6 +280,96 @@ function getSummaryTone(card: BusinessCardPayload): CardTone {
   if (card.status === "failed") return "warn";
   if (card.status === "revised") return "summary-pending";
   return isSummaryConfirmed(card) ? "summary-confirmed" : "summary-pending";
+}
+
+function getSummarySourceName(card: BusinessCardPayload) {
+  return String(
+    card.extra?.sourceName ||
+    card.extra?.groupName ||
+    card.extra?.channelName ||
+    card.source ||
+    "群总结"
+  );
+}
+
+function getSummaryContentTitle(card: BusinessCardPayload) {
+  return String(
+    card.extra?.summaryTitle ||
+    card.extra?.contentTitle ||
+    card.extra?.topic ||
+    card.subtitle ||
+    card.title ||
+    "群总结"
+  );
+}
+
+function getSummaryTechnicalTitle(card: BusinessCardPayload, contentTitle: string) {
+  if (!card.title || card.title === contentTitle) return "";
+  return card.title;
+}
+
+function getSummaryAbstract(card: BusinessCardPayload) {
+  return String(
+    card.extra?.abstract ||
+    card.extra?.summaryText ||
+    card.extra?.summary ||
+    card.body ||
+    card.subtitle ||
+    ""
+  );
+}
+
+function getSummaryMetricChips(card: BusinessCardPayload) {
+  const chips: string[] = [];
+  const messageCount =
+    card.extra?.messageCount ||
+    card.extra?.messagesCount ||
+    getMetricValue(card, /消息|message/i);
+  const actionCount =
+    card.extra?.actionCount ||
+    card.extra?.actionsCount ||
+    getMetricValue(card, /行动|action/i);
+  const riskCount =
+    card.extra?.riskCount ||
+    card.extra?.risksCount ||
+    getMetricValue(card, /风险|risk/i);
+  const version =
+    card.extra?.versionLabel ||
+    card.extra?.version ||
+    getMetricValue(card, /版本|version/i);
+
+  if (messageCount) {
+    const text = String(messageCount);
+    chips.push(text.includes("消息") ? text : `${text}${text.includes("条") ? "消息" : " 条消息"}`);
+  }
+  if (actionCount) chips.push(`行动项 ${actionCount}`);
+  if (riskCount) chips.push(`风险点 ${riskCount}`);
+  if (version) chips.push(String(version));
+
+  return chips.slice(0, 4);
+}
+
+function getSummaryContentBlocks(card: BusinessCardPayload) {
+  const conclusion = card.extra?.conclusion || card.extra?.keyConclusion || card.extra?.summaryConclusion;
+  const actionItems = asTextArray(card.extra?.actionItems || card.extra?.actions);
+  const risks = asTextArray(card.extra?.riskItems || card.extra?.risks);
+  const blocks: Array<{ title: string; body: string }> = [];
+
+  if (conclusion) blocks.push({ title: "关键结论", body: String(conclusion) });
+  if (actionItems.length) blocks.push({ title: "行动项", body: actionItems.join("；") });
+  if (risks.length) blocks.push({ title: "风险点", body: risks.join("；") });
+
+  if (!blocks.length) {
+    const abstract = getSummaryAbstract(card);
+    if (abstract) blocks.push({ title: "摘要内容", body: abstract });
+  }
+
+  return blocks.slice(0, 3);
+}
+
+function getSummaryRevisionLabel(card: BusinessCardPayload, latestHistoryItem?: { status: string }) {
+  const version = card.extra?.versionLabel || card.extra?.version || latestHistoryItem?.status;
+  return version ? String(version) : "";
 }
 
 function isExternalLinkCard(card: BusinessCardPayload) {
@@ -393,6 +474,7 @@ export function BusinessCardView({ card, actionLoadingType, onAction }: Business
   const shortTypeLabel = cardTypeShortCopy[cardType] ?? "卡";
   const isMatterCard = cardType === "matter_status";
   const isSummaryCard = cardType === "summary_feedback";
+  const isStackableCard = isMatterCard || isSummaryCard;
   const summaryStatusLabel = isSummaryCard ? getSummaryStatusLabel(card) : "";
   const tone = isSummaryCard ? getSummaryTone(card) : statusTone[card.status ?? ""] ?? "info";
   const progressPercent = getProgressPercent(card);
@@ -400,14 +482,25 @@ export function BusinessCardView({ card, actionLoadingType, onAction }: Business
   const actions = getBusinessCardActions(card);
   const primaryActions = getPrimaryActions(actions);
   const previewAction = getPreviewAction(actions, cardType);
-  const matterStatusText = isMatterCard ? getMatterStatusText(card) : undefined;
-  const matterAgent = isMatterCard ? getMatterAgent(card) : undefined;
-  const statusHistory = isMatterCard ? getStatusHistory(card) : [];
+  const statusHistory = isStackableCard ? getStatusHistory(card) : [];
   const updateCount = Number(card.extra?.updateCount || statusHistory.length || 0);
   const visibleUpdateCount = Math.max(updateCount, statusHistory.length);
-  const hasMatterExpandedContent = isMatterCard && visibleUpdateCount > 1 && statusHistory.length > 1;
-  const shouldShowCardStack = !expanded && isMatterCard && visibleUpdateCount > 1;
+  const hasExpandedContent = isStackableCard && visibleUpdateCount > 1 && statusHistory.length > 1;
+  const shouldShowCardStack = !expanded && hasExpandedContent;
+  const shouldShowDetailBlocks = !isStackableCard || expanded || !hasExpandedContent;
+  const canPreviewByCardClick = !!previewAction && !isMatterCard && !hasExpandedContent;
+  const matterStatusText = isMatterCard ? getMatterStatusText(card) : undefined;
+  const matterAgent = isMatterCard ? getMatterAgent(card) : undefined;
   const latestHistoryItem = statusHistory.length > 0 ? statusHistory[statusHistory.length - 1] : undefined;
+  const summarySourceName = isSummaryCard ? getSummarySourceName(card) : "";
+  const summaryContentTitle = isSummaryCard ? getSummaryContentTitle(card) : "";
+  const summaryTechnicalTitle = isSummaryCard ? getSummaryTechnicalTitle(card, summaryContentTitle) : "";
+  const summaryAbstract = isSummaryCard ? getSummaryAbstract(card) : "";
+  const summaryMetricChips = isSummaryCard ? getSummaryMetricChips(card) : [];
+  const summaryContentBlocks = isSummaryCard ? getSummaryContentBlocks(card) : [];
+  const summaryRevisionLabel = isSummaryCard ? getSummaryRevisionLabel(card, latestHistoryItem) : "";
+  const stackLabel = isSummaryCard ? "群总结修订记录" : "Matter 状态更新";
+  const stackActionLabel = isSummaryCard ? stackLabel : ` ${stackLabel}`;
   const handlePreview = () => {
     if (previewAction) onAction?.(previewAction);
   };
@@ -418,16 +511,16 @@ export function BusinessCardView({ card, actionLoadingType, onAction }: Business
         "wk-business-card",
         `wk-business-card--${cardType}`,
         `wk-business-card--tone-${tone}`,
-        previewAction ? "wk-business-card--previewable" : "",
+        canPreviewByCardClick ? "wk-business-card--previewable" : "",
         shouldShowCardStack ? "wk-business-card--stacked" : "",
         expanded ? "wk-business-card--expanded" : "",
       ].filter(Boolean).join(" ")}
       aria-label={typeLabel}
-      role={previewAction ? "button" : undefined}
-      tabIndex={previewAction ? 0 : undefined}
-      onClick={previewAction ? handlePreview : undefined}
+      role={canPreviewByCardClick ? "button" : undefined}
+      tabIndex={canPreviewByCardClick ? 0 : undefined}
+      onClick={canPreviewByCardClick ? handlePreview : undefined}
       onKeyDown={(event) => {
-        if (!previewAction) return;
+        if (!canPreviewByCardClick) return;
         if (event.key === "Enter" || event.key === " ") {
           event.preventDefault();
           handlePreview();
@@ -444,13 +537,35 @@ export function BusinessCardView({ card, actionLoadingType, onAction }: Business
         <header className="wk-business-card-head">
           <span className="wk-business-card-type-mark" aria-hidden="true">{shortTypeLabel}</span>
           <div className="wk-business-card-title-group">
-            <div className="wk-business-card-kicker">
-              <span className={`wk-business-card-status-dot wk-business-card-status-dot--${tone}`} aria-hidden="true" />
-              <span>{getKicker(card)}</span>
-            </div>
-            <h3 className="wk-business-card-title">{card.title}</h3>
-            {card.subtitle && <p className="wk-business-card-subtitle">{card.subtitle}</p>}
-            {matterStatusText && <p className="wk-business-card-human-status">{matterStatusText}</p>}
+            {isSummaryCard ? (
+              <div className="wk-business-card-summary-headline">
+                <div className="wk-business-card-summary-source">
+                  <span className={`wk-business-card-status-dot wk-business-card-status-dot--${tone}`} aria-hidden="true" />
+                  <strong>{summarySourceName}</strong>
+                  {card.time && <span>{card.time}</span>}
+                </div>
+                <h3 className="wk-business-card-title">{summaryContentTitle}</h3>
+                {summaryTechnicalTitle && <div className="wk-business-card-summary-id">{summaryTechnicalTitle}</div>}
+                {summaryAbstract && <p className="wk-business-card-summary-abstract">{summaryAbstract}</p>}
+                {!!summaryMetricChips.length && (
+                  <div className="wk-business-card-summary-chips" aria-label="群总结关键指标">
+                    {summaryMetricChips.map((chip) => (
+                      <span key={chip}>{chip}</span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <>
+                <div className="wk-business-card-kicker">
+                  <span className={`wk-business-card-status-dot wk-business-card-status-dot--${tone}`} aria-hidden="true" />
+                  <span>{getKicker(card)}</span>
+                </div>
+                <h3 className="wk-business-card-title">{card.title}</h3>
+                {!isMatterCard && card.subtitle && <p className="wk-business-card-subtitle">{card.subtitle}</p>}
+                {!hasExpandedContent && matterStatusText && <p className="wk-business-card-human-status">{matterStatusText}</p>}
+              </>
+            )}
           </div>
           <div className="wk-business-card-badges">
             {card.priority && <span className="wk-business-card-badge wk-business-card-badge--priority">{card.priority}</span>}
@@ -459,12 +574,26 @@ export function BusinessCardView({ card, actionLoadingType, onAction }: Business
                 {summaryStatusLabel || statusLabel}
               </span>
             )}
+            {hasExpandedContent && (
+              <button
+                type="button"
+                className="wk-business-card-expand-button"
+                aria-label={expanded ? `收起${stackActionLabel}` : `展开${stackActionLabel}`}
+                aria-expanded={expanded}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setExpanded((value) => !value);
+                }}
+              >
+                <span aria-hidden="true">⌄</span>
+              </button>
+            )}
           </div>
         </header>
 
-        {card.body && <p className="wk-business-card-desc">{card.body}</p>}
+        {card.body && shouldShowDetailBlocks && !isSummaryCard && <p className="wk-business-card-desc">{card.body}</p>}
 
-        {!!card.metrics?.length && (
+        {!!card.metrics?.length && shouldShowDetailBlocks && !isSummaryCard && (
           <dl className="wk-business-card-fields">
             {card.metrics.map((item) => (
               <div className="wk-business-card-field" key={`${item.label}-${item.value}`}>
@@ -475,7 +604,7 @@ export function BusinessCardView({ card, actionLoadingType, onAction }: Business
           </dl>
         )}
 
-        {progressPercent && (
+        {progressPercent && !isMatterCard && !isSummaryCard && (
           <div className="wk-business-card-progress" aria-hidden="true">
             <span style={{ width: progressPercent }} />
           </div>
@@ -494,44 +623,74 @@ export function BusinessCardView({ card, actionLoadingType, onAction }: Business
           </div>
         )}
 
-        {sourceText && !isMatterCard && <div className="wk-business-card-source">{sourceText}</div>}
+        {sourceText && !isMatterCard && !isSummaryCard && shouldShowDetailBlocks && <div className="wk-business-card-source">{sourceText}</div>}
 
-        {isMatterCard && !expanded && visibleUpdateCount > 1 && (
+        {isStackableCard && !expanded && visibleUpdateCount > 1 && (
           <div className="wk-business-card-stack-note">
-            <span>同一 Matter 已合并 {visibleUpdateCount} 次状态更新</span>
+            <span>
+              {isSummaryCard
+                ? `${visibleUpdateCount} 次修订${summaryRevisionLabel ? ` · ${summaryRevisionLabel}` : ""}`
+                : `${visibleUpdateCount} 次状态更新已合并`}
+            </span>
             {latestHistoryItem?.time && <span>{latestHistoryItem.time}</span>}
           </div>
         )}
 
-        {hasMatterExpandedContent && (
-          <div className={`wk-business-card-history${expanded ? " wk-business-card-history--open" : ""}`} aria-label="Matter 历史状态" aria-hidden={!expanded}>
+        {hasExpandedContent && (
+          <div className={`wk-business-card-history${expanded ? " wk-business-card-history--open" : ""}`} aria-label={isSummaryCard ? "群总结修订记录" : `${stackLabel}历史`} aria-hidden={!expanded}>
             <div className="wk-business-card-history-inner">
-              {statusHistory.map((item, index) => (
-                <div className={`wk-business-card-history-card${index === statusHistory.length - 1 ? " wk-business-card-history-card--latest" : ""}`} key={`${item.id}-${index}`}>
-                  <div className="wk-business-card-history-head">
-                    <span>{item.status || "状态更新"}</span>
-                    <time>{[item.actor, item.time, index === statusHistory.length - 1 ? "最新" : ""].filter(Boolean).join(" · ")}</time>
-                  </div>
-                  <strong>{item.title}</strong>
-                  {item.body && item.body !== item.title && <p>{item.body}</p>}
-                  {item.sourceText && <span className="wk-business-card-history-source">来源：{item.sourceText}</span>}
-                  {!!item.metrics?.length && (
-                    <dl>
-                      {item.metrics.slice(0, 3).map((metric) => (
-                        <div key={`${item.id}-${metric.label}-${metric.value}`}>
-                          <dt>{metric.label}</dt>
-                          <dd>{metric.value}</dd>
-                        </div>
+              {isSummaryCard ? (
+                <>
+                  {!!summaryContentBlocks.length && (
+                    <div className="wk-business-card-summary-detail-blocks">
+                      {summaryContentBlocks.map((block) => (
+                        <section className="wk-business-card-summary-detail-block" key={block.title}>
+                          <strong>{block.title}</strong>
+                          <p>{block.body}</p>
+                        </section>
                       ))}
-                    </dl>
+                    </div>
                   )}
-                </div>
-              ))}
+                  <div className="wk-business-card-history-section-head">
+                    <span>修订记录</span>
+                    <span>{visibleUpdateCount} 次</span>
+                  </div>
+                  {statusHistory.map((item, index) => (
+                    <div className={`wk-business-card-history-card${index === statusHistory.length - 1 ? " wk-business-card-history-card--latest" : ""}`} key={`${item.id}-${index}`}>
+                      <strong>{item.status || item.title}</strong>
+                      {item.title && item.status && <p>{item.title}</p>}
+                      {item.body && item.body !== item.title && <p>{item.body}</p>}
+                    </div>
+                  ))}
+                </>
+              ) : (
+                statusHistory.map((item, index) => (
+                  <div className={`wk-business-card-history-card${index === statusHistory.length - 1 ? " wk-business-card-history-card--latest" : ""}`} key={`${item.id}-${index}`}>
+                    <div className="wk-business-card-history-head">
+                      <span>{item.status || "状态更新"}</span>
+                      <time>{[item.actor, item.time, index === statusHistory.length - 1 ? "最新" : ""].filter(Boolean).join(" · ")}</time>
+                    </div>
+                    <strong>{item.title}</strong>
+                    {item.body && item.body !== item.title && <p>{item.body}</p>}
+                    {item.sourceText && <span className="wk-business-card-history-source">来源：{item.sourceText}</span>}
+                    {!!item.metrics?.length && (
+                      <dl>
+                        {item.metrics.slice(0, 3).map((metric) => (
+                          <div key={`${item.id}-${metric.label}-${metric.value}`}>
+                            <dt>{metric.label}</dt>
+                            <dd>{metric.value}</dd>
+                          </div>
+                        ))}
+                      </dl>
+                    )}
+                  </div>
+                ))
+              )}
             </div>
           </div>
         )}
 
-        {(!!primaryActions.length || previewAction || hasMatterExpandedContent) && (
+        {(!!primaryActions.length || previewAction) && (
           <div className="wk-business-card-actions">
             {primaryActions.map((action) => {
               const loading = actionLoadingType === action.type;
@@ -550,18 +709,6 @@ export function BusinessCardView({ card, actionLoadingType, onAction }: Business
                 </button>
               );
             })}
-            {hasMatterExpandedContent && (
-              <button
-                type="button"
-                className="wk-business-card-action wk-business-card-action--timeline"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  setExpanded((value) => !value);
-                }}
-              >
-                {getTimelineActionLabel(visibleUpdateCount, expanded)}
-              </button>
-            )}
             {previewAction && (
               <button
                 type="button"

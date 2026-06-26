@@ -41,7 +41,7 @@ import MatterPickerModal from "../components/MatterPickerModal";
 import * as matterBridge from "../api/matterBridge";
 import SummaryEditor from "../components/SummaryEditor";
 import { buildSummaryFeedbackCard } from "../utils/businessCard";
-import { openSummaryWorkspace } from "../utils/summaryWorkspaceNavigation";
+import { getLastSummaryWorkspaceSource, openSummaryWorkspace } from "../utils/summaryWorkspaceNavigation";
 
 interface SummaryDetailPageProps {
     taskId?: number;
@@ -968,8 +968,37 @@ export default class SummaryDetailPage extends Component<SummaryDetailPageProps,
         );
     };
 
+    getReturnToConversation(): SourceConversationRef | undefined {
+        const { detail } = this.state;
+        const existing = this.props.returnToConversation || getLastSummaryWorkspaceSource();
+
+        if (!detail?.origin_channel_id || detail.origin_channel_type == null) {
+            return existing;
+        }
+
+        const detailSource: SourceConversationRef = {
+            channelId: detail.origin_channel_id,
+            channelType: detail.origin_channel_type,
+            label: existing?.label,
+            messageSeq: existing?.messageSeq,
+        };
+
+        if (!existing) return detailSource;
+        if (
+            existing.channelId === detailSource.channelId &&
+            existing.channelType === detailSource.channelType
+        ) {
+            return {
+                ...detailSource,
+                label: existing.label,
+                messageSeq: existing.messageSeq,
+            };
+        }
+        return existing;
+    }
+
     handleReturnToConversation = () => {
-        if (!openSourceConversation(this.props.returnToConversation)) {
+        if (!openSourceConversation(this.getReturnToConversation())) {
             Toast.error(t("summary.common.operationFailed"));
         }
     };
@@ -1051,6 +1080,7 @@ export default class SummaryDetailPage extends Component<SummaryDetailPageProps,
     renderHeader() {
         const { detail } = this.state;
         const { t } = this.context;
+        const returnToConversation = this.getReturnToConversation();
 
         // Build "..." menu items
         const menuItems: { node: string; key: string; onClick: () => void; danger?: boolean }[] = [];
@@ -1064,13 +1094,13 @@ export default class SummaryDetailPage extends Component<SummaryDetailPageProps,
         return (
             <div className="summary-detail-header">
                 <div className="summary-detail-header-inner">
-                    {this.props.returnToConversation && (
+                    {returnToConversation && (
                         <button
                             type="button"
                             className="summary-detail-return-chat"
                             onClick={this.handleReturnToConversation}
                         >
-                            ← {getSourceConversationLabel(this.props.returnToConversation)}
+                            ← {getSourceConversationLabel(returnToConversation)}
                         </button>
                     )}
                     <OverflowTooltip as="h2" className="summary-detail-title" title={detail?.title || t("summary.detail.defaultTitle")}>

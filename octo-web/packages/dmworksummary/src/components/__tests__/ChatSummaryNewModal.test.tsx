@@ -2,6 +2,7 @@ import React from 'react';
 import { render as rtlRender, screen, fireEvent, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import ChatSummaryNewModal from '../ChatSummaryNewModal';
+import * as summaryApi from '../../api/summaryApi';
 
 vi.mock('@douyinfe/semi-ui', () => ({
     Modal: ({ children, visible, footer, onCancel }: any) =>
@@ -293,6 +294,57 @@ describe('ChatSummaryNewModal', () => {
         const footer = screen.getByTestId('modal-footer');
         const submitBtn = footer.querySelector('button');
         expect(submitBtn).toBeDisabled();
+    });
+
+    it('emits summary-created metadata after creating a summary from chat', async () => {
+        vi.mocked(summaryApi.createSummary).mockResolvedValueOnce({ task_id: 36 });
+        const onSubmit = vi.fn();
+        const onSummaryCreated = vi.fn();
+
+        await act(async () => {
+            render(
+                <ChatSummaryNewModal
+                    {...defaultProps}
+                    onSubmit={onSubmit}
+                    onSummaryCreated={onSummaryCreated}
+                />,
+            );
+            await flushPromises();
+        });
+
+        const input = screen.getByPlaceholderText('输入聊天内你想总结的主题');
+        fireEvent.change(input, { target: { value: '验收群风险复盘' } });
+
+        await act(async () => {
+            fireEvent.click(screen.getByText('开始总结'));
+            await flushPromises();
+        });
+
+        expect(summaryApi.createSummary).toHaveBeenCalledWith({
+            topic: '验收群风险复盘',
+            origin_channel_id: 'ch1',
+            origin_channel_type: 1,
+            sources: [
+                {
+                    source_type: 1,
+                    source_id: 'ch1',
+                    source_name: 'Test Chat',
+                },
+            ],
+        });
+        expect(onSummaryCreated).toHaveBeenCalledWith(36, {
+            topic: '验收群风险复盘',
+            originChannelId: 'ch1',
+            originChannelType: 2,
+            sources: [
+                {
+                    source_type: 1,
+                    source_id: 'ch1',
+                    source_name: 'Test Chat',
+                },
+            ],
+        });
+        expect(onSubmit).toHaveBeenCalledWith(36);
     });
 
     it('does not render when not visible', () => {

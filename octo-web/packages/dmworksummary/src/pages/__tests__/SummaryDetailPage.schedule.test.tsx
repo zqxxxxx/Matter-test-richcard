@@ -159,6 +159,55 @@ describe('SummaryDetailPage — Blocking 5: scheduleItem must track current deta
     });
 });
 
+describe('SummaryDetailPage — return to original chat', () => {
+    beforeEach(() => vi.clearAllMocks());
+
+    it('uses detail origin channel as a fallback source for the return button', () => {
+        const page = makePage(1);
+        page.state = {
+            ...(page.state as any),
+            detail: baseDetail({
+                origin_channel_id: 'group-1',
+                origin_channel_type: 2,
+            }),
+        };
+
+        expect(page.getReturnToConversation()).toEqual({
+            channelId: 'group-1',
+            channelType: 2,
+            label: undefined,
+            messageSeq: undefined,
+        });
+    });
+
+    it('keeps the card source label and message seq when available', () => {
+        const page = new SummaryDetailPage({
+            taskId: 1,
+            returnToConversation: {
+                channelId: 'group-1',
+                channelType: 2,
+                label: 'Richcard 验收群',
+                messageSeq: 102,
+            },
+        } as any);
+        (page as any).context = { t: (k: string) => k };
+        page.state = {
+            ...(page.state as any),
+            detail: baseDetail({
+                origin_channel_id: 'group-1',
+                origin_channel_type: 2,
+            }),
+        };
+
+        expect(page.getReturnToConversation()).toEqual({
+            channelId: 'group-1',
+            channelType: 2,
+            label: 'Richcard 验收群',
+            messageSeq: 102,
+        });
+    });
+});
+
 // 回归：「无定时」总结新建定时改为一步式 createSchedule（scope='task' + task_id）。
 // 后端 create 在 scope=task 时已在一个事务里原子完成「建定时 + 绑定 summary_task.schedule_id」，
 // 前端不再走两步式（create 再 update 绑定），也不再有 B2 回滚（不会产生游离/孤儿定时）。

@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -84,24 +85,24 @@ type createMatterSourceMsgRef struct {
 }
 
 type createMatterReq struct {
-	Title             string   `json:"title" binding:"required,max=500"`
-	Description       *string  `json:"description" binding:"omitempty,max=10000"`
-	BriefConstraints  *string  `json:"brief_constraints" binding:"omitempty,max=4000"`
-	BriefOutputSpec   *string  `json:"brief_output_spec" binding:"omitempty,max=4000"`
-	AssigneeIDs       []string `json:"assignee_ids"`
-	LeaderUID         *string  `json:"leader_uid" binding:"omitempty,max=64"`
-	ParentMatterID    *string  `json:"parent_matter_id" binding:"omitempty,uuid"`
-	StepID            *string  `json:"step_id" binding:"omitempty,max=64"`
-	StepOrder         *uint    `json:"step_order"`
-	Mode              *string  `json:"mode" binding:"omitempty,max=20"`
-	ProjectID         *string  `json:"project_id" binding:"omitempty,uuid"`
-	ExpectedDuration  *uint    `json:"expected_duration_minutes"`
-	Deadline          *string  `json:"deadline"`
-	RemindAt          *string                    `json:"remind_at"`
-	InputAttachments  []model.InputAttachment    `json:"input_attachments" binding:"omitempty,max=20"`
-	SourceChannelID   *string                    `json:"source_channel_id"`
-	SourceChannelType *uint8   `json:"source_channel_type" binding:"omitempty,oneof=1 2 5"`
-	SourceName        *string  `json:"source_name"`
+	Title             string                  `json:"title" binding:"required,max=500"`
+	Description       *string                 `json:"description" binding:"omitempty,max=10000"`
+	BriefConstraints  *string                 `json:"brief_constraints" binding:"omitempty,max=4000"`
+	BriefOutputSpec   *string                 `json:"brief_output_spec" binding:"omitempty,max=4000"`
+	AssigneeIDs       []string                `json:"assignee_ids"`
+	LeaderUID         *string                 `json:"leader_uid" binding:"omitempty,max=64"`
+	ParentMatterID    *string                 `json:"parent_matter_id" binding:"omitempty,uuid"`
+	StepID            *string                 `json:"step_id" binding:"omitempty,max=64"`
+	StepOrder         *uint                   `json:"step_order"`
+	Mode              *string                 `json:"mode" binding:"omitempty,max=20"`
+	ProjectID         *string                 `json:"project_id" binding:"omitempty,uuid"`
+	ExpectedDuration  *uint                   `json:"expected_duration_minutes"`
+	Deadline          *string                 `json:"deadline"`
+	RemindAt          *string                 `json:"remind_at"`
+	InputAttachments  []model.InputAttachment `json:"input_attachments" binding:"omitempty,max=20"`
+	SourceChannelID   *string                 `json:"source_channel_id"`
+	SourceChannelType *uint8                  `json:"source_channel_type" binding:"omitempty,oneof=1 2 5"`
+	SourceName        *string                 `json:"source_name"`
 	// Pointer so the handler can tell "field absent" (nil) from "field
 	// explicitly empty" (non-nil, len 0). The former falls back to
 	// source_msgs; the latter is a deliberate "clear the list" signal and
@@ -255,10 +256,32 @@ func (h *MatterHandler) Create(c *gin.Context) {
 		h.v2.AfterCreate(c.Request.Context(), matter, userID, req.AssigneeIDs)
 	}
 	actorName := userName(c)
+	sourceToken := callerToken(c)
+	space := sid
 	h.worker.Submit(func() {
+		h.sendMatterCreatedCardToSource(context.Background(), matter, actorName, req.AssigneeIDs, sourceToken, space)
 		h.notifier.NotifyMatterCreated(matter, actorName, req.AssigneeIDs)
 	})
 	created(c, detail)
+}
+
+func (h *MatterHandler) sendMatterCreatedCardToSource(ctx context.Context, matter *model.Matter, actorName string, assigneeIDs []string, userToken string, spaceID string) {
+	if matter == nil || matter.SourceChannelID == nil || *matter.SourceChannelID == "" || matter.SourceChannelType == nil || userToken == "" {
+		return
+	}
+	sender, ok := h.notifier.(notification.UserChannelPayloadSender)
+	if !ok {
+		return
+	}
+	if err := sender.SendUserChannelPayload(
+		userToken,
+		spaceID,
+		*matter.SourceChannelID,
+		*matter.SourceChannelType,
+		service.BuildMatterCreatedCardPayload(matter, actorName, assigneeIDs),
+	); err != nil {
+		log.Printf("send matter created card to source failed: matter=%s channel=%s/%d err=%v", matter.ID, *matter.SourceChannelID, *matter.SourceChannelType, err)
+	}
 }
 
 func (h *MatterHandler) List(c *gin.Context) {
@@ -376,12 +399,12 @@ func (h *MatterHandler) Get(c *gin.Context) {
 }
 
 type updateMatterReq struct {
-	Title            *string `json:"title" binding:"omitempty,max=500"`
-	Description      *string `json:"description" binding:"omitempty,max=10000"`
-	BriefConstraints *string `json:"brief_constraints" binding:"omitempty,max=4000"`
-	BriefOutputSpec  *string `json:"brief_output_spec" binding:"omitempty,max=4000"`
-	Deadline         *string `json:"deadline"`
-	RemindAt         *string `json:"remind_at"`
+	Title            *string                  `json:"title" binding:"omitempty,max=500"`
+	Description      *string                  `json:"description" binding:"omitempty,max=10000"`
+	BriefConstraints *string                  `json:"brief_constraints" binding:"omitempty,max=4000"`
+	BriefOutputSpec  *string                  `json:"brief_output_spec" binding:"omitempty,max=4000"`
+	Deadline         *string                  `json:"deadline"`
+	RemindAt         *string                  `json:"remind_at"`
 	LeaderUID        *string                  `json:"leader_uid" binding:"omitempty,max=64"`
 	Mode             *string                  `json:"mode" binding:"omitempty,max=20"`
 	ProjectID        *string                  `json:"project_id" binding:"omitempty,max=36"`
@@ -431,11 +454,11 @@ func (h *MatterHandler) Update(c *gin.Context) {
 }
 
 type transitionReq struct {
-	Status          string  `json:"status" binding:"required"`
-	ExpectedVersion *int64  `json:"expected_version"`
-	AssignmentEpoch *uint   `json:"assignment_epoch"`
-	Reason          string  `json:"reason" binding:"omitempty,max=500"`
-	Summary         string  `json:"summary" binding:"omitempty,max=2000"`
+	Status          string `json:"status" binding:"required"`
+	ExpectedVersion *int64 `json:"expected_version"`
+	AssignmentEpoch *uint  `json:"assignment_epoch"`
+	Reason          string `json:"reason" binding:"omitempty,max=500"`
+	Summary         string `json:"summary" binding:"omitempty,max=2000"`
 }
 
 func (h *MatterHandler) Transition(c *gin.Context) {

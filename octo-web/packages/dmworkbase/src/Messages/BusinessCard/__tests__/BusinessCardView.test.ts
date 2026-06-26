@@ -33,7 +33,7 @@ describe("BusinessCardView actions", () => {
     });
   });
 
-  it("adds the summary workspace jump action for legacy summary cards", () => {
+  it("prioritizes summary judgement actions and preview", () => {
     const card: BusinessCardPayload = {
       id: "summary-legacy",
       cardType: "summary_feedback",
@@ -48,13 +48,13 @@ describe("BusinessCardView actions", () => {
     const actions = getBusinessCardActions(card);
 
     expect(actions.map((action) => action.type)).toEqual([
-      "open_summary_workspace",
       "summary_accept",
       "summary_reject",
       "open_summary",
     ]);
-    expect(actions[0]).toMatchObject({ label: "进入群总结", kind: "primary" });
-    expect(actions[3]).toMatchObject({ label: "预览", kind: "ghost" });
+    expect(actions[0]).toMatchObject({ label: "认可", kind: "primary" });
+    expect(actions[1]).toMatchObject({ label: "继续优化", kind: "secondary" });
+    expect(actions[2]).toMatchObject({ label: "预览", kind: "ghost" });
   });
 
   it("does not duplicate workspace jump actions that already exist", () => {
@@ -120,26 +120,68 @@ describe("BusinessCardView actions", () => {
     expect(html).not.toContain("外部链接预览卡片");
   });
 
-  it("renders pending summary cards without stacked layers", () => {
+  it("renders pending summary cards with stacked layers when multiple updates are folded", () => {
     const card: BusinessCardPayload = {
       id: "summary-stack",
       cardType: "summary_feedback",
       title: "LLM真实群总结 0623-085407",
-      subtitle: "群总结 · LLM 已生成",
+      subtitle: "合同验收风险与行动项摘要",
+      body: "客户合同已进入 v3 版本，销售、法务和 PM 需要一起确认风险条款，完成后在群里同步状态。",
+      source: "Richard 验收群",
+      time: "今天 09:12",
       status: "pending_confirm",
       metrics: [
-        { label: "模型", value: "deepseek-chat" },
         { label: "消息数", value: "7" },
-        { label: "反馈", value: "待确认" },
+        { label: "行动项", value: "3" },
+        { label: "风险点", value: "1" },
       ],
+      actions: [
+        { label: "进入群总结", type: "open_summary_workspace", kind: "primary" },
+        { label: "认可", type: "summary_accept", kind: "secondary" },
+        { label: "继续优化", type: "summary_reject", kind: "secondary" },
+      ],
+      extra: {
+        sourceName: "Richard 验收群",
+        summaryTitle: "合同验收风险与行动项摘要",
+        versionLabel: "v2 已修订",
+        conclusion: "客户合同 v3 已具备验收条件，风险集中在付款节点、违约责任和上线前交付范围。",
+        actionItems: ["销售补充客户侧承诺口径", "法务确认红线条款", "PM 在群里同步最终验收结论"],
+        riskItems: ["上线前交付范围仍需客户书面确认"],
+        statusHistory: [
+          { id: "summary-1", statusText: "v1", title: "生成初稿：提炼行动项、风险点和待确认事项。" },
+          { id: "summary-2", statusText: "v2", title: "补充接口联调风险，合并重复风险点，并补充负责人。", time: "09:12" },
+        ],
+      },
     };
 
     const html = renderToStaticMarkup(React.createElement(BusinessCardView, { card }));
 
     expect(html).toContain("wk-business-card--summary_feedback");
+    expect(html).toContain("Richard 验收群");
+    expect(html).toContain("合同验收风险与行动项摘要");
+    expect(html).toContain("LLM真实群总结 0623-085407");
+    expect(html).toContain("客户合同已进入 v3 版本");
+    expect(html).toContain("7 条消息");
+    expect(html).toContain("行动项 3");
+    expect(html).toContain("风险点 1");
+    expect(html).toContain("v2 已修订");
     expect(html).toContain("待确认");
-    expect(html).not.toContain("wk-business-card--stacked");
-    expect(html).not.toContain("wk-business-card-stack-layers");
+    expect(html).toContain("wk-business-card--stacked");
+    expect(html).toContain("wk-business-card-stack-layers");
+    expect(html).toContain("2 次修订 · v2 已修订");
+    expect(html).not.toContain("进入群总结");
+    expect(html).toContain("认可");
+    expect(html).toContain("继续优化");
+    expect(html).toContain("预览");
+    expect(html).toContain("关键结论");
+    expect(html).toContain("行动项");
+    expect(html).toContain("风险点");
+    expect(html).toContain("修订记录");
+    expect(html).toContain("v1");
+    expect(html).toContain("v2");
+    expect(html).toContain("aria-expanded=\"false\"");
+    expect(html).toContain("展开群总结修订记录");
+    expect(html).not.toContain("wk-business-card-fields");
   });
 
   it("renders confirmed summary cards as a quiet closed state", () => {
@@ -166,11 +208,12 @@ describe("BusinessCardView actions", () => {
     const actions = getBusinessCardActions(card);
     const html = renderToStaticMarkup(React.createElement(BusinessCardView, { card }));
 
-    expect(actions.map((action) => action.type)).toEqual(["open_summary_workspace", "open_summary"]);
+    expect(actions.map((action) => action.type)).toEqual(["open_summary"]);
     expect(html).toContain("已确认");
     expect(html).toContain("wk-business-card--tone-summary-confirmed");
     expect(html).not.toContain("认可");
     expect(html).not.toContain("需要调整");
+    expect(html).not.toContain("进入群总结");
     expect(html).not.toContain("wk-business-card--stacked");
   });
 
@@ -245,12 +288,16 @@ describe("BusinessCardView actions", () => {
     expect(html).toContain("wk-business-card--stacked");
     expect(html).toContain("wk-business-card-stack-layers");
     expect(html).toContain("wk-business-card-stack-layer--back");
-    expect(html).toContain("同一 Matter 已合并 2 次状态更新");
+    expect(html).toContain("2 次状态更新已合并");
+    expect(html).toContain("进入 Matter");
+    expect(html).toContain("行");
+    expect(html).toContain("预览");
     expect(html).toContain("wk-business-card-history");
     expect(html).toContain("合同进入法务复核");
     expect(html).toContain("风险说明已回传");
     expect(html).toContain("来源：客户要求补充风险条款");
     expect(html).toContain("来源：法务提交风险说明");
-    expect(html).toContain("展开 2");
+    expect(html).toContain("aria-expanded=\"false\"");
+    expect(html).toContain("展开 Matter 状态更新");
   });
 });

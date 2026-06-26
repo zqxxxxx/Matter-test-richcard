@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { WKApp } from "@octo/base";
 import {
     consumePendingSummaryWorkspaceOpen,
+    getLastSummaryWorkspaceSource,
     openSummaryWorkspace,
     SUMMARY_WORKSPACE_OPEN_EVENT,
 } from "../summaryWorkspaceNavigation";
@@ -29,5 +30,6 @@ describe("summary workspace navigation", () => {
             taskId: 42,
             source,
         });
+        expect(getLastSummaryWorkspaceSource()).toEqual(source);
     });
 });

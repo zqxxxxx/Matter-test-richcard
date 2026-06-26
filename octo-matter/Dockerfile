@@ -5,6 +5,7 @@
 # mirror mid-session). The built-in frontend builds this file identically.
 FROM golang:1.25-alpine AS builder
 WORKDIR /app
+ENV GOPROXY=https://goproxy.cn,direct
 
 # Cache module downloads as a separate layer so code edits don't bust the dep cache.
 COPY go.mod go.sum ./

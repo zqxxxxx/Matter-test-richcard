@@ -20,6 +20,18 @@ interface ChatSummaryNewModalProps {
     channel: { channelID: string; channelType: number };
     onClose: () => void;
     onSubmit: (taskId: number) => void;
+    onSummaryCreated?: (taskId: number, meta: ChatSummaryCreatedMeta) => void;
+}
+
+export interface ChatSummaryCreatedMeta {
+    topic: string;
+    originChannelId: string;
+    originChannelType: number;
+    sources: Array<{
+        source_type: 1 | 2 | 3;
+        source_id: string;
+        source_name?: string;
+    }>;
 }
 
 interface ChatSummaryNewModalState {
@@ -154,6 +166,12 @@ export default class ChatSummaryNewModal extends Component<
                     detail: { taskId: res.task_id, channelId: channel.channelID },
                 }),
             );
+            this.props.onSummaryCreated?.(res.task_id, {
+                topic: topic.trim(),
+                originChannelId: channel.channelID,
+                originChannelType: channel.channelType,
+                sources,
+            });
             onSubmit(res.task_id);
         } catch (err: unknown) {
             const msg = err instanceof Error

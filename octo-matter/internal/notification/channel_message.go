@@ -24,6 +24,13 @@ type ChannelPayloadSender interface {
 	SendChannelPayload(fromUID, channelID string, channelType uint8, payload map[string]interface{}) error
 }
 
+// UserChannelPayloadSender posts a fully-formed payload through Octo's normal
+// user message ingress. It preserves membership checks and sender identity by
+// forwarding the caller's user token to /v1/message/send.
+type UserChannelPayloadSender interface {
+	SendUserChannelPayload(userToken, spaceID, channelID string, channelType uint8, payload map[string]interface{}) error
+}
+
 // BotGroup is one conversation a bot is a member of — picker data for the
 // automation "send result to" target (no human ever types a channel id).
 type BotGroup struct {
@@ -113,6 +120,45 @@ func (n *OctoNotifier) SendChannelPayload(fromUID, channelID string, channelType
 	io.Copy(io.Discard, resp.Body)
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return fmt.Errorf("channel message returned %d", resp.StatusCode)
+	}
+	return nil
+}
+
+// SendUserChannelPayload posts via octo-server POST /v1/message/send as the
+// authenticated user represented by userToken. This is used for user-initiated
+// source-conversation cards such as "Matter created", where sending as a bot
+// would misrepresent who started the work.
+func (n *OctoNotifier) SendUserChannelPayload(userToken, spaceID, channelID string, channelType uint8, payload map[string]interface{}) error {
+	if userToken == "" || channelID == "" {
+		return nil
+	}
+	body, err := json.Marshal(map[string]interface{}{
+		"token":                userToken,
+		"receive_channel_id":   channelID,
+		"receive_channel_type": channelType,
+		"payload":              payload,
+		"is_verify":            1,
+	})
+	if err != nil {
+		return fmt.Errorf("marshal user channel message: %w", err)
+	}
+	req, err := http.NewRequest(http.MethodPost, n.baseURL+"/v1/message/send", bytes.NewReader(body))
+	if err != nil {
+		return fmt.Errorf("build user channel message request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("token", userToken)
+	if spaceID != "" {
+		req.Header.Set("X-Space-Id", spaceID)
+	}
+	resp, err := n.client.Do(req)
+	if err != nil {
+		return fmt.Errorf("user channel message POST: %w", err)
+	}
+	defer resp.Body.Close()
+	io.Copy(io.Discard, resp.Body)
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return fmt.Errorf("user channel message returned %d", resp.StatusCode)
 	}
 	return nil
 }
