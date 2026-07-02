@@ -42,6 +42,7 @@ import * as matterBridge from "../api/matterBridge";
 import SummaryEditor from "../components/SummaryEditor";
 import { buildSummaryFeedbackCard } from "../utils/businessCard";
 import { getLastSummaryWorkspaceSource, openSummaryWorkspace } from "../utils/summaryWorkspaceNavigation";
+import { getSummaryOriginConversation } from "../utils/sourceConversation";
 
 interface SummaryDetailPageProps {
     taskId?: number;
@@ -946,14 +947,7 @@ export default class SummaryDetailPage extends Component<SummaryDetailPageProps,
         }
 
         const existing = this.props.returnToConversation;
-        const detailSource =
-            detail.origin_channel_id && detail.origin_channel_type != null
-                ? {
-                    channelId: detail.origin_channel_id,
-                    channelType: detail.origin_channel_type,
-                    label: existing?.label,
-                }
-                : undefined;
+        const detailSource = getSummaryOriginConversation(detail, existing);
         const source =
             existing &&
             detailSource &&
@@ -972,16 +966,8 @@ export default class SummaryDetailPage extends Component<SummaryDetailPageProps,
         const { detail } = this.state;
         const existing = this.props.returnToConversation || getLastSummaryWorkspaceSource();
 
-        if (!detail?.origin_channel_id || detail.origin_channel_type == null) {
-            return existing;
-        }
-
-        const detailSource: SourceConversationRef = {
-            channelId: detail.origin_channel_id,
-            channelType: detail.origin_channel_type,
-            label: existing?.label,
-            messageSeq: existing?.messageSeq,
-        };
+        const detailSource = getSummaryOriginConversation(detail, existing);
+        if (!detailSource) return existing;
 
         if (!existing) return detailSource;
         if (

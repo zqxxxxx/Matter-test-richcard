@@ -28,13 +28,16 @@ import type {
     TopicTemplate,
 } from "../types/summary";
 import { SummaryMode, SourceType } from "../types/summary";
+import type { SourceTypeValue } from "../types/summary";
 import { describeSchedule, scheduleToParams } from "../utils/summaryHelpers";
 import { resolveTemplate, computeTemplateSelection, type ResolvableTemplate } from "../utils/templateResolver";
+import { getSourceType, isSupportedChannelType } from "../utils/channelType";
 
 const { Text } = Typography;
 
 interface SummaryCreatePageProps {
     onCreated?: () => void;
+    originChannel?: { channelID: string; channelType: number };
 }
 
 interface SummaryCreatePageState {
@@ -56,6 +59,21 @@ export default class SummaryCreatePage extends Component<SummaryCreatePageProps,
     declare context: React.ContextType<typeof I18nContext>;
 
     private textareaRef = createRef<HTMLTextAreaElement>();
+
+    private getOriginChannel(): SummaryCreatePageProps["originChannel"] {
+        if (this.props.originChannel) {
+            return this.props.originChannel;
+        }
+
+        const openChannel = WKApp.shared.openChannel;
+        if (openChannel?.channelID && typeof openChannel.channelType === "number" && isSupportedChannelType(openChannel)) {
+            return {
+                channelID: openChannel.channelID,
+                channelType: openChannel.channelType,
+            };
+        }
+        return undefined;
+    }
 
     state: SummaryCreatePageState = {
         topic: "",
@@ -163,6 +181,13 @@ export default class SummaryCreatePage extends Component<SummaryCreatePageProps,
                 title: topic.trim(),
                 summary_mode: SummaryMode.BY_PERSON,
             };
+            const originChannel = this.getOriginChannel();
+            const originSourceType = originChannel ? getSourceType(originChannel) : null;
+
+            if (originChannel?.channelID && originSourceType !== null) {
+                params.origin_channel_id = originChannel.channelID;
+                params.origin_channel_type = originSourceType;
+            }
 
             if (selectedChats.length > 0) {
                 params.sources = selectedChats.map((c) => ({
@@ -172,6 +197,11 @@ export default class SummaryCreatePage extends Component<SummaryCreatePageProps,
                     source_id: c.chat_id,
                     source_name: c.name,
                 }));
+            } else if (originChannel?.channelID && originSourceType !== null) {
+                params.sources = [{
+                    source_type: originSourceType as SourceTypeValue,
+                    source_id: originChannel.channelID,
+                }];
             }
 
             if (selectedMembers.length > 0) {

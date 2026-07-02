@@ -67,7 +67,7 @@ func BuildMatterCreatedCardPayload(m *model.Matter, actorName string, assigneeID
 
 	return map[string]interface{}{
 		"type":                17,
-		"card_id":             fmt.Sprintf("matter-%s-created", matterID),
+		"card_id":             fmt.Sprintf("matter-%s", matterID),
 		"card_type":           "matter_status",
 		"title":               title,
 		"subtitle":            strings.TrimSpace(strings.Join(createdCardNonEmpty([]string{matterNo, sourceName}), " · ")),

@@ -1,6 +1,7 @@
 import type { BusinessCardPayload } from "@octo/base";
 import type { SummaryDetail } from "../types/summary";
 import { SummaryMode } from "../types/summary";
+import { summaryOriginTypeToIMChannelType } from "./sourceConversation";
 
 const CARD_BODY_MAX_LENGTH = 220;
 
@@ -37,7 +38,7 @@ export function buildSummaryFeedbackCard(
     const revisionTaskId = String(detail.task_id);
     const version = options.version ?? detail.result?.version ?? 1;
     const sourceName = detail.sources?.[0]?.source_name || "智能总结";
-    const status = options.status || "pending_confirm";
+    const status = options.status || "completed";
 
     return {
         id: `summary-${rootTaskId}-v${version}`,
@@ -52,7 +53,7 @@ export function buildSummaryFeedbackCard(
         entityId: revisionTaskId,
         entityType: "summary",
         sourceChannelId: options.sourceChannelId || detail.origin_channel_id,
-        sourceChannelType: options.sourceChannelType || detail.origin_channel_type,
+        sourceChannelType: options.sourceChannelType ?? summaryOriginTypeToIMChannelType(detail.origin_channel_type),
         metrics: [
             { label: "消息数", value: String(totalMsgCount) },
             { label: "来源", value: `${sourceCount} 个` },
@@ -60,8 +61,6 @@ export function buildSummaryFeedbackCard(
         ],
         actions: [
             { label: "进入群总结", type: "open_summary_workspace", kind: "primary" },
-            { label: "认可", type: "summary_accept", kind: "secondary" },
-            { label: "需要调整", type: "summary_reject", kind: "secondary" },
             { label: "预览", type: "open_summary", kind: "ghost" },
         ],
         extra: {
@@ -76,49 +75,6 @@ export function buildSummaryFeedbackCard(
             summaryText: body,
             confirmed: status === "confirmed",
             confirmedAt: options.confirmedAt || "",
-        },
-    };
-}
-
-export function buildSummaryStartedCard(
-    detail: SummaryDetail,
-    options: BuildSummaryFeedbackCardOptions = {},
-): BusinessCardPayload {
-    const sourceName = detail.sources?.[0]?.source_name || "智能总结";
-    const rootTaskId = String(options.rootTaskId ?? detail.task_id);
-    const revisionTaskId = String(detail.task_id);
-
-    return {
-        id: `summary-${rootTaskId}-created`,
-        cardType: "summary_feedback",
-        title: detail.title,
-        subtitle: detail.summary_mode === SummaryMode.BY_PERSON ? "成员总结" : "群总结",
-        body: `正在基于「${sourceName}」生成总结，完成后会回到群里等待确认。`,
-        status: "in_progress",
-        source: "智能总结",
-        actor: options.actor,
-        time: options.time,
-        entityId: revisionTaskId,
-        entityType: "summary",
-        sourceChannelId: options.sourceChannelId || detail.origin_channel_id,
-        sourceChannelType: options.sourceChannelType || detail.origin_channel_type,
-        metrics: [
-            { label: "来源", value: sourceName },
-            { label: "状态", value: "生成中" },
-        ],
-        actions: [
-            { label: "查看详情", type: "open_summary", kind: "ghost" },
-        ],
-        extra: {
-            summaryRootTaskId: rootTaskId,
-            revisionTaskId,
-            version: options.version ?? 1,
-            versionLabel: `v${options.version ?? 1}`,
-            sourceName,
-            summaryTitle: detail.title,
-            summaryText: "",
-            confirmed: false,
-            started: true,
         },
     };
 }

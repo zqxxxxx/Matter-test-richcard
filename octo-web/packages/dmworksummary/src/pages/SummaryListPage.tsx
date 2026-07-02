@@ -28,6 +28,10 @@ import {
     type SummaryWorkspaceOpenPayload,
 } from "../utils/summaryWorkspaceNavigation";
 
+interface SummaryListPageProps {
+    originChannel?: { channelID: string; channelType: number };
+}
+
 interface SummaryListPageState {
     items: SummaryListItem[];
     total: number;
@@ -50,7 +54,7 @@ const getStatusOptions = () => [
     { value: TaskStatus.CANCELLED, label: getStatusLabel(TaskStatus.CANCELLED) },
 ];
 
-export default class SummaryListPage extends Component<{}, SummaryListPageState> {
+export default class SummaryListPage extends Component<SummaryListPageProps, SummaryListPageState> {
     static contextType = I18nContext;
     declare context: React.ContextType<typeof I18nContext>;
 
@@ -238,7 +242,10 @@ export default class SummaryListPage extends Component<{}, SummaryListPageState>
             Toast.success(t("summary.list.deleteSuccess"));
             WKApp.routeRight.popToRoot();
             WKApp.routeRight.push(
-                <SummaryCreatePage onCreated={() => this.loadData()} />
+                <SummaryCreatePage
+                    originChannel={this.props.originChannel}
+                    onCreated={() => this.loadData()}
+                />
             );
             this.loadData();
         } catch (err: any) {
@@ -276,7 +283,10 @@ export default class SummaryListPage extends Component<{}, SummaryListPageState>
     handleCreate = () => {
         WKApp.routeRight.popToRoot();
         WKApp.routeRight.push(
-            <SummaryCreatePage onCreated={() => this.loadData()} />
+            <SummaryCreatePage
+                originChannel={this.props.originChannel}
+                onCreated={() => this.loadData()}
+            />
         );
     };
 

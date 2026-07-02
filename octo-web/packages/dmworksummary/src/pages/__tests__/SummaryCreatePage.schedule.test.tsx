@@ -25,6 +25,10 @@ vi.mock('@douyinfe/semi-icons', () => ({
     IconPlus: () => null,
     IconClock: () => null,
 }));
+vi.mock('../../utils/channelType', () => ({
+    getSourceType: () => 1,
+    isSupportedChannelType: (channel: { channelType: number }) => [1, 2, 5].includes(channel.channelType),
+}));
 
 import WKApp from '@octo/base/src/App';
 import * as api from '../../api/summaryApi';
@@ -41,10 +45,11 @@ describe('SummaryCreatePage — schedule binding on create', () => {
         vi.clearAllMocks();
         // 防止页面跳转逻辑因 mock WKApp 缺少 popToRoot 而抛错。
         (WKApp as any).routeRight = { popToRoot: vi.fn(), push: vi.fn() };
+        (WKApp as any).shared.openChannel = undefined;
     });
 
-    function makePage() {
-        const page = new SummaryCreatePage({});
+    function makePage(props = {}) {
+        const page = new SummaryCreatePage(props);
         // 注入 i18n context（class component contextType）。
         (page as any).context = { t: (k: string) => k };
         // 替换 setState，避免真实 React 生命周期。
@@ -114,5 +119,95 @@ describe('SummaryCreatePage — schedule binding on create', () => {
         expect(api.createSummary).toHaveBeenCalledTimes(1);
         expect(api.createSchedule).not.toHaveBeenCalled();
         expect(api.updateSchedule).not.toHaveBeenCalled();
+    });
+
+    it('passes origin channel and default source when created from chat context', async () => {
+        vi.mocked(api.createSummary).mockResolvedValue({ task_id: 1 });
+
+        const page = makePage({
+            originChannel: { channelID: 'group-123', channelType: 2 },
+        });
+        page.state = {
+            ...(page.state as any),
+            scheduleConfig: null,
+            selectedChats: [],
+        } as any;
+
+        await page.handleSubmit();
+
+        expect(api.createSummary).toHaveBeenCalledWith(
+            expect.objectContaining({
+                origin_channel_id: 'group-123',
+                origin_channel_type: 1,
+                sources: [
+                    expect.objectContaining({
+                        source_id: 'group-123',
+                        source_type: 1,
+                    }),
+                ],
+            }),
+        );
+    });
+
+    it('keeps chat origin while respecting manually selected sources', async () => {
+        vi.mocked(api.createSummary).mockResolvedValue({ task_id: 1 });
+
+        const page = makePage({
+            originChannel: { channelID: 'group-123', channelType: 2 },
+        });
+        page.state = {
+            ...(page.state as any),
+            scheduleConfig: null,
+            selectedChats: [
+                {
+                    chat_id: 'selected-thread',
+                    chat_type: 'thread',
+                    name: '客户合同讨论',
+                    member_count: 4,
+                },
+            ],
+        } as any;
+
+        await page.handleSubmit();
+
+        expect(api.createSummary).toHaveBeenCalledWith(
+            expect.objectContaining({
+                origin_channel_id: 'group-123',
+                origin_channel_type: 1,
+                sources: [
+                    expect.objectContaining({
+                        source_id: 'selected-thread',
+                        source_type: 2,
+                    }),
+                ],
+            }),
+        );
+    });
+
+    it('falls back to current open channel when opened from the summary sidebar', async () => {
+        vi.mocked(api.createSummary).mockResolvedValue({ task_id: 1 });
+        (WKApp as any).shared.openChannel = { channelID: 'current-group', channelType: 2 };
+
+        const page = makePage();
+        page.state = {
+            ...(page.state as any),
+            scheduleConfig: null,
+            selectedChats: [],
+        } as any;
+
+        await page.handleSubmit();
+
+        expect(api.createSummary).toHaveBeenCalledWith(
+            expect.objectContaining({
+                origin_channel_id: 'current-group',
+                origin_channel_type: 1,
+                sources: [
+                    expect.objectContaining({
+                        source_id: 'current-group',
+                        source_type: 1,
+                    }),
+                ],
+            }),
+        );
     });
 });

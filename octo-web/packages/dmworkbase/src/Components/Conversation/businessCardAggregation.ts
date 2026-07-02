@@ -54,43 +54,6 @@ function buildMatterCardHistoryItem(message: BusinessCardMessage) {
     }
 }
 
-function readSummaryRevisionGroupId(message: BusinessCardMessage): string | undefined {
-    if (message.contentType !== MessageContentTypeConst.businessCard) return undefined
-    const content = message.content
-    if (content?.cardType !== "summary_feedback") return undefined
-    const id = content.extra?.summaryRootTaskId || content.extra?.rootTaskId || content.extra?.originalTaskId || content.entityId
-    return typeof id === "string" && id.length > 0 ? id : undefined
-}
-
-function readSummaryVersion(content: BusinessCardMessage["content"], fallback: number) {
-    const raw = content?.extra?.version
-    if (typeof raw === "number" && Number.isFinite(raw) && raw > 0) return raw
-    const match = String(content?.extra?.versionLabel || "").match(/v(\d+)/i)
-    if (match) return Number(match[1])
-    return fallback
-}
-
-function buildSummaryRevisionHistoryItem(message: BusinessCardMessage, index: number) {
-    const content = message.content || {}
-    const version = readSummaryVersion(content, index + 1)
-    const versionLabel = String(content.extra?.versionLabel || `v${version}`)
-    return {
-        id: message.clientMsgNo || String(message.messageSeq || ""),
-        messageSeq: message.messageSeq,
-        status: content.status || "",
-        statusText: versionLabel,
-        title: content.body || content.title || "",
-        subtitle: content.subtitle || "",
-        body: content.body || "",
-        actor: content.actor || "",
-        time: content.time || formatMessageTime(message),
-        revisionTaskId: content.extra?.revisionTaskId || content.entityId || "",
-        feedback: content.extra?.feedback || "",
-        confirmed: content.status === "confirmed" || content.extra?.confirmed === true,
-        confirmedAt: content.extra?.confirmedAt || "",
-    }
-}
-
 function applyBusinessCardExtra(message: BusinessCardMessage, extra: Record<string, any>) {
     const content = message.content
     if (!content) return
@@ -133,42 +96,9 @@ function aggregateGroupedMessages<T extends BusinessCardMessage>(
     return hidden
 }
 
-function aggregateSummaryMessages<T extends BusinessCardMessage>(messages: T[]): Set<T> {
-    const grouped = new Map<string, T[]>()
-    for (const message of messages) {
-        const groupId = readSummaryRevisionGroupId(message)
-        if (!groupId) continue
-        const group = grouped.get(groupId) || []
-        group.push(message)
-        grouped.set(groupId, group)
-    }
-
-    const hidden = new Set<T>()
-    for (const group of grouped.values()) {
-        if (group.length <= 1) continue
-        const latest = group[group.length - 1]
-        const latestContent = latest.content || {}
-        const historyByVersion = new Map<string, Record<string, any>>()
-        group.map(buildSummaryRevisionHistoryItem).forEach((item) => {
-            historyByVersion.set(item.statusText || item.id, item)
-        })
-        const history = Array.from(historyByVersion.values())
-        const extra = {
-            ...(latestContent.extra || {}),
-            updateCount: history.length,
-            statusHistory: history,
-            stackedMessageClientMsgNos: group.map((message) => message.clientMsgNo).filter(Boolean),
-        }
-        applyBusinessCardExtra(latest, extra)
-        group.slice(0, -1).forEach((message) => hidden.add(message))
-    }
-    return hidden
-}
-
 export function aggregateBusinessCardMessages<T extends BusinessCardMessage>(messages: T[]): T[] {
     const matterHidden = aggregateGroupedMessages(messages, readMatterCardId, buildMatterCardHistoryItem)
-    const summaryHidden = aggregateSummaryMessages(messages)
-    const hidden = new Set<T>([...matterHidden, ...summaryHidden])
+    const hidden = new Set<T>(matterHidden)
     if (hidden.size === 0) return messages
     return messages.filter((message) => !hidden.has(message))
 }

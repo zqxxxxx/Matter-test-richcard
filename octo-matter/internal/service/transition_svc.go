@@ -30,7 +30,7 @@ const (
 	DoorbellChildHandedBack = "matter.doorbell.child_handed_back" // child→review → parent leader
 	// DoorbellHomecoming is not a personal doorbell: the dispatcher posts it
 	// into the matter's SOURCE CONVERSATION as the responsible bot (PRD §5
-	// 审核中/受阻自动发回来源会话; done stays a manual send-back in v1).
+	// status snapshots are posted back to the source conversation when source metadata exists.
 	// Aliased to the model constant so the repo's consumption-hook exemption
 	// can never drift from the event the router writes.
 	DoorbellHomecoming    = model.OutboxEventHomecoming
@@ -561,16 +561,19 @@ func (s *TransitionService) doorbellParamsFor(m *model.Matter, from model.Matter
 }
 
 // homecomingBell builds the auto send-back row for a TOP-LEVEL matter
-// entering review/blocked, when the matter knows its source conversation and
-// the responsible party is a bot (= the sender identity octo-server will
-// post as). Nil when any leg is missing — homecoming is best-effort sugar,
-// never a transition blocker.
+// entering a source-visible status when the matter knows its source
+// conversation. The target is the sender identity octo-server will post as.
+// Nil when any leg is missing — homecoming is best-effort sugar, never a
+// transition blocker.
 func homecomingBell(m *model.Matter, in TransitionInput, params map[string]any) *doorbell {
 	if m.SourceChannelID == nil || *m.SourceChannelID == "" || m.SourceChannelType == nil {
 		return nil
 	}
-	leader := m.LeaderOrEmpty()
-	if !strings.HasSuffix(leader, "_bot") {
+	sender := m.LeaderOrEmpty()
+	if sender == "" {
+		sender = m.CreatorID
+	}
+	if sender == "" {
 		return nil
 	}
 	p := make(map[string]any, len(params)+4)
@@ -583,7 +586,7 @@ func homecomingBell(m *model.Matter, in TransitionInput, params map[string]any) 
 	if in.Summary != "" {
 		p["Summary"] = in.Summary
 	}
-	return &doorbell{target: leader, event: DoorbellHomecoming, params: p}
+	return &doorbell{target: sender, event: DoorbellHomecoming, params: p}
 }
 
 // enqueueDoorbell writes one outbox row. params gains the deep link and the
@@ -616,7 +619,7 @@ func enqueueDoorbell(ctx context.Context, outbox *repository.OutboxRepo, m *mode
 // EnqueueStandalone writes a doorbell outside a transition transaction
 // (assignment rings, schedule rings, watchdog re-rings).
 func (s *TransitionService) EnqueueStandalone(ctx context.Context, m *model.Matter, actor string, target, event, messageKey string, params map[string]any) error {
-	if target == "" || target == actor {
+	if target == "" || (target == actor && event != DoorbellHomecoming) {
 		return nil
 	}
 	err := s.tx.Do(ctx, func(r *repository.TxRepos) error {

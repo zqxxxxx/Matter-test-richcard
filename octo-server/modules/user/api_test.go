@@ -1049,6 +1049,21 @@ func TestAddBotFatherFriend_Bidirectional(t *testing.T) {
 	assert.True(t, isFriend2, "BotFather应该是用户的好友")
 }
 
+func TestCreateUserWithRespAndTxKeepsBotFatherFriendHook(t *testing.T) {
+	source, err := os.ReadFile("api.go")
+	require.NoError(t, err)
+
+	found := false
+	for _, line := range strings.Split(string(source), "\n") {
+		if strings.TrimSpace(line) == "err = u.addBotFatherFriend(createUser.UID)" {
+			found = true
+			break
+		}
+	}
+
+	assert.True(t, found, "createUserWithRespAndTx must actively add BotFather as a default friend")
+}
+
 // TestSendQRCodeInfo_ConcurrentSendAndRemove 测试 QRCode 发送与删除的并发安全性
 // 此测试不依赖数据库，直接操作全局 qrcodeChanMap
 func TestSendQRCodeInfo_ConcurrentSendAndRemove(t *testing.T) {

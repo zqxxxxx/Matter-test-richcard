@@ -1,54 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { buildSummaryFeedbackCard, buildSummaryStartedCard } from "../businessCard";
+import { buildSummaryFeedbackCard } from "../businessCard";
 import { SummaryMode, TaskStatus, TriggerType } from "../../types/summary";
 import type { SummaryDetail } from "../../types/summary";
 
 describe("buildSummaryFeedbackCard", () => {
-  it("builds a lightweight started card for the source group", () => {
-    const detail: SummaryDetail = {
-      task_id: 36,
-      task_no: "SUM-36",
-      title: "验收群风险复盘",
-      summary_mode: SummaryMode.BY_GROUP,
-      status: TaskStatus.PROCESSING,
-      trigger_type: TriggerType.MANUAL,
-      time_range_start: "2026-06-22T09:00:00Z",
-      time_range_end: "2026-06-22T10:00:00Z",
-      sources: [
-        {
-          source_type: 1,
-          source_id: "group-1",
-          source_name: "Richcard 验收群",
-        },
-      ],
-      participants: [],
-      origin_channel_id: "group-1",
-      origin_channel_type: 2,
-      created_at: "2026-06-22T10:00:00Z",
-      updated_at: "2026-06-22T10:00:00Z",
-      result: null,
-      error_message: null,
-    };
-
-    const card = buildSummaryStartedCard(detail, {
-      sourceChannelId: "group-1",
-      sourceChannelType: 2,
-      time: "2026/6/25 12:10:47",
-    });
-
-    expect(card.id).toBe("summary-36-created");
-    expect(card.cardType).toBe("summary_feedback");
-    expect(card.status).toBe("in_progress");
-    expect(card.actions?.map((action) => action.type)).toEqual(["open_summary"]);
-    expect(card.extra).toMatchObject({
-      sourceName: "Richcard 验收群",
-      summaryRootTaskId: "36",
-      revisionTaskId: "36",
-      versionLabel: "v1",
-    });
-  });
-
-  it("includes detail and workspace jump actions", () => {
+  it("includes only navigation actions for manually forwarded summary cards", () => {
     const detail: SummaryDetail = {
       task_id: 42,
       task_no: "SUM-42",
@@ -67,7 +23,7 @@ describe("buildSummaryFeedbackCard", () => {
       ],
       participants: [],
       origin_channel_id: "group-1",
-      origin_channel_type: 2,
+      origin_channel_type: 1,
       created_at: "2026-06-22T10:00:00Z",
       updated_at: "2026-06-22T10:10:00Z",
       result: {
@@ -86,12 +42,14 @@ describe("buildSummaryFeedbackCard", () => {
 
     const card = buildSummaryFeedbackCard(detail);
 
+    expect(card.status).toBe("completed");
+    expect(card.sourceChannelType).toBe(2);
     expect(card.actions?.map((action) => action.type)).toEqual([
       "open_summary_workspace",
-      "summary_accept",
-      "summary_reject",
       "open_summary",
     ]);
+    expect(card.actions?.map((action) => action.label)).not.toContain("认可");
+    expect(card.actions?.map((action) => action.label)).not.toContain("需要调整");
   });
 
   it("marks regenerated summary cards with a stable root and version metadata", () => {
@@ -113,7 +71,7 @@ describe("buildSummaryFeedbackCard", () => {
       ],
       participants: [],
       origin_channel_id: "group-1",
-      origin_channel_type: 2,
+      origin_channel_type: 1,
       created_at: "2026-06-22T10:00:00Z",
       updated_at: "2026-06-22T10:10:00Z",
       result: {

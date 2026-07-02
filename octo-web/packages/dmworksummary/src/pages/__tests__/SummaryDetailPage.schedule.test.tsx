@@ -168,15 +168,13 @@ describe('SummaryDetailPage — return to original chat', () => {
             ...(page.state as any),
             detail: baseDetail({
                 origin_channel_id: 'group-1',
-                origin_channel_type: 2,
+                origin_channel_type: 1,
             }),
         };
 
         expect(page.getReturnToConversation()).toEqual({
             channelId: 'group-1',
             channelType: 2,
-            label: undefined,
-            messageSeq: undefined,
         });
     });
 
@@ -195,7 +193,7 @@ describe('SummaryDetailPage — return to original chat', () => {
             ...(page.state as any),
             detail: baseDetail({
                 origin_channel_id: 'group-1',
-                origin_channel_type: 2,
+                origin_channel_type: 1,
             }),
         };
 

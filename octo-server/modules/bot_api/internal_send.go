@@ -4,6 +4,7 @@ import (
 	"crypto/subtle"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/Mininglamp-OSS/octo-lib/common"
 	"github.com/Mininglamp-OSS/octo-lib/config"
@@ -84,18 +85,24 @@ func (ba *BotAPI) internalSendMessage(c *wkhttp.Context) {
 		return
 	}
 
-	// from_uid must be a live user bot.
+	// Prefer the original bot-send path when from_uid is a robot. Some
+	// trusted business services, such as smart-summary, intentionally send
+	// cards as the human creator instead; those fall through to the user path
+	// below and must still pass channel membership/friend checks.
 	robot, err := ba.db.queryRobotByRobotID(req.FromUID)
 	if err != nil {
 		ba.Error("internal send: query robot failed", zap.Error(err), zap.String("from_uid", req.FromUID))
 		httperr.ResponseErrorL(c, errcode.ErrBotAPIQueryFailed, nil, nil)
 		return
 	}
-	if robot == nil {
-		respondBotAPIRequestInvalid(c, "from_uid")
+	if robot != nil {
+		ba.internalSendAsBot(c, req)
 		return
 	}
+	ba.internalSendAsUser(c, req)
+}
 
+func (ba *BotAPI) internalSendAsBot(c *wkhttp.Context, req InternalBotSendReq) {
 	// Full membership/friendship gate, no OBO bypass.
 	if err := ba.checkSendPermission(c, BotKindUser, req.FromUID, req.ChannelID, req.ChannelType, false); err != nil {
 		respondSendPermissionError(c, err)
@@ -126,6 +133,89 @@ func (ba *BotAPI) internalSendMessage(c *wkhttp.Context) {
 		return
 	}
 	c.Response(result)
+}
+
+func (ba *BotAPI) internalSendAsUser(c *wkhttp.Context, req InternalBotSendReq) {
+	userModel, err := ba.userDB.QueryByUID(req.FromUID)
+	if err != nil {
+		ba.Error("internal send: query user failed", zap.Error(err), zap.String("from_uid", req.FromUID))
+		httperr.ResponseErrorL(c, errcode.ErrBotAPIQueryFailed, nil, nil)
+		return
+	}
+	if userModel == nil || userModel.Status == 0 || userModel.IsDestroy == 2 {
+		respondBotAPIRequestInvalid(c, "from_uid")
+		return
+	}
+	if err := ba.checkInternalUserSendPermission(req.FromUID, req.ChannelID, req.ChannelType); err != nil {
+		respondSendPermissionError(c, err)
+		return
+	}
+
+	payload := mentionrewrite.RewriteMention(req.Payload)
+	wirePayload := mentionrewrite.CloneForExpansion(payload)
+	wirePayload = mentionrewrite.ExpandAisToBotUIDs(wirePayload, req.ChannelType, req.ChannelID, ba.fetchBotMemberUIDs)
+
+	result, err := ba.dispatchMsgSendReq(&config.MsgSendReq{
+		Header:      config.MsgHeader{RedDot: 1},
+		StreamNo:    req.StreamNo,
+		ChannelID:   req.ChannelID,
+		ChannelType: req.ChannelType,
+		FromUID:     req.FromUID,
+		Payload:     []byte(util.ToJson(wirePayload)),
+	})
+	if err != nil {
+		ba.Error("internal send: dispatch user message failed", zap.Error(err), zap.String("from_uid", req.FromUID), zap.String("channel_id", req.ChannelID))
+		httperr.ResponseErrorL(c, errcode.ErrBotAPISendFailed, nil, nil)
+		return
+	}
+	c.Response(result)
+}
+
+func (ba *BotAPI) checkInternalUserSendPermission(fromUID, channelID string, channelType uint8) error {
+	switch channelType {
+	case common.ChannelTypeGroup.Uint8():
+		ok, err := ba.userIsGroupMember(fromUID, channelID)
+		if err != nil {
+			ba.Error("internal send: query group member failed", zap.Error(err), zap.String("from_uid", fromUID), zap.String("channel_id", channelID))
+			return errBotSendPermCheckFailed
+		}
+		if !ok {
+			return errBotSendPermNotGroupMember
+		}
+		return nil
+	case common.ChannelTypeCommunityTopic.Uint8():
+		parts := strings.SplitN(channelID, threadChannelIDSeparator, 2)
+		if len(parts) != 2 || parts[0] == "" {
+			return errBotSendPermBadThreadChan
+		}
+		ok, err := ba.userIsGroupMember(fromUID, parts[0])
+		if err != nil {
+			ba.Error("internal send: query topic parent member failed", zap.Error(err), zap.String("from_uid", fromUID), zap.String("channel_id", channelID))
+			return errBotSendPermCheckFailed
+		}
+		if !ok {
+			return errBotSendPermNotGroupMember
+		}
+		return nil
+	case common.ChannelTypePerson.Uint8():
+		if fromUID == channelID {
+			return nil
+		}
+		if ba.userService == nil {
+			return errBotSendPermCheckFailed
+		}
+		ok, err := ba.userService.IsFriend(fromUID, channelID)
+		if err != nil {
+			ba.Error("internal send: query friendship failed", zap.Error(err), zap.String("from_uid", fromUID), zap.String("channel_id", channelID))
+			return errBotSendPermCheckFailed
+		}
+		if !ok {
+			return errBotSendPermNotFriend
+		}
+		return nil
+	default:
+		return errBotSendPermCheckFailed
+	}
 }
 
 // internalBotGroups lists the groups a bot is a member of — the data source

@@ -1,6 +1,9 @@
 import React, { useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
-import type { BusinessCardAction, BusinessCardPayload } from "@octo/base/src/Messages/BusinessCard/BusinessCardContent";
+import type {
+  BusinessCardAction,
+  BusinessCardPayload,
+} from "@octo/base/src/Messages/BusinessCard/BusinessCardContent";
 import { BusinessCardView } from "@octo/base/src/Messages/BusinessCard/BusinessCardView";
 import { mockRichCardPayloads } from "./mockRichCardPayloads";
 import "@octo/base/src/Messages/BusinessCard/index.css";
@@ -19,21 +22,28 @@ function RichCardPreviewApp() {
   const [actionLogs, setActionLogs] = useState<ActionLog[]>([]);
 
   const activeCard = useMemo(
-    () => mockRichCardPayloads.find((item) => item.id === activeCardId) ?? mockRichCardPayloads[0],
-    [activeCardId],
+    () =>
+      mockRichCardPayloads.find((item) => item.id === activeCardId) ??
+      mockRichCardPayloads[0],
+    [activeCardId]
   );
 
-  const handleAction = (card: BusinessCardPayload, action: BusinessCardAction) => {
-    setActionLogs((logs) => [
-      {
-        cardId: card.id,
-        cardType: card.cardType,
-        actionType: action.type,
-        label: action.label,
-        time: new Date().toLocaleTimeString(),
-      },
-      ...logs,
-    ].slice(0, 8));
+  const handleAction = (
+    card: BusinessCardPayload,
+    action: BusinessCardAction
+  ) => {
+    setActionLogs((logs) =>
+      [
+        {
+          cardId: card.id,
+          cardType: card.cardType,
+          actionType: action.type,
+          label: action.label,
+          time: new Date().toLocaleTimeString(),
+        },
+        ...logs,
+      ].slice(0, 8)
+    );
   };
 
   return (
@@ -73,8 +83,11 @@ function RichCardPreviewApp() {
             <p>合同评审这边需要同步一下最新状态。</p>
           </div>
           <div className="richcard-preview__message">
-            <span className="richcard-preview__avatar richcard-preview__avatar--bot">O</span>
+            <span className="richcard-preview__avatar richcard-preview__avatar--bot">
+              O
+            </span>
             <BusinessCardView
+              key={activeCard.id}
               card={activeCard}
               onAction={(action) => handleAction(activeCard, action)}
             />
@@ -88,13 +101,17 @@ function RichCardPreviewApp() {
       <aside className="richcard-preview__inspector">
         <h2>动作回放</h2>
         {actionLogs.length === 0 ? (
-          <p className="richcard-preview__empty">点击卡片按钮查看事件 payload。</p>
+          <p className="richcard-preview__empty">
+            点击卡片按钮查看事件 payload。
+          </p>
         ) : (
           <ul>
             {actionLogs.map((log, index) => (
               <li key={`${log.cardId}-${log.actionType}-${index}`}>
                 <strong>{log.label}</strong>
-                <span>{log.cardType} · {log.actionType}</span>
+                <span>
+                  {log.cardType} · {log.actionType}
+                </span>
                 <small>{log.time}</small>
               </li>
             ))}
@@ -111,6 +128,6 @@ export function mountRichCardPreview(container: HTMLElement) {
   createRoot(container).render(
     <React.StrictMode>
       <RichCardPreviewApp />
-    </React.StrictMode>,
+    </React.StrictMode>
   );
 }

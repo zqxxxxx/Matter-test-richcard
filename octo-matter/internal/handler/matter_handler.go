@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/Mininglamp-OSS/octo-matter/internal/i18n"
 	"github.com/Mininglamp-OSS/octo-matter/internal/model"
@@ -256,31 +257,46 @@ func (h *MatterHandler) Create(c *gin.Context) {
 		h.v2.AfterCreate(c.Request.Context(), matter, userID, req.AssigneeIDs)
 	}
 	actorName := userName(c)
-	sourceToken := callerToken(c)
-	space := sid
 	h.worker.Submit(func() {
-		h.sendMatterCreatedCardToSource(context.Background(), matter, actorName, req.AssigneeIDs, sourceToken, space)
+		h.enqueueMatterCreatedCardToSource(context.Background(), matter, actorName)
 		h.notifier.NotifyMatterCreated(matter, actorName, req.AssigneeIDs)
 	})
 	created(c, detail)
 }
 
-func (h *MatterHandler) sendMatterCreatedCardToSource(ctx context.Context, matter *model.Matter, actorName string, assigneeIDs []string, userToken string, spaceID string) {
-	if matter == nil || matter.SourceChannelID == nil || *matter.SourceChannelID == "" || matter.SourceChannelType == nil || userToken == "" {
+func (h *MatterHandler) enqueueMatterCreatedCardToSource(ctx context.Context, matter *model.Matter, actorName string) {
+	if matter == nil || matter.SourceChannelID == nil || *matter.SourceChannelID == "" || matter.SourceChannelType == nil || h.transition == nil {
 		return
 	}
-	sender, ok := h.notifier.(notification.UserChannelPayloadSender)
-	if !ok {
+	target := matter.LeaderOrEmpty()
+	if target == "" {
+		target = matter.CreatorID
+	}
+	if target == "" {
 		return
 	}
-	if err := sender.SendUserChannelPayload(
-		userToken,
-		spaceID,
-		*matter.SourceChannelID,
-		*matter.SourceChannelType,
-		service.BuildMatterCreatedCardPayload(matter, actorName, assigneeIDs),
-	); err != nil {
-		log.Printf("send matter created card to source failed: matter=%s channel=%s/%d err=%v", matter.ID, *matter.SourceChannelID, *matter.SourceChannelType, err)
+	params := map[string]any{
+		"Title":        matter.Title,
+		"Actor":        actorName,
+		"Edge":         "created->" + string(model.MatterStatusOpen),
+		"channel_id":   *matter.SourceChannelID,
+		"channel_type": *matter.SourceChannelType,
+		"creator_id":   matter.CreatorID,
+	}
+	if matter.Description != nil {
+		params["Summary"] = *matter.Description
+	}
+	if matter.SourceName != nil {
+		params["source_name"] = *matter.SourceName
+	}
+	if matter.LeaderUID != nil {
+		params["leader_uid"] = *matter.LeaderUID
+	}
+	if matter.Deadline != nil {
+		params["deadline"] = matter.Deadline.Format(time.RFC3339)
+	}
+	if err := h.transition.EnqueueStandalone(ctx, matter, matter.CreatorID, target, service.DoorbellHomecoming, "", params); err != nil {
+		log.Printf("enqueue matter created card to source failed: matter=%s channel=%s/%d err=%v", matter.ID, *matter.SourceChannelID, *matter.SourceChannelType, err)
 	}
 }
 

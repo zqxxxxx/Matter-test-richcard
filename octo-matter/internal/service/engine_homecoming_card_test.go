@@ -53,3 +53,65 @@ func TestBuildMatterHomecomingCardPayload(t *testing.T) {
 		t.Fatalf("extra = %#v", extra)
 	}
 }
+
+func TestBuildMatterHomecomingCardPayloadUsesStableIdentityForDone(t *testing.T) {
+	params := map[string]any{
+		"Title":        "QA Matter",
+		"Seq":          float64(9015),
+		"Edge":         "open->done",
+		"Summary":      "QA status change check",
+		"channel_id":   "group-richcard",
+		"channel_type": float64(2),
+		"source_name":  "搜索测试群",
+	}
+
+	payload := buildMatterHomecomingCardPayload(&model.OutboxRow{
+		SpaceID:   "rc_demo_space",
+		MatterID:  "matter-123",
+		TargetUID: "rc_demo_pm",
+	}, params, "fallback text")
+
+	if payload["card_id"] != "matter-matter-123" {
+		t.Fatalf("card_id = %v", payload["card_id"])
+	}
+	if payload["entity_id"] != "matter-123" {
+		t.Fatalf("entity_id = %v", payload["entity_id"])
+	}
+	if payload["status"] != "done" {
+		t.Fatalf("status = %v", payload["status"])
+	}
+	if payload["source_channel_id"] != "group-richcard" || payload["source_channel_type"] != uint8(2) {
+		t.Fatalf("source channel = %v/%v", payload["source_channel_id"], payload["source_channel_type"])
+	}
+}
+
+func TestBuildMatterHomecomingCardPayloadUsesStableIdentityForCreated(t *testing.T) {
+	params := map[string]any{
+		"Title":        "QA Created Matter",
+		"Seq":          float64(9021),
+		"Edge":         "created->open",
+		"Summary":      "Matter created from group",
+		"channel_id":   "group-richcard",
+		"channel_type": float64(2),
+		"source_name":  "搜索测试群",
+	}
+
+	payload := buildMatterHomecomingCardPayload(&model.OutboxRow{
+		SpaceID:   "rc_demo_space",
+		MatterID:  "matter-created-1",
+		TargetUID: "rc_demo_pm",
+	}, params, "fallback text")
+
+	if payload["card_id"] != "matter-matter-created-1" {
+		t.Fatalf("card_id = %v", payload["card_id"])
+	}
+	if payload["entity_id"] != "matter-created-1" {
+		t.Fatalf("entity_id = %v", payload["entity_id"])
+	}
+	if payload["status"] != "open" {
+		t.Fatalf("status = %v", payload["status"])
+	}
+	if payload["source_channel_id"] != "group-richcard" || payload["source_channel_type"] != uint8(2) {
+		t.Fatalf("source channel = %v/%v", payload["source_channel_id"], payload["source_channel_type"])
+	}
+}

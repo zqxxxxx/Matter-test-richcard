@@ -347,7 +347,7 @@
 .summary-detail-return-chat {
     position: fixed;
     top: 14px;
-    left: calc(var(--wk-width-layout-tab, 56px) + 16px);
+    left: 72px;
     z-index: 901;
     flex-shrink: 0;
     height: 32px;

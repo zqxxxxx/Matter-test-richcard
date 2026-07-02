@@ -46,138 +46,76 @@ function makeSummaryMessage(
     }
 }
 
+function makeMatterMessageFromWire(
+    clientMsgNo: string,
+    messageSeq: number,
+    payload: Record<string, any>,
+): TestMessageWrap {
+    const content = new BusinessCardContent()
+    content.decodeJSON(payload)
+    return {
+        clientMsgNo,
+        messageSeq,
+        timestamp: 1_719_290_000 + messageSeq,
+        contentType: MessageContentTypeConst.businessCard,
+        content,
+    }
+}
+
 describe("aggregateBusinessCardMessages", () => {
-    it("folds summary revisions with the same root task into the latest card", () => {
+    it("folds Matter status cards decoded from backend wire payload by entity_id", () => {
+        const created = makeMatterMessageFromWire("matter-created", 1, {
+            type: MessageContentTypeConst.businessCard,
+            card_id: "matter-matter-1",
+            card_type: "matter_status",
+            title: "客户合同审批",
+            body: "Matter created from group",
+            status: "open",
+            entity_id: "matter-1",
+            entity_type: "matter",
+            source_channel_id: "group-richcard",
+            source_channel_type: 2,
+            extra: { statusText: "已接收，待开始", sourceText: "创建 Matter" },
+        })
+        const done = makeMatterMessageFromWire("matter-done", 2, {
+            type: MessageContentTypeConst.businessCard,
+            card_id: "matter-matter-1",
+            card_type: "matter_status",
+            title: "客户合同审批",
+            body: "已完成",
+            status: "done",
+            entity_id: "matter-1",
+            entity_type: "matter",
+            source_channel_id: "group-richcard",
+            source_channel_type: 2,
+            extra: { statusText: "已验收完成，结果可回看", sourceText: "状态变更" },
+        })
+
+        const result = aggregateBusinessCardMessages([created, done])
+
+        expect(result).toEqual([done])
+        const latest = result[0].content as BusinessCardContent
+        expect(latest.entityId).toBe("matter-1")
+        expect(latest.extra.updateCount).toBe(2)
+        expect(latest.extra.statusHistory).toEqual([
+            expect.objectContaining({ id: "matter-created", status: "open", sourceText: "创建 Matter" }),
+            expect.objectContaining({ id: "matter-done", status: "done", sourceText: "状态变更" }),
+        ])
+    })
+
+    it("keeps summary feedback cards separate because summary revision is no longer supported", () => {
         const v1 = makeSummaryMessage("summary-v1", "101", "100", 1, "合同总结", "生成初稿")
         const v2 = makeSummaryMessage("summary-v2", "102", "100", 2, "合同总结", "补充风险")
         const v3 = makeSummaryMessage("summary-v3", "103", "100", 3, "合同总结", "补充行动项")
 
         const result = aggregateBusinessCardMessages([v1, v2, v3])
 
-        expect(result).toEqual([v3])
-        const latest = result[0].content as BusinessCardContent
-        expect(latest.entityId).toBe("103")
-        expect(latest.extra).toMatchObject({
-            summaryRootTaskId: "100",
-            revisionTaskId: "103",
-            version: 3,
-            versionLabel: "v3",
-            updateCount: 3,
-            stackedMessageClientMsgNos: ["summary-v1", "summary-v2", "summary-v3"],
-        })
-        expect(latest.extra.statusHistory).toEqual([
-            expect.objectContaining({
-                id: "summary-v1",
-                statusText: "v1",
-                title: "生成初稿",
-                revisionTaskId: "101",
-            }),
-            expect.objectContaining({
-                id: "summary-v2",
-                statusText: "v2",
-                title: "补充风险",
-                revisionTaskId: "102",
-                feedback: "第 2 次调整",
-            }),
-            expect.objectContaining({
-                id: "summary-v3",
-                statusText: "v3",
-                title: "补充行动项",
-                revisionTaskId: "103",
-                feedback: "第 3 次调整",
-            }),
-        ])
-    })
-
-    it("uses a confirmed summary revision as the visible card for the root", () => {
-        const draft = makeSummaryMessage("summary-v1", "101", "100", 1, "合同总结", "生成初稿")
-        const confirmed = makeSummaryMessage("summary-confirmed", "101", "100", 2, "合同总结", "确认版")
-        const content = confirmed.content as BusinessCardContent
-        content.applyPayload({
-            status: "confirmed",
-            extra: {
-                ...content.extra,
-                version: 2,
-                versionLabel: "v2",
-                confirmed: true,
-                confirmedAt: "2026/6/25 12:20:00",
-            },
-        })
-
-        const result = aggregateBusinessCardMessages([draft, confirmed])
-
-        expect(result).toEqual([confirmed])
-        const latest = result[0].content as BusinessCardContent
-        expect(latest.status).toBe("confirmed")
-        expect(latest.extra.updateCount).toBe(2)
-        expect(latest.extra.statusHistory.at(-1)).toMatchObject({
-            statusText: "v2",
-            title: "确认版",
-            confirmed: true,
-        })
-    })
-
-    it("does not count a same-version confirmation as an extra summary revision", () => {
-        const draft = makeSummaryMessage("summary-v1", "101", "100", 1, "合同总结", "生成初稿")
-        const confirmed = makeSummaryMessage("summary-confirmed", "101", "100", 1, "合同总结", "确认版")
-        const content = confirmed.content as BusinessCardContent
-        content.applyPayload({
-            status: "confirmed",
-            extra: {
-                ...content.extra,
-                version: 1,
-                versionLabel: "v1",
-                confirmed: true,
-                confirmedAt: "2026/6/25 12:20:00",
-            },
-        })
-
-        const result = aggregateBusinessCardMessages([draft, confirmed])
-
-        expect(result).toEqual([confirmed])
-        const latest = result[0].content as BusinessCardContent
-        expect(latest.status).toBe("confirmed")
-        expect(latest.extra.updateCount).toBe(1)
-        expect(latest.extra.statusHistory).toHaveLength(1)
-        expect(latest.extra.statusHistory[0]).toMatchObject({
-            statusText: "v1",
-            title: "确认版",
-            confirmed: true,
-        })
-    })
-
-    it("folds a regenerated summary into a legacy card that has no extra metadata", () => {
-        const legacy = makeSummaryMessage("summary-legacy", "36", "36", 1, "合同总结", "初始总结")
-        legacy.content.applyPayload({
-            id: "summary-36",
-            extra: {},
-        })
-        const regenerated = makeSummaryMessage("summary-v2", "42", "36", 2, "合同总结", "补充法务风险条目")
-
-        const result = aggregateBusinessCardMessages([legacy, regenerated])
-
-        expect(result).toEqual([regenerated])
-        const latest = result[0].content as BusinessCardContent
-        expect(latest.extra).toMatchObject({
-            summaryRootTaskId: "36",
-            revisionTaskId: "42",
-            version: 2,
-            updateCount: 2,
-            stackedMessageClientMsgNos: ["summary-legacy", "summary-v2"],
-        })
-        expect(latest.extra.statusHistory).toEqual([
-            expect.objectContaining({
-                id: "summary-legacy",
-                statusText: "v1",
-                revisionTaskId: "36",
-                title: "初始总结",
-            }),
-            expect.objectContaining({
-                id: "summary-v2",
-                statusText: "v2",
-                revisionTaskId: "42",
-                title: "补充法务风险条目",
-            }),
-        ])
+        expect(result).toEqual([v1, v2, v3])
+        for (const message of result) {
+            const content = message.content as BusinessCardContent
+            expect(content.extra.updateCount).toBeUndefined()
+            expect(content.extra.statusHistory).toBeUndefined()
+            expect(content.extra.stackedMessageClientMsgNos).toBeUndefined()
+        }
     })
 })

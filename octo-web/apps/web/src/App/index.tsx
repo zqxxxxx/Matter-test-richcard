@@ -14,6 +14,17 @@ import { Toast } from '@douyinfe/semi-ui';
 let _summaryBadgeCount = 0;
 let _badgeListenerSetup = false;
 
+export function getSummaryCreateRouteParam() {
+  const openChannel = WKApp.shared.openChannel;
+  if (openChannel?.channelID && typeof openChannel.channelType === "number") {
+    return {
+      channelId: openChannel.channelID,
+      channelType: openChannel.channelType,
+    };
+  }
+  return undefined;
+}
+
 /**
  * 全局 ?verified=1 处理：CAS 实名认证完成后 verify-service 会 302 回
  * `${origin}${pathname}?verified=1`。不论落到 App 哪个路径都应该：
@@ -131,7 +142,7 @@ async function registerMenus() {
     }
     m.onPress = () => {
       WKApp.routeLeft.popToRoot()
-      const page = WKApp.route.get("/summary/create")
+      const page = WKApp.route.get("/summary/create", getSummaryCreateRouteParam())
       if (page && React.isValidElement(page)) {
         WKApp.routeRight.replaceToRoot(page)
       }

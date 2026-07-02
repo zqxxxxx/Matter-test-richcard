@@ -221,10 +221,9 @@ func buildMatterHomecomingCardPayload(row *model.OutboxRow, params map[string]an
 	}
 	metrics = append(metrics, map[string]string{"label": "进度", "value": progressForStatus(status)})
 
-	cardID := fmt.Sprintf("matter-%s-%s-%v", row.MatterID, status, params["events_seq"])
 	return map[string]interface{}{
 		"type":                17,
-		"card_id":             cardID,
+		"card_id":             fmt.Sprintf("matter-%s", row.MatterID),
 		"card_type":           "matter_status",
 		"title":               title,
 		"subtitle":            strings.TrimSpace(strings.Join(nonEmpty([]string{matterNo, sourceName}), " · ")),
